@@ -24,7 +24,11 @@
 
 - **B7 MD(맨데이) 트래킹** (`DONE` 2026-07-08): `estimatedMd`/`actualMd` 추가(Task에 additive 마이그레이션 `task_md`, 편집은 **태스크만**). Epic md = 하위 태스크 md 합, Project md = 하위 에픽 md 합(`queries.ts` groupBy/집계, 읽기전용 롤업). 상세·목록 `MdRollupText` 표시.
 - **B8 업무 히스토리** (`DONE` 2026-07-08): 태스크=댓글 옆 우측 레일, 에픽/프로젝트=좌측 별도 섹션(Comment 모델 없음). "누가 기한/상태/내용을 변경" 기록. **기존 `Activity` 모델 활용** + generic diff 로거(`update*Fields`)가 필드별 `field_changed`+`meta:{field,from,to}` 기록. `getEntityActivity` 조회 + `history-panel` 한국어 문장 렌더.
-- **B9 위키 뷰/수정 모드 + 버전**: 기본 **뷰 모드**(읽기전용 렌더) 진입, 편집 시에만 수정 모드. 동시 편집 허용·저장 시 버전 기록(last-write-wins 덮어쓰기, 편집 중인 사람은 무영향). **기존 `WikiRevision` 활용** — 버전 목록·이전 버전 확인(diff/복원). → 위키 상세 뷰/편집 토글 + 버전 뷰어 UI.
+- **B9 위키 대개편 (뷰/편집·버전·사이드바·즐겨찾기)**:
+  - **뷰/편집 모드**: 상세는 기본 **뷰 모드**(읽기전용 렌더) 진입, **우측 상단 '편집' 버튼**으로 편집 모드. 동시편집 허용·저장 시 버전 기록(last-write-wins, 편집 중인 사람 무영향). **기존 `WikiRevision` 활용**.
+  - **⋯(점3개) 메뉴**: 버전 기록(목록·이전 버전 확인/복원) + **별표(즐겨찾기) 토글**.
+  - **즐겨찾기(신규, additive 스키마)**: 유저별 별표 → `WikiFavorite { userId, pageId }` 조인. 위키 **우측에 즐겨찾기한 페이지 목록** 노출.
+  - **사이드바 재설계**: 상단 '폴더/새페이지' 버튼 제거 → **각 페이지 우측 hover `+` 버튼 → 드롭다운(폴더 추가 / 새 페이지 추가)**. 루트는 '콘텐츠' 섹션(탭)에 동일 `+`. → `wiki/page-tree`·`new-folder-button`·`new-page-button` 재작성, `editor.tsx` 뷰/편집 토글, wiki `[id]` 페이지, `queries.ts`(즐겨찾기·버전), `actions/wiki.ts`(별표 토글·복원). tables-refactor와 `queries.ts` 겹쳐 **그 병합 후** 착수.
 
 **B1 완료(2026-07-08)**: 대시보드 상태→필터목록 링크 + 최근활동 티켓 key·이동.
 
