@@ -3,13 +3,7 @@
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { OptionSelect, memberLabel } from "@/components/selects/option-select";
 import type { MiniUser } from "@/components/user-badge";
 
 const ALL = "__all__";
@@ -51,25 +45,16 @@ export function OwnerFilter({
 
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2">
-      <Select value={active ?? ALL} onValueChange={(v) => setParam(v)}>
-        <SelectTrigger className="w-40">
-          <SelectValue placeholder={placeholder}>
-            {(v: string) => {
-              if (!v || v === ALL) return placeholder;
-              const m = members.find((x) => x.id === v);
-              return m ? (m.name ?? m.email) : placeholder;
-            }}
-          </SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={ALL}>{allLabel}</SelectItem>
-          {members.map((m) => (
-            <SelectItem key={m.id} value={m.id}>
-              {m.name ?? m.email}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <OptionSelect<MiniUser>
+        value={active ?? ALL}
+        onValueChange={(v) => setParam(v)}
+        options={members}
+        getValue={(m) => m.id}
+        renderOption={memberLabel}
+        placeholder={placeholder}
+        triggerClassName="w-40"
+        leadingOption={{ value: ALL, label: allLabel, triggerLabel: placeholder }}
+      />
 
       {active && (
         <Button variant="ghost" size="sm" onClick={() => setParam(null)}>

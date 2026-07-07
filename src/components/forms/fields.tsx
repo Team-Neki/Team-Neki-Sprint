@@ -2,16 +2,19 @@
 
 import type { Status, Priority } from "@prisma/client";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { STATUS_ORDER, STATUS_META, PRIORITY_ORDER, PRIORITY_META } from "@/lib/constants";
+  OptionSelect,
+  memberLabel,
+  renderMemberOption,
+  renderPriorityOption,
+  renderStatusOption,
+  renderTeamOption,
+} from "@/components/selects/option-select";
+import { STATUS_ORDER, PRIORITY_ORDER } from "@/lib/constants";
 import type { MiniUser } from "@/components/user-badge";
-import { initialsOf } from "@/components/user-badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import type { TeamOption } from "@/components/selects/option-select";
+
+// TeamOption 은 selects/option-select 로 단일화됐다. 기존 import 경로 호환을 위해 re-export.
+export type { TeamOption };
 
 const UNASSIGNED = "__none__";
 
@@ -23,28 +26,13 @@ export function StatusSelect({
   onChange: (v: Status) => void;
 }) {
   return (
-    <Select value={value} onValueChange={(v) => onChange(v as Status)}>
-      <SelectTrigger>
-        <SelectValue>
-          {(v: Status) => (
-            <span className="flex items-center gap-2">
-              <span className={`size-1.5 rounded-full ${STATUS_META[v].dot}`} />
-              {STATUS_META[v].label}
-            </span>
-          )}
-        </SelectValue>
-      </SelectTrigger>
-      <SelectContent>
-        {STATUS_ORDER.map((s) => (
-          <SelectItem key={s} value={s}>
-            <span className="flex items-center gap-2">
-              <span className={`size-1.5 rounded-full ${STATUS_META[s].dot}`} />
-              {STATUS_META[s].label}
-            </span>
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <OptionSelect<Status>
+      value={value}
+      onValueChange={(v) => onChange(v as Status)}
+      options={STATUS_ORDER}
+      getValue={(s) => s}
+      renderOption={renderStatusOption}
+    />
   );
 }
 
@@ -56,22 +44,13 @@ export function PrioritySelect({
   onChange: (v: Priority) => void;
 }) {
   return (
-    <Select value={value} onValueChange={(v) => onChange(v as Priority)}>
-      <SelectTrigger>
-        <SelectValue>
-          {(v: Priority) => (
-            <span className={PRIORITY_META[v].color}>{PRIORITY_META[v].label}</span>
-          )}
-        </SelectValue>
-      </SelectTrigger>
-      <SelectContent>
-        {PRIORITY_ORDER.map((p) => (
-          <SelectItem key={p} value={p}>
-            <span className={PRIORITY_META[p].color}>{PRIORITY_META[p].label}</span>
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <OptionSelect<Priority>
+      value={value}
+      onValueChange={(v) => onChange(v as Priority)}
+      options={PRIORITY_ORDER}
+      getValue={(p) => p}
+      renderOption={renderPriorityOption}
+    />
   );
 }
 
@@ -87,45 +66,18 @@ export function MemberSelect({
   placeholder?: string;
 }) {
   return (
-    <Select
+    <OptionSelect<MiniUser>
       value={value ?? UNASSIGNED}
       onValueChange={(v) => onChange(v === UNASSIGNED ? null : v)}
-    >
-      <SelectTrigger>
-        <SelectValue placeholder={placeholder}>
-          {(v: string) => {
-            if (!v || v === UNASSIGNED) return "미지정";
-            const m = members.find((x) => x.id === v);
-            return m ? (m.name ?? m.email) : "미지정";
-          }}
-        </SelectValue>
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value={UNASSIGNED}>미지정</SelectItem>
-        {members.map((m) => (
-          <SelectItem key={m.id} value={m.id}>
-            <span className="flex items-center gap-2">
-              <Avatar className="size-5">
-                {m.image && <AvatarImage src={m.image} alt={m.name ?? ""} />}
-                <AvatarFallback className="text-[10px]">
-                  {initialsOf(m)}
-                </AvatarFallback>
-              </Avatar>
-              {m.name ?? m.email}
-            </span>
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+      options={members}
+      getValue={(m) => m.id}
+      renderOption={renderMemberOption}
+      renderTriggerOption={memberLabel}
+      placeholder={placeholder}
+      leadingOption={{ value: UNASSIGNED, label: "미지정" }}
+    />
   );
 }
-
-export type TeamOption = {
-  id: string;
-  key: string;
-  name: string;
-  color?: string | null;
-};
 
 /** 팀 선택 (에픽/태스크 생성 시). key 접두어 + 색 도트로 표시. */
 export function TeamSelect({
@@ -140,45 +92,16 @@ export function TeamSelect({
   placeholder?: string;
 }) {
   return (
-    <Select
+    <OptionSelect<TeamOption>
       value={value ?? undefined}
       onValueChange={(v) => {
         if (v) onChange(v);
       }}
-    >
-      <SelectTrigger>
-        <SelectValue placeholder={placeholder}>
-          {(v: string) => {
-            const t = teams.find((x) => x.id === v);
-            if (!t) return placeholder;
-            return (
-              <span className="flex items-center gap-2">
-                <span
-                  className="size-2 shrink-0 rounded-full"
-                  style={t.color ? { backgroundColor: t.color } : undefined}
-                />
-                <span className="font-mono text-xs">{t.key}</span>
-                <span className="text-muted-foreground">{t.name}</span>
-              </span>
-            );
-          }}
-        </SelectValue>
-      </SelectTrigger>
-      <SelectContent>
-        {teams.map((t) => (
-          <SelectItem key={t.id} value={t.id}>
-            <span className="flex items-center gap-2">
-              <span
-                className="size-2 shrink-0 rounded-full"
-                style={t.color ? { backgroundColor: t.color } : undefined}
-              />
-              <span className="font-mono text-xs">{t.key}</span>
-              <span className="text-muted-foreground">{t.name}</span>
-            </span>
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+      options={teams}
+      getValue={(t) => t.id}
+      renderOption={(t) => renderTeamOption(t)}
+      placeholder={placeholder}
+    />
   );
 }
 
@@ -196,27 +119,15 @@ export function GenericSelect({
   noneLabel?: string;
 }) {
   return (
-    <Select
+    <OptionSelect<{ id: string; label: string }>
       value={value ?? UNASSIGNED}
       onValueChange={(v) => onChange(v === UNASSIGNED ? null : v)}
-    >
-      <SelectTrigger>
-        <SelectValue placeholder={placeholder}>
-          {(v: string) => {
-            if (!v || v === UNASSIGNED) return noneLabel;
-            return options.find((o) => o.id === v)?.label ?? noneLabel;
-          }}
-        </SelectValue>
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value={UNASSIGNED}>{noneLabel}</SelectItem>
-        {options.map((o) => (
-          <SelectItem key={o.id} value={o.id}>
-            {o.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+      options={options}
+      getValue={(o) => o.id}
+      renderOption={(o) => o.label}
+      placeholder={placeholder}
+      leadingOption={{ value: UNASSIGNED, label: noneLabel }}
+    />
   );
 }
 
