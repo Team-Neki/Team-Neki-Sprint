@@ -10,10 +10,14 @@ import { createWikiPage } from "@/server/actions/wiki";
 
 export function NewPageButton({
   parentId,
+  folderId,
   variant = "full",
+  title = "하위 페이지 추가",
 }: {
   parentId?: string;
+  folderId?: string;
   variant?: "full" | "icon";
+  title?: string;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -24,6 +28,7 @@ export function NewPageButton({
         const { id } = await createWikiPage({
           title: "제목 없음",
           parentId: parentId ?? null,
+          folderId: folderId ?? null,
         });
         router.push(`/wiki/${id}`);
         router.refresh();
@@ -46,7 +51,7 @@ export function NewPageButton({
         className={cn(
           "hover:bg-accent text-muted-foreground hover:text-foreground rounded p-0.5",
         )}
-        title="하위 페이지 추가"
+        title={title}
       >
         <Plus className="size-3.5" />
       </button>

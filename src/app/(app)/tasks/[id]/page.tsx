@@ -18,6 +18,7 @@ import { PropertyBar } from "@/components/detail/property-bar";
 import { TaskDialog } from "@/components/forms/task-dialog";
 import { ConfirmDelete } from "@/components/confirm-delete";
 import { CommentForm } from "@/components/tasks/comment-form";
+import { LinkedPages } from "@/components/wiki/linked-pages";
 
 export const dynamic = "force-dynamic";
 
@@ -161,6 +162,16 @@ export default async function TaskDetail({
               <span className="text-muted-foreground text-sm">없음</span>
             )}
           </Field>
+        </Card>
+
+        <Card className="mt-4 p-5">
+          <LinkedPages
+            taskId={task.id}
+            pages={task.wikiLinks.map((l) => ({
+              id: l.page.id,
+              title: l.page.title,
+            }))}
+          />
         </Card>
       </div>
     </div>

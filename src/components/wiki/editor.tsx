@@ -8,6 +8,8 @@ import Placeholder from "@tiptap/extension-placeholder";
 import Link from "@tiptap/extension-link";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
+// #4 인라인 티켓 멘션('#'). S3의 '@' 사람 멘션도 같은 방식으로 여기 한 줄만 추가하면 된다.
+import { TicketMention } from "@/components/wiki/ticket-mention";
 import {
   Bold,
   Italic,
@@ -60,6 +62,8 @@ export function WikiEditor({
       Link.configure({ openOnClick: false, autolink: true }),
       TaskList,
       TaskItem.configure({ nested: true }),
+      // '#' 티켓 멘션(#4). 사람 멘션 '@'(S3)는 이 배열에 별도 확장으로 추가.
+      TicketMention,
     ],
     content: initialContent,
     editorProps: {
