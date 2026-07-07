@@ -1,0 +1,61 @@
+"use client";
+
+import { useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { Plus } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { createWikiPage } from "@/server/actions/wiki";
+
+export function NewPageButton({
+  parentId,
+  variant = "full",
+}: {
+  parentId?: string;
+  variant?: "full" | "icon";
+}) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+
+  function create() {
+    start(async () => {
+      try {
+        const { id } = await createWikiPage({
+          title: "제목 없음",
+          parentId: parentId ?? null,
+        });
+        router.push(`/wiki/${id}`);
+        router.refresh();
+      } catch {
+        toast.error("페이지 생성에 실패했습니다");
+      }
+    });
+  }
+
+  if (variant === "icon") {
+    return (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          create();
+        }}
+        disabled={pending}
+        className={cn(
+          "hover:bg-accent text-muted-foreground hover:text-foreground rounded p-0.5",
+        )}
+        title="하위 페이지 추가"
+      >
+        <Plus className="size-3.5" />
+      </button>
+    );
+  }
+
+  return (
+    <Button size="sm" variant="outline" onClick={create} disabled={pending}>
+      <Plus className="size-4" /> 새 페이지
+    </Button>
+  );
+}

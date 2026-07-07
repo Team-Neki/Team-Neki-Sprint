@@ -1,0 +1,105 @@
+# 로드맵 / 백로그
+
+2026-07-08 요청된 추가 변경 사항. 각 항목은 **현상/배경 · 접근안 · 영향 파일 · 데이터 모델 영향 · 열린 질문 · 규모 · 상태**로 스코핑. 구현 착수 전 이 문서에서 접근안과 열린 질문을 먼저 합의한다.
+
+상태 범례: `TODO`(미착수) · `REVIEW`(조사·결정 필요) · `WIP` · `DONE`
+
+---
+
+## 1. 타임라인 날짜 겹침 UI 버그 수정 · `TODO` · 규모 S
+
+- **현상**: `src/components/timeline/epic-timeline.tsx`의 주(week) 헤더 눈금. 각 라벨이 `absolute` + `-translate-x-1/2`로 `left: pct(w)%`에 중앙 정렬되는데(124–135행), 창 폭 대비 주 밀도가 높으면 인접 라벨("7/6"·"7/13"…)이 **충돌 회피 없이 겹친다**. 최소 간격 가드가 없음.
+- **접근안**:
+  - (a) 라벨 밀도 기반 thinning — 라벨 간 픽셀 간격이 임계 미만이면 N주마다 하나만 표기.
+  - (b) 절대 위치 대신 CSS grid 컬럼(주 단위)으로 눈금을 깔고 라벨은 셀 안에 배치.
+  - (c) 컨테이너 폭을 측정해 `totalDays` 대비 최소 라벨 폭 보장(가로 스크롤 유지).
+- **영향 파일**: `epic-timeline.tsx` 단일.
+- **데이터 모델 영향**: 없음.
+- **열린 질문**: 겹침이 주 헤더에서만인지, epic/task 바 라벨에서도인지 확인 필요.
+- **비고**: 순수 프론트, 사이드이펙트 없음 → 착수 쉬움(quick win).
+
+## 2. 이니셔티브 상위 항목 필요 여부 검토 · `REVIEW` · 규모 XS(결정)
+
+- **배경**: 현재 계층은 `Initiative > Epic > Task`(schema 기준 Initiative가 최상위, `parentId` 없음). "이니셔티브 위에 상위 항목이 필요한가"에 대한 제품 결정.
+- **옵션**:
+  - (a) 현행 유지(플랫 최상위) — YAGNI. 별도 상위 개념 없이 이니셔티브가 최상위 목표.
+  - (b) 이니셔티브 self-parent(`parentId` 자기참조) — 하위 이니셔티브 계층 허용.
+  - (c) 상위 티어 신설(예: Objective/Theme) — Initiative 위에 새 모델.
+- **데이터 모델 영향**: (b)는 `Initiative.parentId` 자기참조 1줄. (c)는 신규 모델 + 관계 + UI 전반.
+- **권장(초안)**: 실제 필요가 확인되기 전엔 **(a) 유지**. 그룹핑 필요는 3번(프로젝트 key)이나 라벨로 흡수 가능한지 먼저 검토.
+- **열린 질문**: 상위 항목이 필요한 실제 유스케이스(로드맵 묶음? OKR?)가 무엇인가.
+
+## 3. 커스텀 key 지정 기능(DESIGN, SEARCHPL, BACKEND, AOS, IOS…) · `TODO` · 규모 L
+
+- **배경**: 현재 key는 전역 auto-increment 정수(`INI-1`/`EPIC-1`/`TASK-1`, schema `key Int @unique @default(autoincrement())`). Jira처럼 **프로젝트 접두어 key**(`DESIGN-1`, `SEARCHPL-42`)를 지정하고 싶음.
+- **접근안**: **Project(또는 Board)** 개념 도입.
+  - 신규 `Project { id, key(예 "DESIGN", @unique), name, seq }`.
+  - Initiative/Epic/Task에 `projectId` + 프로젝트별 순번(`number Int`). 표시 key = `${project.key}-${number}`.
+  - key 생성은 프로젝트별 시퀀스(원자적 증가 — 트랜잭션/카운터 필요, 동시성 주의).
+  - 기존 전역 `key Int`는 마이그레이션 필요(백필: 기본 프로젝트로 이관).
+- **영향 범위**: schema + 마이그레이션 + `server/queries.ts`·`server/actions/*` key 생성/표시 + 목록/상세/타임라인의 key 렌더(`INI-`/`EPIC-`/`TASK-` 하드코딩 → 프로젝트 key), `ISSUE_PREFIX`(`constants.ts`) 대체, 프로젝트 선택 UI.
+- **열린 질문**: key는 이니셔티브/에픽/태스크가 **공유 시퀀스**(프로젝트 단위 하나의 번호대)인가, 타입별 분리인가? 프로젝트와 이니셔티브의 관계(1:1? 1:N?)는?
+- **비고**: 2번(상위 항목)과 연관 — "프로젝트"가 사실상 상위 그룹 역할을 할 수 있음.
+
+## 4. 유저 그룹 기능(backend, frontend, designer…) · `TODO` · 규모 M
+
+- **배경**: 사용자를 직능 그룹으로 묶기. 현재 `User`에 그룹 개념 없음(`role`은 ADMIN/MEMBER뿐).
+- **접근안**:
+  - 신규 `Group { id, name(@unique), color? }` + `UserGroup` 조인(User↔Group 다대다) 또는 `User.groupId`(단일 소속).
+  - 용도: 담당자/오너 그룹 필터(7번과 연동), 그룹 뱃지 표시, 그룹 단위 배정.
+- **영향 범위**: schema + 마이그레이션 + 멤버 조회(`getMembers`) 확장 + 그룹 관리 UI(생성/할당) + 필터 UI.
+- **열린 질문**: 한 유저가 **복수 그룹** 가능인가(다대다 권장) 단일 소속인가? 그룹 관리 권한은 ADMIN 한정인가?
+
+## 5. 상단 상태바 인라인 편집(수정창 대신 클릭 편집) · `TODO` · 규모 M
+
+- **현상**: 상세 페이지(`src/app/(app)/{initiatives,epics,tasks}/[id]/page.tsx`)에서 상태/담당자/우선순위는 **읽기 전용 배지**로 표시되고, 변경하려면 상단 "수정" 버튼으로 다이얼로그(`TaskDialog` 등)를 열어야 함(tasks 상세는 우측 컬럼 `Field` 스택).
+- **목표**: 상태바의 배지를 **직접 클릭해 드롭다운/팝오버로 즉시 변경**(다이얼로그 없이).
+- **접근안**:
+  - 신규 클라이언트 컴포넌트 `StatusSelect`/`PrioritySelect`/`AssigneeSelect`(Base UI `Select`/`Popover` + `useTransition`).
+  - 상태만 바꾸는 경량 서버 액션 추가(예: `updateTaskStatus(id, status)`) 또는 기존 `updateTask` 부분 업데이트 재사용.
+  - 3개 엔티티(이니셔티브/에픽/태스크) 공통 사용 → 6번의 단일 상태바 컴포넌트에 내장.
+- **영향 범위**: 3개 `[id]/page.tsx` + 신규 select 컴포넌트 + `server/actions/*`에 status/assignee 경량 액션.
+- **열린 질문**: 낙관적 업데이트(optimistic) 적용할지, 서버 확정 후 refresh할지.
+- **비고**: 6번과 한 세트로 진행 권장.
+
+## 6. 상태바 한 줄 레이아웃 · `TODO` · 규모 S
+
+- **현상**: tasks 상세는 속성이 우측 컬럼에 **세로 스택**(`Field` 반복). 상단에 한 줄 속성바가 없음.
+- **목표**: 제목 아래 **단일 가로 라인**의 속성바(상태 · 담당자 · 우선순위 · 마감…)로 정리. Linear 스타일 property bar.
+- **접근안**: 공용 `<PropertyBar>` 컴포넌트(가로 flex, 좁은 화면에선 wrap 또는 스크롤). 5번의 인라인 select를 이 바 안에 배치. 3개 상세 페이지에서 공유.
+- **영향 범위**: 신규 `property-bar` 컴포넌트 + 3개 `[id]/page.tsx` 레이아웃 재구성.
+- **열린 질문**: 모바일에서 한 줄 유지(가로 스크롤) vs wrap 중 무엇.
+- **비고**: 5번과 함께 구현.
+
+## 7. 사용자 단위 필터링 · `TODO` · 규모 M
+
+- **현상**: 필터는 태스크 목록에만 존재(`src/components/tasks/task-filters.tsx` — 상태/담당자/검색). 이니셔티브·에픽·보드에는 사용자 필터 없음.
+- **목표**: 담당자/오너 기준 사용자 필터를 목록 전반으로 확장(그리고 4번 그룹 필터와 연동).
+- **접근안**:
+  - `getInitiatives`/`getEpics`에 `ownerId` 필터 파라미터 추가(`getTasks`는 이미 `assigneeId` 지원).
+  - 목록 페이지에 필터 UI 추가(공용 필터 컴포넌트로 일반화 검토).
+  - 보드(`board`)에도 담당자 필터.
+  - 4번 완료 시 "그룹으로 필터" 옵션 결합.
+- **영향 범위**: `server/queries.ts` + 이니셔티브/에픽/보드 페이지 + 필터 컴포넌트.
+- **열린 질문**: 필터 상태를 URL searchParams(현행 task 방식)로 통일할지.
+
+## 8. 위키 페이지 기능 버그 검토 · `REVIEW`/`TODO` · 규모 M
+
+`src/server/actions/wiki.ts`, `src/components/wiki/editor.tsx` 리뷰에서 확인된 실제/의심 결함:
+
+- **(확인) 자동저장마다 리비전 폭증**: `updateWikiContent`가 저장 때마다 `WikiRevision`을 생성(56–64행). 에디터는 1.5s 디바운스 자동저장 → **편집 중 1.5초마다 리비전 1건** 누적. → 리비전 스냅샷 조건 필요(디바운스 확대 / 내용 해시 비교 / N분 간격 / 수동 저장 시에만).
+- **(의심·확인 필요) 페이지 전환 시 에디터 remount**: `WikiEditor`가 `initialTitle`/`initialContent`를 `useState` 초기값으로만 사용. 위키 `[id]` 라우팅에서 컴포넌트가 `key={pageId}`로 remount되지 않으면 **이전 페이지 내용이 남아 새 페이지에 저장**될 수 있음 → `wiki/[id]/page.tsx` 확인 필요.
+- **(확인) 삭제 cascade 자식 소실**: `WikiPage.parent` 관계 `onDelete: Cascade`. 부모 삭제 시 **자식 페이지·리비전 전부 삭제**되는데 `ConfirmDelete`가 이를 경고하지 않을 가능성 → 확인/경고 문구 필요.
+- **(UX) 링크 입력 `window.prompt`**: `editor.tsx` `setLink`가 브라우저 `prompt()` 사용(134행). 블로킹 모달·스타일 불가 → 팝오버 입력으로 대체 권장.
+- **(경미) unsaved 이탈 가드 없음**: 디바운스(1.5s) 전 이탈 시 편집 유실. `beforeunload`/라우팅 가드 검토.
+- **추가 리뷰 대상**: `src/components/wiki/page-tree.tsx`(트리 정렬·`position`·드래그 재정렬 정합성), `new-page-button.tsx`.
+
+---
+
+## 제안 구현 순서(초안)
+
+1. **#1 타임라인 겹침**(quick win, 사이드이펙트 없음)
+2. **#8 위키 버그** 중 확정 결함(리비전 폭증·삭제 경고·에디터 remount 확인)
+3. **#5 + #6 상태바 인라인 편집 + 한 줄**(한 세트)
+4. **#7 사용자 필터**(스키마 변경 없음)
+5. **#2 결정** → **#4 유저 그룹** → **#3 커스텀 key**(스키마·마이그레이션 동반, 큰 작업, 순서 의존)

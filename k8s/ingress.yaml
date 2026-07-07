@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: sprint
+  namespace: sprint
+  annotations:
+    # k3s ships Traefik by default. Swap this block if you use nginx/other.
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: sprint.example.com # <-- replace with your host (must match AUTH_URL)
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: sprint
+                port:
+                  number: 80
+  # TLS via cert-manager (optional). Create a ClusterIssuer and uncomment:
+  # tls:
+  #   - hosts:
+  #       - sprint.example.com
+  #     secretName: sprint-tls

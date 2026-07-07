@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sprint-config
+  namespace: sprint
+data:
+  # Public base URL of the app (must match the Ingress host). Used by Auth.js
+  # to build OAuth callback URLs.
+  AUTH_URL: "https://sprint.example.com"
+  AUTH_TRUST_HOST: "true"
+  # Restrict Google login to this Workspace domain. Empty allows any Google account.
+  ALLOWED_EMAIL_DOMAIN: "example.com"
+  NODE_ENV: "production"

@@ -1,0 +1,65 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import {
+  LayoutDashboard,
+  Target,
+  Layers,
+  KanbanSquare,
+  ListTodo,
+  CalendarRange,
+  BookText,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+
+const NAV = [
+  { group: "개요", items: [{ href: "/dashboard", label: "대시보드", icon: LayoutDashboard }] },
+  {
+    group: "프로젝트",
+    items: [
+      { href: "/initiatives", label: "이니셔티브", icon: Target },
+      { href: "/epics", label: "에픽", icon: Layers },
+      { href: "/board", label: "보드", icon: KanbanSquare },
+      { href: "/tasks", label: "태스크", icon: ListTodo },
+      { href: "/timeline", label: "타임라인", icon: CalendarRange },
+    ],
+  },
+  { group: "문서", items: [{ href: "/wiki", label: "위키", icon: BookText }] },
+];
+
+export function SidebarNav() {
+  const pathname = usePathname();
+
+  return (
+    <nav className="flex flex-col gap-5 px-3 py-4">
+      {NAV.map((section) => (
+        <div key={section.group} className="flex flex-col gap-1">
+          <p className="text-muted-foreground/70 px-3 pb-1 text-[11px] font-medium tracking-wide uppercase">
+            {section.group}
+          </p>
+          {section.items.map((item) => {
+            const active =
+              pathname === item.href || pathname.startsWith(item.href + "/");
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors",
+                  active
+                    ? "bg-accent text-accent-foreground font-medium"
+                    : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+                )}
+              >
+                <Icon className="size-4 shrink-0" />
+                {item.label}
+              </Link>
+            );
+          })}
+        </div>
+      ))}
+    </nav>
+  );
+}
