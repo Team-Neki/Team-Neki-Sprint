@@ -25,7 +25,14 @@ export function StatusSelect({
   return (
     <Select value={value} onValueChange={(v) => onChange(v as Status)}>
       <SelectTrigger>
-        <SelectValue />
+        <SelectValue>
+          {(v: Status) => (
+            <span className="flex items-center gap-2">
+              <span className={`size-1.5 rounded-full ${STATUS_META[v].dot}`} />
+              {STATUS_META[v].label}
+            </span>
+          )}
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
         {STATUS_ORDER.map((s) => (
@@ -51,7 +58,11 @@ export function PrioritySelect({
   return (
     <Select value={value} onValueChange={(v) => onChange(v as Priority)}>
       <SelectTrigger>
-        <SelectValue />
+        <SelectValue>
+          {(v: Priority) => (
+            <span className={PRIORITY_META[v].color}>{PRIORITY_META[v].label}</span>
+          )}
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
         {PRIORITY_ORDER.map((p) => (
@@ -81,7 +92,13 @@ export function MemberSelect({
       onValueChange={(v) => onChange(v === UNASSIGNED ? null : v)}
     >
       <SelectTrigger>
-        <SelectValue placeholder={placeholder} />
+        <SelectValue placeholder={placeholder}>
+          {(v: string) => {
+            if (!v || v === UNASSIGNED) return "미지정";
+            const m = members.find((x) => x.id === v);
+            return m ? (m.name ?? m.email) : "미지정";
+          }}
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
         <SelectItem value={UNASSIGNED}>미지정</SelectItem>
@@ -130,7 +147,22 @@ export function TeamSelect({
       }}
     >
       <SelectTrigger>
-        <SelectValue placeholder={placeholder} />
+        <SelectValue placeholder={placeholder}>
+          {(v: string) => {
+            const t = teams.find((x) => x.id === v);
+            if (!t) return placeholder;
+            return (
+              <span className="flex items-center gap-2">
+                <span
+                  className="size-2 shrink-0 rounded-full"
+                  style={t.color ? { backgroundColor: t.color } : undefined}
+                />
+                <span className="font-mono text-xs">{t.key}</span>
+                <span className="text-muted-foreground">{t.name}</span>
+              </span>
+            );
+          }}
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
         {teams.map((t) => (
@@ -169,7 +201,12 @@ export function GenericSelect({
       onValueChange={(v) => onChange(v === UNASSIGNED ? null : v)}
     >
       <SelectTrigger>
-        <SelectValue placeholder={placeholder} />
+        <SelectValue placeholder={placeholder}>
+          {(v: string) => {
+            if (!v || v === UNASSIGNED) return noneLabel;
+            return options.find((o) => o.id === v)?.label ?? noneLabel;
+          }}
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
         <SelectItem value={UNASSIGNED}>{noneLabel}</SelectItem>

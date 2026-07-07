@@ -43,7 +43,23 @@ export function MemberTeamSelect({
   return (
     <Select value={teamId ?? NONE} onValueChange={onChange} disabled={pending}>
       <SelectTrigger className="w-44">
-        <SelectValue placeholder="팀 선택" />
+        <SelectValue placeholder="팀 선택">
+          {(v: string) => {
+            if (!v || v === NONE) return "무소속";
+            const t = teams.find((x) => x.id === v);
+            if (!t) return "무소속";
+            return (
+              <span className="flex items-center gap-2">
+                <span
+                  className="size-2 shrink-0 rounded-full"
+                  style={t.color ? { backgroundColor: t.color } : undefined}
+                />
+                <span className="font-mono text-xs">{t.key}</span>
+                <span className="text-muted-foreground">{t.name}</span>
+              </span>
+            );
+          }}
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
         <SelectItem value={NONE}>무소속</SelectItem>

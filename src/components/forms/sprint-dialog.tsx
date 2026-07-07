@@ -95,7 +95,16 @@ export function SprintDialog({
               onValueChange={(v) => setStatus(v as SprintStatus)}
             >
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue>
+                  {(v: SprintStatus) => (
+                    <span className="flex items-center gap-2">
+                      <span
+                        className={`size-1.5 rounded-full ${SPRINT_STATUS_META[v].dot}`}
+                      />
+                      {SPRINT_STATUS_META[v].label}
+                    </span>
+                  )}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {SPRINT_STATUS_ORDER.map((s) => (

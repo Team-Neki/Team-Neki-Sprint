@@ -53,7 +53,13 @@ export function OwnerFilter({
     <div className="mb-4 flex flex-wrap items-center gap-2">
       <Select value={active ?? ALL} onValueChange={(v) => setParam(v)}>
         <SelectTrigger className="w-40">
-          <SelectValue placeholder={placeholder} />
+          <SelectValue placeholder={placeholder}>
+            {(v: string) => {
+              if (!v || v === ALL) return placeholder;
+              const m = members.find((x) => x.id === v);
+              return m ? (m.name ?? m.email) : placeholder;
+            }}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={ALL}>{allLabel}</SelectItem>

@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import type { Status } from "@prisma/client";
 import { STATUS_ORDER, STATUS_META } from "@/lib/constants";
 import type { MiniUser } from "@/components/user-badge";
 import type { TeamOption } from "@/components/filters/team-filter";
@@ -56,7 +57,11 @@ export function TaskFilters({
         onValueChange={(v) => setParam("status", v)}
       >
         <SelectTrigger className="w-36">
-          <SelectValue placeholder="상태" />
+          <SelectValue placeholder="상태">
+            {(v: string) =>
+              v && v !== ALL ? STATUS_META[v as Status].label : "상태"
+            }
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={ALL}>모든 상태</SelectItem>
@@ -73,7 +78,13 @@ export function TaskFilters({
         onValueChange={(v) => setParam("assignee", v)}
       >
         <SelectTrigger className="w-40">
-          <SelectValue placeholder="담당자" />
+          <SelectValue placeholder="담당자">
+            {(v: string) => {
+              if (!v || v === ALL) return "담당자";
+              const m = members.find((x) => x.id === v);
+              return m ? (m.name ?? m.email) : "담당자";
+            }}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={ALL}>모든 담당자</SelectItem>
@@ -90,7 +101,21 @@ export function TaskFilters({
         onValueChange={(v) => setParam("team", v)}
       >
         <SelectTrigger className="w-40">
-          <SelectValue placeholder="팀" />
+          <SelectValue placeholder="팀">
+            {(v: string) => {
+              const t = teams.find((x) => x.id === v);
+              if (!t) return "팀";
+              return (
+                <span className="flex items-center gap-2">
+                  <span
+                    className="size-2 shrink-0 rounded-full"
+                    style={t.color ? { backgroundColor: t.color } : undefined}
+                  />
+                  <span className="font-mono text-xs">{t.key}</span>
+                </span>
+              );
+            }}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={ALL}>모든 팀</SelectItem>

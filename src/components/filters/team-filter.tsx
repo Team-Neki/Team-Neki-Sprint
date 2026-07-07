@@ -49,7 +49,21 @@ export function TeamFilter({
     <>
       <Select value={active ?? ALL} onValueChange={(v) => setParam(v)}>
         <SelectTrigger className="w-40">
-          <SelectValue placeholder="팀" />
+          <SelectValue placeholder="팀">
+            {(v: string) => {
+              const t = teams.find((x) => x.id === v);
+              if (!t) return "팀";
+              return (
+                <span className="flex items-center gap-2">
+                  <span
+                    className="size-2 shrink-0 rounded-full"
+                    style={t.color ? { backgroundColor: t.color } : undefined}
+                  />
+                  <span className="font-mono text-xs">{t.key}</span>
+                </span>
+              );
+            }}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={ALL}>모든 팀</SelectItem>
