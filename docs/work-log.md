@@ -4,6 +4,23 @@
 
 ---
 
+## 2026-07-08 — 추가 변경 8건: 문서화 + git worktree 병렬 구현
+
+`docs/` 문서 인프라(README·design-system·work-log·roadmap·specs·adr) 구축 + `CLAUDE.md` 라우팅 추가(옛 Linear 다크 서술 현행화). git 저장소 초기화(`main`) 후, 결정·스키마가 필요 없는 독립 스트림 4개를 **git worktree + 병렬 서브에이전트**로 구현하고 `main`에 순차 병합.
+
+- **#1 타임라인 겹침**(`feat/timeline-overlap`): `epic-timeline.tsx` 주 헤더 라벨 밀도 기반 thinning(`labelStep`), 라벨 `whitespace-nowrap`, 에픽 바 `overflow-hidden`. 부수적으로 선재 `:77` 경고도 정리.
+- **#7 사용자 필터**(`feat/user-filter`): `queries.ts`에 optional `ownerId`/`assigneeId`(하위호환), 공용 `filters/owner-filter.tsx`(paramKey로 owner/assignee 겸용, #4 확장 대비), 이니셔티브/에픽/보드 페이지 적용.
+- **#8 위키 버그**(`feat/wiki-bugs`): 자동저장 리비전 폭증 가드(무변경 시 DB 쓰기 skip), 삭제 시 재귀 후손 카운트 경고, 링크 입력 `window.prompt`→Popover, `beforeunload` 가드. 에디터 remount(`key={page.id}`)는 이미 적용돼 있어 확인만.
+- **#5+#6 상태바**(`feat/status-bar`): 신규 `detail/property-bar.tsx`(단일 라인 + 인라인 status/assignee/priority select, useTransition+refresh), 엔티티별 경량 액션(`set*Status/Priority/Assignee/Owner`) + `validators.ts` 단일필드 스키마, 3개 detail 페이지 재구성.
+- **#2 이니셔티브 상위 항목**: 코드 변경 없이 [`adr/0001-initiative-parent.md`](./adr/0001-initiative-parent.md)로 검토(권장: 현행 유지, 그룹핑은 #3 Project로 흡수) — 사용자 확정 대기.
+- **#3·#4 보류**: 커스텀 key(Project 모델)·유저 그룹은 스키마·마이그레이션 동반이라 2단계로.
+
+검증: `main`에서 Turbopack `next build` 통과(Compiled successfully, TypeScript OK, 정적 페이지 생성). 통합 lint 신규 이슈 0 — 선재 baseline이 4건→2건으로 감소(`kanban.tsx:43` error, `dashboard/page.tsx:29` warning만 잔존, 범위 밖). 병합 후 worktree·`feat/*` 브랜치 정리 완료.
+
+주의: 각 스트림은 worktree에서 `tsc --noEmit`+`eslint`로만 검증(Turbopack이 symlink node_modules를 거부). 통합 `next build`는 병합 후 `main`에서 1회.
+
+---
+
 ## 2026-07-08 — DESIGN.md 반영(near-white 테마 이관) + 목록 행 리팩터링
 
 ### 1. 테마 이관: Intercom cream → Vercel near-white
