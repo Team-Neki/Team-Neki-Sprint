@@ -6,8 +6,10 @@ import { ChevronRight } from "lucide-react";
 import {
   addDays,
   differenceInCalendarDays,
-  eachWeekOfInterval,
+  eachDayOfInterval,
   format,
+  getDay,
+  isSameDay,
   max as maxDate,
   min as minDate,
   startOfDay,
@@ -44,6 +46,18 @@ export type TimelineEpic = {
 };
 
 type Range = { start: Date; end: Date } | null;
+
+// Layout constants. NAME_W must match the `w-64` name gutter (16rem = 256px).
+const NAME_W = 256;
+// Each date is a fixed-width day cell. Day width fills toward TARGET_RULER_PX but
+// is clamped to [DAY_W_MIN, DAY_W_MAX]: long ranges floor at the min (cells stay
+// readable, container widens → horizontal scroll), short ranges cap at the max.
+const DAY_W_MIN = 28;
+const DAY_W_MAX = 40;
+const TARGET_RULER_PX = 900;
+const MIN_BAR_PX = 6;
+// Week-start date labels only; drop any that would collide with the leading label.
+const LABEL_MIN_GAP_PX = 44;
 
 function datesOf(epic: TimelineEpic): Date[] {
   const ds: (Date | null)[] = [epic.startDate, epic.dueDate];
@@ -83,8 +97,8 @@ export function EpicTimeline({
 
   const base = startOfDay(new Date(today));
 
-  // Global window across every epic/task date.
-  const { start, totalDays, weeks } = useMemo(() => {
+  // Global window across every epic/task date, resolved to per-day columns.
+  const { start, totalDays, dayWidth, rulerWidth, dayList, labels } = useMemo(() => {
     const all = epics.flatMap(datesOf);
     const rangeStart = all.length
       ? minDate([...all, addDays(base, -3)])
@@ -95,30 +109,44 @@ export function EpicTimeline({
     const s = startOfDay(rangeStart);
     const e = startOfDay(rangeEnd);
     const days = Math.max(differenceInCalendarDays(e, s) + 1, 14);
-    const wk = eachWeekOfInterval(
-      { start: s, end: addDays(s, days - 1) },
-      { weekStartsOn: 1 },
+    const width = Math.min(
+      DAY_W_MAX,
+      Math.max(DAY_W_MIN, Math.round(TARGET_RULER_PX / days)),
     );
-    return { start: s, totalDays: days, weeks: wk };
+    const list = eachDayOfInterval({ start: s, end: addDays(s, days - 1) });
+
+    // Labels on week starts (Mon) plus the leading day, thinned so adjacent
+    // labels never collide. Weekly spacing is >= 7 * DAY_W_MIN (196px), so only
+    // the leading-vs-first-Monday pair can ever be close enough to drop.
+    const lbls: { index: number; date: Date }[] = [];
+    let lastPx = -Infinity;
+    list.forEach((d, i) => {
+      if (i !== 0 && getDay(d) !== 1) return;
+      const px = i * width;
+      if (px - lastPx < LABEL_MIN_GAP_PX) return;
+      lbls.push({ index: i, date: d });
+      lastPx = px;
+    });
+
+    return {
+      start: s,
+      totalDays: days,
+      dayWidth: width,
+      rulerWidth: days * width,
+      dayList: list,
+      labels: lbls,
+    };
   }, [epics, base]);
 
-  const pct = (d: Date) =>
-    (differenceInCalendarDays(startOfDay(d), start) / totalDays) * 100;
-  const todayLeft = pct(base);
-
-  // Density-based week-label thinning. Labels are absolutely positioned at
-  // `left: pct(w)%` of the ruler, which starts after the ml-64 (256px) name
-  // gutter. At the container's minimum width (min-w-[760px]) the ruler is
-  // ~504px wide, so each week occupies (7 / totalDays) * 504 px. If adjacent
-  // labels would sit closer than MIN_LABEL_PX we show only every Nth week
-  // (index 0 always shown). Computed against the min width so it stays
-  // collision-free when the timeline is scrolled at its narrowest.
-  const labelStep = useMemo(() => {
-    const RULER_MIN_PX = 760 - 256; // min-w-[760px] minus ml-64 name gutter
-    const MIN_LABEL_PX = 44;
-    const weekPx = (7 / totalDays) * RULER_MIN_PX;
-    return Math.max(1, Math.ceil(MIN_LABEL_PX / weekPx));
-  }, [totalDays]);
+  const dayIndex = (d: Date) =>
+    differenceInCalendarDays(startOfDay(d), start);
+  const leftPx = (d: Date) => Math.max(dayIndex(d), 0) * dayWidth;
+  const spanPx = (r: { start: Date; end: Date }) => {
+    const l = leftPx(r.start);
+    const right = (dayIndex(r.end) + 1) * dayWidth;
+    return Math.max(right - l, MIN_BAR_PX);
+  };
+  const todayIndex = dayIndex(base);
 
   // Group epics under their project, preserving order.
   const groups = useMemo(() => {
@@ -137,28 +165,57 @@ export function EpicTimeline({
 
   return (
     <div className="overflow-x-auto">
-      <div className="min-w-[760px]">
-        {/* Week header */}
-        <div className="text-muted-foreground relative mb-2 ml-64 h-5 border-b text-[11px]">
-          {weeks.map((w, i) =>
-            i % labelStep === 0 ? (
-              <span
-                key={w.toISOString()}
-                className="absolute -translate-x-1/2 whitespace-nowrap"
-                style={{ left: `${pct(w)}%` }}
-              >
-                {format(w, "M/d", { locale: ko })}
-              </span>
-            ) : null,
-          )}
+      <div className="relative" style={{ width: NAME_W + rulerWidth }}>
+        {/* Day header — week-start labels (bold), day cells act as ticks below */}
+        <div
+          className="text-muted-foreground relative mb-2 h-5 border-b text-[11px]"
+          style={{ marginLeft: NAME_W, width: rulerWidth }}
+        >
+          {labels.map(({ index, date }) => (
+            <span
+              key={index}
+              className="absolute bottom-0.5 whitespace-nowrap font-semibold"
+              style={{ left: index * dayWidth + 2 }}
+            >
+              {format(date, "M/d", { locale: ko })}
+            </span>
+          ))}
         </div>
 
         <div className="relative">
+          {/* Day-cell grid: weekend/today shading + week gridlines, spans all rows */}
+          <div
+            className="pointer-events-none absolute inset-y-0"
+            style={{ left: NAME_W, width: rulerWidth }}
+          >
+            {dayList.map((d, i) => {
+              const dow = getDay(d);
+              const isWeekend = dow === 0 || dow === 6;
+              const isWeekStart = dow === 1;
+              const isToday = isSameDay(d, base);
+              return (
+                <div
+                  key={i}
+                  className={cn(
+                    "absolute inset-y-0 border-l",
+                    isWeekStart ? "border-border" : "border-border/40",
+                    isToday
+                      ? "bg-red-500/5"
+                      : isWeekend
+                        ? "bg-muted/60"
+                        : undefined,
+                  )}
+                  style={{ left: i * dayWidth, width: dayWidth }}
+                />
+              );
+            })}
+          </div>
+
           {/* Today marker */}
-          {todayLeft >= 0 && todayLeft <= 100 && (
+          {todayIndex >= 0 && todayIndex < totalDays && (
             <div
-              className="pointer-events-none absolute top-0 bottom-0 z-10 ml-64 w-px bg-red-500"
-              style={{ left: `${todayLeft}%` }}
+              className="pointer-events-none absolute top-0 bottom-0 z-10 w-px bg-red-500"
+              style={{ left: NAME_W + todayIndex * dayWidth }}
             />
           )}
 
@@ -205,7 +262,10 @@ export function EpicTimeline({
                           </Link>
                           <UserBadge user={epic.owner} hideName size="xs" />
                         </div>
-                        <div className="relative h-7 flex-1">
+                        <div
+                          className="relative h-7 shrink-0"
+                          style={{ width: rulerWidth }}
+                        >
                           {r ? (
                             <Link
                               href={`/epics/${epic.id}`}
@@ -213,13 +273,7 @@ export function EpicTimeline({
                                 "absolute top-1/2 flex h-6 -translate-y-1/2 items-center overflow-hidden rounded-md px-2 text-[11px] font-medium text-white shadow-sm",
                                 STATUS_META[epic.status].dot,
                               )}
-                              style={{
-                                left: `${Math.max(pct(r.start), 0)}%`,
-                                width: `${Math.max(
-                                  pct(addDays(r.end, 1)) - Math.max(pct(r.start), 0),
-                                  2,
-                                )}%`,
-                              }}
+                              style={{ left: leftPx(r.start), width: spanPx(r) }}
                             >
                               <span className="min-w-0 truncate">
                                 {epic.tasks.length > 0
@@ -251,7 +305,10 @@ export function EpicTimeline({
                                 </Link>
                                 <UserBadge user={t.assignee} hideName size="xs" />
                               </div>
-                              <div className="relative h-6 flex-1">
+                              <div
+                                className="relative h-6 shrink-0"
+                                style={{ width: rulerWidth }}
+                              >
                                 {tr && (
                                   <Link
                                     href={`/tasks/${t.id}`}
@@ -260,12 +317,8 @@ export function EpicTimeline({
                                       STATUS_META[t.status].dot,
                                     )}
                                     style={{
-                                      left: `${Math.max(pct(tr.start), 0)}%`,
-                                      width: `${Math.max(
-                                        pct(addDays(tr.end, 1)) -
-                                          Math.max(pct(tr.start), 0),
-                                        1.5,
-                                      )}%`,
+                                      left: leftPx(tr.start),
+                                      width: spanPx(tr),
                                     }}
                                     title={`${t.title} · ${format(tr.end, "M/d", { locale: ko })}`}
                                   />
