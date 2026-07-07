@@ -4,21 +4,16 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  OptionSelect,
+  renderTeamKey,
+  renderTeamOption,
+} from "@/components/selects/option-select";
+import type { TeamOption } from "@/components/selects/option-select";
+
+// TeamOption 은 selects/option-select 로 단일화됐다. 기존 import 경로 호환을 위해 re-export.
+export type { TeamOption };
 
 const ALL = "__all__";
-
-export type TeamOption = {
-  id: string;
-  key: string;
-  name: string;
-  color?: string | null;
-};
 
 /**
  * 팀(유저 그룹) 단위 URL 필터. owner-filter.tsx 와 같은 searchParams 패턴을 재사용해
@@ -47,40 +42,16 @@ export function TeamFilter({
 
   return (
     <>
-      <Select value={active ?? ALL} onValueChange={(v) => setParam(v)}>
-        <SelectTrigger className="w-40">
-          <SelectValue placeholder="팀">
-            {(v: string) => {
-              const t = teams.find((x) => x.id === v);
-              if (!t) return "팀";
-              return (
-                <span className="flex items-center gap-2">
-                  <span
-                    className="size-2 shrink-0 rounded-full"
-                    style={t.color ? { backgroundColor: t.color } : undefined}
-                  />
-                  <span className="font-mono text-xs">{t.key}</span>
-                </span>
-              );
-            }}
-          </SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={ALL}>모든 팀</SelectItem>
-          {teams.map((t) => (
-            <SelectItem key={t.id} value={t.id}>
-              <span className="flex items-center gap-2">
-                <span
-                  className="size-2 shrink-0 rounded-full"
-                  style={t.color ? { backgroundColor: t.color } : undefined}
-                />
-                <span className="font-mono text-xs">{t.key}</span>
-                <span className="text-muted-foreground">{t.name}</span>
-              </span>
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <OptionSelect<TeamOption>
+        value={active ?? ALL}
+        onValueChange={(v) => setParam(v)}
+        options={teams}
+        getValue={(t) => t.id}
+        renderOption={(t) => renderTeamOption(t)}
+        renderTriggerOption={renderTeamKey}
+        triggerClassName="w-40"
+        leadingOption={{ value: ALL, label: "모든 팀", triggerLabel: "팀" }}
+      />
 
       {active && (
         <Button variant="ghost" size="sm" onClick={() => setParam(null)}>
