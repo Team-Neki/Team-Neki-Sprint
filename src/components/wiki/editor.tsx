@@ -3,13 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
-import Placeholder from "@tiptap/extension-placeholder";
-import Link from "@tiptap/extension-link";
-import TaskList from "@tiptap/extension-task-list";
-import TaskItem from "@tiptap/extension-task-item";
-// #4 인라인 티켓 멘션('#'). S3의 '@' 사람 멘션도 같은 방식으로 여기 한 줄만 추가하면 된다.
-import { TicketMention } from "@/components/wiki/ticket-mention";
+import { wikiExtensions } from "@/components/wiki/extensions";
 import {
   Bold,
   Italic,
@@ -56,15 +50,7 @@ export function WikiEditor({
 
   const editor = useEditor({
     immediatelyRender: false,
-    extensions: [
-      StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
-      Placeholder.configure({ placeholder: "내용을 입력하세요…" }),
-      Link.configure({ openOnClick: false, autolink: true }),
-      TaskList,
-      TaskItem.configure({ nested: true }),
-      // '#' 티켓 멘션(#4). 사람 멘션 '@'(S3)는 이 배열에 별도 확장으로 추가.
-      TicketMention,
-    ],
+    extensions: wikiExtensions({ placeholder: "내용을 입력하세요…" }),
     content: initialContent,
     editorProps: {
       attributes: { class: "tiptap focus:outline-none" },
