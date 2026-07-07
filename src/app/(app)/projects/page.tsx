@@ -1,11 +1,19 @@
 import { Plus, Target } from "lucide-react";
-import { format } from "date-fns";
-import { ko } from "date-fns/locale";
 import { getProjects, getMembers, getSprintOptions } from "@/server/queries";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ItemRow, RowMeta } from "@/components/item-row";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { TableRowLink } from "@/components/ui/table-row-link";
+import { StatusBadge, PriorityBadge } from "@/components/badges";
+import { UserBadge } from "@/components/user-badge";
 import { MdRollupText } from "@/components/detail/md-rollup";
 import { OwnerFilter } from "@/components/filters/owner-filter";
 import { ProjectDialog } from "@/components/forms/project-dialog";
@@ -25,7 +33,7 @@ export default async function ProjectsPage({
   ]);
 
   return (
-    <div>
+    <div className="mx-auto max-w-5xl">
       <PageHeader
         title="프로젝트"
         description="스프린트 안의 팀 횡단 작업입니다. 하위에 팀별 에픽·태스크가 연결됩니다."
@@ -46,39 +54,49 @@ export default async function ProjectsPage({
       {projects.length === 0 ? (
         <EmptyState members={members} sprints={sprints} />
       ) : (
-        <div className="flex flex-col gap-2">
-          {projects.map((p) => (
-            <ItemRow
-              key={p.id}
-              href={`/projects/${p.id}`}
-              title={p.title}
-              priority={p.priority}
-              status={p.status}
-              owner={p.owner}
-              meta={
-                <>
-                  {p.sprint && (
-                    <RowMeta className="max-w-40 truncate md:block">
-                      {p.sprint.name}
-                    </RowMeta>
-                  )}
-                  <RowMeta className="w-32 truncate lg:block">
+        <Card className="overflow-hidden py-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>제목</TableHead>
+                <TableHead className="w-40">스프린트</TableHead>
+                <TableHead className="w-20">우선순위</TableHead>
+                <TableHead className="w-24">담당자</TableHead>
+                <TableHead className="w-16 text-right">에픽</TableHead>
+                <TableHead className="w-36 text-right">MD</TableHead>
+                <TableHead className="w-24">상태</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {projects.map((p) => (
+                <TableRowLink key={p.id} href={`/projects/${p.id}`}>
+                  <TableCell className="font-medium">{p.title}</TableCell>
+                  <TableCell className="text-muted-foreground truncate text-xs">
+                    {p.sprint?.name ?? "—"}
+                  </TableCell>
+                  <TableCell>
+                    <PriorityBadge priority={p.priority} />
+                  </TableCell>
+                  <TableCell>
+                    <UserBadge user={p.owner} hideName />
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-right text-xs tabular-nums">
+                    {p._count.epics}
+                  </TableCell>
+                  <TableCell className="text-right text-xs">
                     <MdRollupText
                       estimated={p.md.estimated}
                       actual={p.md.actual}
                     />
-                  </RowMeta>
-                  <RowMeta className="w-16 sm:block">에픽 {p._count.epics}</RowMeta>
-                  {p.dueDate && (
-                    <RowMeta className="w-24 md:block">
-                      ~{format(p.dueDate, "yy.M.d", { locale: ko })}
-                    </RowMeta>
-                  )}
-                </>
-              }
-            />
-          ))}
-        </div>
+                  </TableCell>
+                  <TableCell>
+                    <StatusBadge status={p.status} />
+                  </TableCell>
+                </TableRowLink>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
       )}
     </div>
   );
