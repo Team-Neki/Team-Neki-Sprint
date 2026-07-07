@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Plus } from "lucide-react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -21,6 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TableRowLink } from "@/components/ui/table-row-link";
 import { StatusBadge, PriorityBadge } from "@/components/badges";
 import { UserBadge } from "@/components/user-badge";
 import { TaskDialog } from "@/components/forms/task-dialog";
@@ -58,7 +58,7 @@ export default async function TasksPage({
   }));
 
   return (
-    <div>
+    <div className="mx-auto max-w-5xl">
       <PageHeader title="태스크" description="모든 태스크를 표로 관리하세요.">
         <TaskDialog
           members={members}
@@ -99,17 +99,11 @@ export default async function TasksPage({
               </TableRow>
             )}
             {tasks.map((t) => (
-              <TableRow key={t.id} className="cursor-pointer">
+              <TableRowLink key={t.id} href={`/tasks/${t.id}`}>
                 <TableCell className="text-muted-foreground font-mono text-xs">
-                  <Link href={`/tasks/${t.id}`} className="block">
-                    {formatIssueKey(t.team?.key, t.number)}
-                  </Link>
+                  {formatIssueKey(t.team?.key, t.number)}
                 </TableCell>
-                <TableCell className="font-medium">
-                  <Link href={`/tasks/${t.id}`} className="block">
-                    {t.title}
-                  </Link>
-                </TableCell>
+                <TableCell className="font-medium">{t.title}</TableCell>
                 <TableCell className="text-muted-foreground truncate text-xs">
                   {t.epic?.title ?? "—"}
                 </TableCell>
@@ -120,12 +114,14 @@ export default async function TasksPage({
                   <UserBadge user={t.assignee} hideName />
                 </TableCell>
                 <TableCell className="text-muted-foreground text-xs">
-                  {t.dueDate ? format(t.dueDate, "M.d", { locale: ko }) : "—"}
+                  {t.dueDate
+                    ? format(t.dueDate, "yyyy.M.d", { locale: ko })
+                    : "—"}
                 </TableCell>
                 <TableCell>
                   <StatusBadge status={t.status} />
                 </TableCell>
-              </TableRow>
+              </TableRowLink>
             ))}
           </TableBody>
         </Table>

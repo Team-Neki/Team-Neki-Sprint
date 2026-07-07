@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Plus, Rocket } from "lucide-react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -6,6 +5,15 @@ import { getSprints } from "@/server/queries";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { TableRowLink } from "@/components/ui/table-row-link";
 import { SprintStatusBadge } from "@/components/badges";
 import { SprintDialog } from "@/components/forms/sprint-dialog";
 
@@ -23,7 +31,7 @@ export default async function SprintsPage() {
   const sprints = await getSprints();
 
   return (
-    <div>
+    <div className="mx-auto max-w-5xl">
       <PageHeader
         title="스프린트"
         description="기간 단위로 팀 횡단 프로젝트를 묶어 관리합니다."
@@ -52,24 +60,34 @@ export default async function SprintsPage() {
           />
         </Card>
       ) : (
-        <div className="flex flex-col gap-2">
-          {sprints.map((s) => (
-            <Link key={s.id} href={`/sprints/${s.id}`}>
-              <Card className="hover:border-primary/40 flex flex-row items-center gap-4 px-4 py-3 transition-colors">
-                <span className="min-w-0 flex-1 truncate font-medium">
-                  {s.name}
-                </span>
-                <span className="text-muted-foreground hidden text-xs sm:block">
-                  {dateRange(s.startDate, s.endDate)}
-                </span>
-                <span className="text-muted-foreground text-xs">
-                  프로젝트 {s._count.projects}
-                </span>
-                <SprintStatusBadge status={s.status} />
-              </Card>
-            </Link>
-          ))}
-        </div>
+        <Card className="overflow-hidden py-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>이름</TableHead>
+                <TableHead className="w-56">기간</TableHead>
+                <TableHead className="w-24 text-right">프로젝트</TableHead>
+                <TableHead className="w-24">상태</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {sprints.map((s) => (
+                <TableRowLink key={s.id} href={`/sprints/${s.id}`}>
+                  <TableCell className="font-medium">{s.name}</TableCell>
+                  <TableCell className="text-muted-foreground text-xs">
+                    {dateRange(s.startDate, s.endDate)}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-right text-xs tabular-nums">
+                    {s._count.projects}
+                  </TableCell>
+                  <TableCell>
+                    <SprintStatusBadge status={s.status} />
+                  </TableCell>
+                </TableRowLink>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
       )}
     </div>
   );
