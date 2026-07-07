@@ -3,18 +3,7 @@ import { getProjects, getMembers, getSprintOptions } from "@/server/queries";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { TableRowLink } from "@/components/ui/table-row-link";
-import { StatusBadge, PriorityBadge } from "@/components/badges";
-import { UserBadge } from "@/components/user-badge";
-import { MdRollupText } from "@/components/detail/md-rollup";
+import { ProjectsTable } from "@/components/tables/projects-table";
 import { OwnerFilter } from "@/components/filters/owner-filter";
 import { ProjectDialog } from "@/components/forms/project-dialog";
 
@@ -55,47 +44,7 @@ export default async function ProjectsPage({
         <EmptyState members={members} sprints={sprints} />
       ) : (
         <Card className="overflow-hidden py-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>제목</TableHead>
-                <TableHead className="w-40">스프린트</TableHead>
-                <TableHead className="w-20">우선순위</TableHead>
-                <TableHead className="w-24">담당자</TableHead>
-                <TableHead className="w-16 text-right">에픽</TableHead>
-                <TableHead className="w-36 text-right">MD</TableHead>
-                <TableHead className="w-24">상태</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {projects.map((p) => (
-                <TableRowLink key={p.id} href={`/projects/${p.id}`}>
-                  <TableCell className="font-medium">{p.title}</TableCell>
-                  <TableCell className="text-muted-foreground truncate text-xs">
-                    {p.sprint?.name ?? "—"}
-                  </TableCell>
-                  <TableCell>
-                    <PriorityBadge priority={p.priority} />
-                  </TableCell>
-                  <TableCell>
-                    <UserBadge user={p.owner} hideName />
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-right text-xs tabular-nums">
-                    {p._count.epics}
-                  </TableCell>
-                  <TableCell className="text-right text-xs">
-                    <MdRollupText
-                      estimated={p.md.estimated}
-                      actual={p.md.actual}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge status={p.status} />
-                  </TableCell>
-                </TableRowLink>
-              ))}
-            </TableBody>
-          </Table>
+          <ProjectsTable projects={projects} />
         </Card>
       )}
     </div>

@@ -1,31 +1,12 @@
 import { Plus, Rocket } from "lucide-react";
-import { format } from "date-fns";
-import { ko } from "date-fns/locale";
 import { getSprints } from "@/server/queries";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { TableRowLink } from "@/components/ui/table-row-link";
-import { SprintStatusBadge } from "@/components/badges";
+import { SprintsTable } from "@/components/tables/sprints-table";
 import { SprintDialog } from "@/components/forms/sprint-dialog";
 
 export const dynamic = "force-dynamic";
-
-function dateRange(start: Date | null, end: Date | null) {
-  const fmt = (d: Date) => format(d, "yyyy.M.d", { locale: ko });
-  if (start && end) return `${fmt(start)} – ${fmt(end)}`;
-  if (start) return `${fmt(start)} –`;
-  if (end) return `– ${fmt(end)}`;
-  return "기간 미설정";
-}
 
 export default async function SprintsPage() {
   const sprints = await getSprints();
@@ -61,32 +42,7 @@ export default async function SprintsPage() {
         </Card>
       ) : (
         <Card className="overflow-hidden py-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>이름</TableHead>
-                <TableHead className="w-56">기간</TableHead>
-                <TableHead className="w-24 text-right">프로젝트</TableHead>
-                <TableHead className="w-24">상태</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sprints.map((s) => (
-                <TableRowLink key={s.id} href={`/sprints/${s.id}`}>
-                  <TableCell className="font-medium">{s.name}</TableCell>
-                  <TableCell className="text-muted-foreground text-xs">
-                    {dateRange(s.startDate, s.endDate)}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-right text-xs tabular-nums">
-                    {s._count.projects}
-                  </TableCell>
-                  <TableCell>
-                    <SprintStatusBadge status={s.status} />
-                  </TableCell>
-                </TableRowLink>
-              ))}
-            </TableBody>
-          </Table>
+          <SprintsTable sprints={sprints} />
         </Card>
       )}
     </div>

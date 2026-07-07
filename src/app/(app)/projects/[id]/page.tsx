@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Plus, Trash2 } from "lucide-react";
 import {
@@ -10,11 +9,9 @@ import {
   getEntityActivity,
 } from "@/server/queries";
 import { deleteProject } from "@/server/actions/projects";
-import { formatIssueKey } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { StatusBadge } from "@/components/badges";
-import { UserBadge } from "@/components/user-badge";
+import { EpicsTable } from "@/components/tables/epics-table";
 import { EpicDialog } from "@/components/forms/epic-dialog";
 import { ConfirmDelete } from "@/components/confirm-delete";
 import { BackButton } from "@/components/detail/back-button";
@@ -99,35 +96,13 @@ export default async function ProjectDetail({
           />
         </div>
 
-        <div className="mb-6 flex flex-col gap-2">
-          {project.epics.length === 0 && (
-            <p className="text-muted-foreground py-8 text-center text-sm">
-              연결된 에픽이 없습니다.
-            </p>
-          )}
-          {project.epics.map((e) => (
-            <Link key={e.id} href={`/epics/${e.id}`}>
-              <Card className="hover:border-primary/40 flex flex-row items-center gap-3 px-4 py-3 transition-colors">
-                <span className="text-muted-foreground w-24 shrink-0 font-mono text-xs">
-                  {formatIssueKey(e.team?.key, e.number)}
-                </span>
-                <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                  {e.title}
-                </span>
-                <MdRollupText
-                  estimated={e.md.estimated}
-                  actual={e.md.actual}
-                  className="text-muted-foreground hidden text-xs sm:block"
-                />
-                <span className="text-muted-foreground text-xs">
-                  태스크 {e._count.tasks}
-                </span>
-                <UserBadge user={e.owner} hideName />
-                <StatusBadge status={e.status} />
-              </Card>
-            </Link>
-          ))}
-        </div>
+        <Card className="mb-6 overflow-hidden py-0">
+          <EpicsTable
+            epics={project.epics}
+            hideProject
+            emptyMessage="연결된 에픽이 없습니다."
+          />
+        </Card>
 
         <Card className="p-5">
           <HistoryPanel

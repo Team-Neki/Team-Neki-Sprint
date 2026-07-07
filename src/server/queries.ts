@@ -120,8 +120,8 @@ export function getSprints() {
   });
 }
 
-export function getSprint(id: string) {
-  return prisma.sprint.findUnique({
+export async function getSprint(id: string) {
+  const sprint = await prisma.sprint.findUnique({
     where: { id },
     include: {
       projects: {
@@ -133,6 +133,14 @@ export function getSprint(id: string) {
       },
     },
   });
+  if (!sprint) return null;
+  // 하위 프로젝트별 MD 롤업(에픽→태스크 합) 부착 — ProjectsTable 의 MD 컬럼용.
+  const md = await mdByProject(sprint.projects.map((p) => p.id));
+  const projects = sprint.projects.map((p) => ({
+    ...p,
+    md: md.get(p.id) ?? ZERO_MD,
+  }));
+  return { ...sprint, projects };
 }
 
 export function getSprintOptions() {

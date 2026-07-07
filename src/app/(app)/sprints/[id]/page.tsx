@@ -11,7 +11,8 @@ import {
 import { deleteSprint } from "@/server/actions/sprints";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
-import { ItemRow, RowMeta } from "@/components/item-row";
+import { Card } from "@/components/ui/card";
+import { ProjectsTable } from "@/components/tables/projects-table";
 import { SprintStatusBadge } from "@/components/badges";
 import { SprintDialog } from "@/components/forms/sprint-dialog";
 import { ProjectDialog } from "@/components/forms/project-dialog";
@@ -95,26 +96,13 @@ export default async function SprintDetail({
         />
       </div>
 
-      <div className="flex flex-col gap-2">
-        {sprint.projects.length === 0 && (
-          <p className="text-muted-foreground py-8 text-center text-sm">
-            연결된 프로젝트가 없습니다.
-          </p>
-        )}
-        {sprint.projects.map((p) => (
-          <ItemRow
-            key={p.id}
-            href={`/projects/${p.id}`}
-            title={p.title}
-            priority={p.priority}
-            status={p.status}
-            owner={p.owner}
-            meta={
-              <RowMeta className="w-16 sm:block">에픽 {p._count.epics}</RowMeta>
-            }
-          />
-        ))}
-      </div>
+      <Card className="overflow-hidden py-0">
+        <ProjectsTable
+          projects={sprint.projects}
+          hideSprint
+          emptyMessage="연결된 프로젝트가 없습니다."
+        />
+      </Card>
     </div>
   );
 }

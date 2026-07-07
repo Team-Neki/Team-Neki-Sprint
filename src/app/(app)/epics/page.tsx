@@ -5,22 +5,10 @@ import {
   getTeamOptions,
   getMembers,
 } from "@/server/queries";
-import { formatIssueKey } from "@/lib/constants";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { TableRowLink } from "@/components/ui/table-row-link";
-import { StatusBadge, PriorityBadge } from "@/components/badges";
-import { UserBadge } from "@/components/user-badge";
-import { MdRollupText } from "@/components/detail/md-rollup";
+import { EpicsTable } from "@/components/tables/epics-table";
 import { OwnerFilter } from "@/components/filters/owner-filter";
 import { TeamFilter } from "@/components/filters/team-filter";
 import { EpicDialog } from "@/components/forms/epic-dialog";
@@ -81,51 +69,7 @@ export default async function EpicsPage({
         </Card>
       ) : (
         <Card className="overflow-hidden py-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-28">키</TableHead>
-                <TableHead>제목</TableHead>
-                <TableHead className="w-40">프로젝트</TableHead>
-                <TableHead className="w-20">우선순위</TableHead>
-                <TableHead className="w-24">담당자</TableHead>
-                <TableHead className="w-16 text-right">태스크</TableHead>
-                <TableHead className="w-36 text-right">MD</TableHead>
-                <TableHead className="w-24">상태</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {epics.map((e) => (
-                <TableRowLink key={e.id} href={`/epics/${e.id}`}>
-                  <TableCell className="text-muted-foreground font-mono text-xs">
-                    {formatIssueKey(e.team?.key, e.number)}
-                  </TableCell>
-                  <TableCell className="font-medium">{e.title}</TableCell>
-                  <TableCell className="text-muted-foreground truncate text-xs">
-                    {e.project?.title ?? "—"}
-                  </TableCell>
-                  <TableCell>
-                    <PriorityBadge priority={e.priority} />
-                  </TableCell>
-                  <TableCell>
-                    <UserBadge user={e.owner} hideName />
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-right text-xs tabular-nums">
-                    {e._count.tasks}
-                  </TableCell>
-                  <TableCell className="text-right text-xs">
-                    <MdRollupText
-                      estimated={e.md.estimated}
-                      actual={e.md.actual}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge status={e.status} />
-                  </TableCell>
-                </TableRowLink>
-              ))}
-            </TableBody>
-          </Table>
+          <EpicsTable epics={epics} />
         </Card>
       )}
     </div>
