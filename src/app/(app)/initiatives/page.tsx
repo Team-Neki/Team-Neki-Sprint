@@ -6,13 +6,19 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ItemRow, RowMeta } from "@/components/item-row";
+import { OwnerFilter } from "@/components/filters/owner-filter";
 import { InitiativeDialog } from "@/components/forms/initiative-dialog";
 
 export const dynamic = "force-dynamic";
 
-export default async function InitiativesPage() {
+export default async function InitiativesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ owner?: string }>;
+}) {
+  const sp = await searchParams;
   const [initiatives, members] = await Promise.all([
-    getInitiatives(),
+    getInitiatives({ ownerId: sp.owner || undefined }),
     getMembers(),
   ]);
 
@@ -31,6 +37,8 @@ export default async function InitiativesPage() {
           }
         />
       </PageHeader>
+
+      <OwnerFilter members={members} />
 
       {initiatives.length === 0 ? (
         <EmptyState members={members} />

@@ -12,8 +12,15 @@ export function getMembers() {
   });
 }
 
-export function getInitiatives() {
+export type InitiativeFilter = {
+  ownerId?: string;
+};
+
+export function getInitiatives(filter: InitiativeFilter = {}) {
   return prisma.initiative.findMany({
+    where: {
+      ownerId: filter.ownerId,
+    },
     orderBy: [{ status: "asc" }, { createdAt: "desc" }],
     include: {
       owner: miniUser,
@@ -38,8 +45,15 @@ export function getInitiative(id: string) {
   });
 }
 
-export function getEpics() {
+export type EpicFilter = {
+  ownerId?: string;
+};
+
+export function getEpics(filter: EpicFilter = {}) {
   return prisma.epic.findMany({
+    where: {
+      ownerId: filter.ownerId,
+    },
     orderBy: [{ status: "asc" }, { createdAt: "desc" }],
     include: {
       owner: miniUser,
@@ -63,8 +77,15 @@ export function getEpic(id: string) {
   });
 }
 
-export function getBoardTasks() {
+export type BoardFilter = {
+  assigneeId?: string;
+};
+
+export function getBoardTasks(filter: BoardFilter = {}) {
   return prisma.task.findMany({
+    where: {
+      assigneeId: filter.assigneeId,
+    },
     orderBy: { updatedAt: "desc" },
     include: {
       assignee: miniUser,
