@@ -8,17 +8,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/badges";
 import { UserBadge } from "@/components/user-badge";
 import { STATUS_ORDER, STATUS_META } from "@/lib/constants";
+import { buildLookups, activityDescription } from "@/lib/activity-format";
 
 export const dynamic = "force-dynamic";
 
-const ACTION_LABEL: Record<string, string> = {
-  created: "생성",
-  updated: "수정",
-  deleted: "삭제",
-  status_changed: "상태 변경",
-  field_changed: "변경",
-  commented: "댓글",
-};
 const ENTITY_LABEL: Record<string, string> = {
   sprint: "스프린트",
   project: "프로젝트",
@@ -44,8 +37,9 @@ function ellipsize(s: string, n: number) {
 }
 
 export default async function DashboardPage() {
-  const { statusCounts, myTasks, recentActivity, projects } =
+  const { statusCounts, myTasks, recentActivity, projects, activityLookups } =
     await getDashboardData();
+  const lookups = buildLookups(activityLookups);
 
   const countByStatus = Object.fromEntries(
     statusCounts.map((s) => [s.status, s._count]),
@@ -147,10 +141,7 @@ export default async function DashboardPage() {
           )}
           {recentActivity.map((a) => {
             const href = entityHref(a.entityType, a.entityId);
-            const title =
-              typeof a.meta === "object" && a.meta && "title" in a.meta
-                ? (a.meta as { title?: string }).title
-                : undefined;
+            const title = a.entityTitle ?? undefined;
             const body = (
               <>
                 <UserBadge user={a.user} hideName size="xs" />
@@ -167,7 +158,7 @@ export default async function DashboardPage() {
                       ({a.entityKey})
                     </span>
                   ) : null}{" "}
-                  {ACTION_LABEL[a.action] ?? a.action}
+                  {activityDescription(a.action, a.meta, lookups)}
                 </span>
                 <span className="text-muted-foreground/70 ml-auto shrink-0 text-xs">
                   {formatDistanceToNow(a.createdAt, {

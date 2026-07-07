@@ -513,35 +513,79 @@ export async function getDashboardData() {
       }),
     ]);
 
-  // 최근 활동에 티켓 key(TEAM-n) 를 붙인다. entityId 는 폴리모픽이라 task/epic 만 모아 조회.
+  // 최근 활동 enrich: 티켓 key(TEAM-n) + 엔티티 제목 + 값 해석용 lookup.
+  // entityId 는 폴리모픽이라 task/epic 은 모아서 조회, 나머지 이름은 lookup 으로 해석.
   const taskIds = recentActivityRaw
     .filter((a) => a.entityType === "task")
     .map((a) => a.entityId);
   const epicIds = recentActivityRaw
     .filter((a) => a.entityType === "epic")
     .map((a) => a.entityId);
-  const [actTasks, actEpics] = await Promise.all([
+  const [
+    actTasks,
+    actEpics,
+    lookupMembers,
+    lookupEpics,
+    lookupProjects,
+    lookupSprints,
+  ] = await Promise.all([
     taskIds.length
       ? prisma.task.findMany({
           where: { id: { in: taskIds } },
-          select: { id: true, number: true, team: { select: { key: true } } },
+          select: {
+            id: true,
+            number: true,
+            title: true,
+            team: { select: { key: true } },
+          },
         })
       : Promise.resolve([]),
     epicIds.length
       ? prisma.epic.findMany({
           where: { id: { in: epicIds } },
-          select: { id: true, number: true, team: { select: { key: true } } },
+          select: {
+            id: true,
+            number: true,
+            title: true,
+            team: { select: { key: true } },
+          },
         })
       : Promise.resolve([]),
+    prisma.user.findMany({ select: { id: true, name: true, email: true } }),
+    prisma.epic.findMany({ select: { id: true, title: true } }),
+    prisma.project.findMany({ select: { id: true, title: true } }),
+    prisma.sprint.findMany({ select: { id: true, name: true } }),
   ]);
   const keyMap = new Map<string, string>();
-  for (const t of actTasks) keyMap.set(t.id, formatIssueKey(t.team.key, t.number));
-  for (const e of actEpics) keyMap.set(e.id, formatIssueKey(e.team.key, e.number));
+  const titleMap = new Map<string, string>();
+  for (const t of actTasks) {
+    keyMap.set(t.id, formatIssueKey(t.team.key, t.number));
+    titleMap.set(t.id, t.title);
+  }
+  for (const e of actEpics) {
+    keyMap.set(e.id, formatIssueKey(e.team.key, e.number));
+    titleMap.set(e.id, e.title);
+  }
+  for (const p of lookupProjects) titleMap.set(p.id, p.title);
+  for (const s of lookupSprints) titleMap.set(s.id, s.name);
 
   const recentActivity = recentActivityRaw.map((a) => ({
     ...a,
     entityKey: keyMap.get(a.entityId) ?? null,
+    entityTitle: titleMap.get(a.entityId) ?? null,
   }));
 
-  return { statusCounts, totalTasks, myTasks, recentActivity, projects };
+  return {
+    statusCounts,
+    totalTasks,
+    myTasks,
+    recentActivity,
+    projects,
+    activityLookups: {
+      members: lookupMembers,
+      epics: lookupEpics,
+      projects: lookupProjects,
+      sprints: lookupSprints,
+    },
+  };
 }

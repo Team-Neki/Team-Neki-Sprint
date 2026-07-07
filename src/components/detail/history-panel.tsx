@@ -1,8 +1,15 @@
-import { formatDistanceToNow, format } from "date-fns";
+import { formatDistanceToNow } from "date-fns";
 import { ko } from "date-fns/locale";
-import type { Status, Priority } from "@prisma/client";
-import { STATUS_META, PRIORITY_META } from "@/lib/constants";
+import type { Status } from "@prisma/client";
+import { STATUS_META } from "@/lib/constants";
 import { UserBadge, type MiniUser } from "@/components/user-badge";
+import {
+  FIELD_LABEL,
+  formatFieldValue,
+  buildLookups,
+  type Lookups,
+  type NamedRef,
+} from "@/lib/activity-format";
 
 export type ActivityItem = {
   id: string;
@@ -12,86 +19,14 @@ export type ActivityItem = {
   user: MiniUser | null;
 };
 
-type NamedRef = { id: string; title?: string; name?: string };
-
-// 필드 → 한국어 라벨.
-const FIELD_LABEL: Record<string, string> = {
-  title: "제목",
-  description: "설명",
-  status: "상태",
-  priority: "우선순위",
-  assigneeId: "담당자",
-  ownerId: "담당자",
-  reporterId: "보고자",
-  epicId: "에픽",
-  projectId: "프로젝트",
-  sprintId: "스프린트",
-  startDate: "시작일",
-  dueDate: "기한",
-  storyPoints: "스토리포인트",
-  estimatedMd: "예상 MD",
-  actualMd: "실제 MD",
-};
-
-function truncate(s: string, n = 40): string {
-  return s.length > n ? `${s.slice(0, n)}…` : s;
-}
-
-function buildMap(items?: NamedRef[]): Map<string, string> {
-  const m = new Map<string, string>();
-  for (const it of items ?? []) m.set(it.id, it.title ?? it.name ?? it.id);
-  return m;
-}
-
-/** field_changed meta 의 raw from/to 값을 사람이 읽는 문자열로 포맷. */
-function formatValue(
-  field: string,
-  raw: unknown,
-  lookups: {
-    members: Map<string, string>;
-    epics: Map<string, string>;
-    projects: Map<string, string>;
-    sprints: Map<string, string>;
-  },
-): string {
-  if (raw == null || raw === "") return "없음";
-  const s = String(raw);
-  switch (field) {
-    case "status":
-      return STATUS_META[raw as Status]?.label ?? s;
-    case "priority":
-      return PRIORITY_META[raw as Priority]?.label ?? s;
-    case "startDate":
-    case "dueDate": {
-      const d = new Date(s);
-      return isNaN(d.getTime()) ? s : format(d, "yyyy.M.d", { locale: ko });
-    }
-    case "assigneeId":
-    case "ownerId":
-    case "reporterId":
-      return lookups.members.get(s) ?? "사용자";
-    case "epicId":
-      return lookups.epics.get(s) ?? "에픽";
-    case "projectId":
-      return lookups.projects.get(s) ?? "프로젝트";
-    case "sprintId":
-      return lookups.sprints.get(s) ?? "스프린트";
-    case "title":
-    case "description":
-      return truncate(s);
-    default:
-      return s;
-  }
-}
-
 function actorName(user: MiniUser | null): string {
   return user?.name ?? user?.email ?? "누군가";
 }
 
 /**
  * 업무 히스토리 패널(B8). 엔티티 Activity 를 최신순 한국어 문장으로 렌더한다.
- * field_changed 이벤트는 "X님이 <필드>를 A → B 로 변경"으로, 나머지(생성/댓글 등)는
- * 간단한 문장으로 표시. 관계 필드(담당자/에픽/…)는 전달된 목록으로 이름을 해석한다.
+ * field_changed 이벤트는 "X님이 <필드>을(를) A → B 로 변경"으로, 나머지(생성/댓글 등)는
+ * 간단한 문장으로 표시. 값 해석(라벨·이름·날짜)은 공용 `activity-format` 을 쓴다.
  */
 export function HistoryPanel({
   activities,
@@ -108,12 +43,7 @@ export function HistoryPanel({
   sprints?: NamedRef[];
   title?: string;
 }) {
-  const lookups = {
-    members: buildMap(members.map((m) => ({ id: m.id, name: m.name ?? m.email }))),
-    epics: buildMap(epics),
-    projects: buildMap(projects),
-    sprints: buildMap(sprints),
-  };
+  const lookups = buildLookups({ members, epics, projects, sprints });
 
   return (
     <div>
@@ -149,7 +79,7 @@ function Sentence({
   lookups,
 }: {
   activity: ActivityItem;
-  lookups: Parameters<typeof formatValue>[2];
+  lookups: Lookups;
 }) {
   const actor = actorName(activity.user);
   const actorEl = <span className="text-foreground font-medium">{actor}</span>;
@@ -161,8 +91,8 @@ function Sentence({
   if (activity.action === "field_changed" && typeof meta.field === "string") {
     const field = meta.field;
     const label = FIELD_LABEL[field] ?? field;
-    const from = formatValue(field, meta.from, lookups);
-    const to = formatValue(field, meta.to, lookups);
+    const from = formatFieldValue(field, meta.from, lookups);
+    const to = formatFieldValue(field, meta.to, lookups);
     return (
       <>
         {actorEl}님이 {label}
