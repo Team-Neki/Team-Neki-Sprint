@@ -84,6 +84,12 @@ export const taskSchema = z.object({
 export const wikiPageSchema = z.object({
   title: z.string().trim().min(1, "제목을 입력하세요").max(200),
   parentId: optionalId,
+  folderId: optionalId,
+});
+
+export const wikiFolderSchema = z.object({
+  name: z.string().trim().min(1, "폴더 이름을 입력하세요").max(100),
+  parentId: optionalId,
 });
 
 export type SprintInput = z.infer<typeof sprintSchema>;
@@ -92,3 +98,4 @@ export type ProjectInput = z.infer<typeof projectSchema>;
 export type EpicInput = z.infer<typeof epicSchema>;
 export type TaskInput = z.infer<typeof taskSchema>;
 export type WikiPageInput = z.infer<typeof wikiPageSchema>;
+export type WikiFolderInput = z.infer<typeof wikiFolderSchema>;

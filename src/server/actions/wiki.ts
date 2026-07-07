@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
-import { wikiPageSchema } from "@/lib/validators";
+import { wikiPageSchema, wikiFolderSchema } from "@/lib/validators";
+import { searchTasks, searchWikiPages } from "@/server/queries";
 import { logActivity } from "@/server/activity";
 
 const EMPTY_DOC: Prisma.InputJsonValue = {
@@ -16,14 +17,16 @@ export async function createWikiPage(input: unknown) {
   const user = await requireUser();
   const data = wikiPageSchema.parse(input);
 
+  // position은 같은 컨테이너(부모 페이지 + 폴더) 안에서만 순서를 맞춘다.
   const siblingCount = await prisma.wikiPage.count({
-    where: { parentId: data.parentId },
+    where: { parentId: data.parentId, folderId: data.folderId },
   });
 
   const page = await prisma.wikiPage.create({
     data: {
       title: data.title,
       parentId: data.parentId,
+      folderId: data.folderId,
       content: EMPTY_DOC,
       position: siblingCount,
       authorId: user.id,
@@ -106,4 +109,90 @@ export async function deleteWikiPage(id: string) {
     action: "deleted",
   });
   revalidatePath("/wiki", "layout");
+}
+
+/** 페이지를 폴더에 넣거나 뺀다(folderId=null 이면 폴더 밖으로). */
+export async function movePageToFolder(pageId: string, folderId: string | null) {
+  await requireUser();
+  await prisma.wikiPage.update({
+    where: { id: pageId },
+    data: { folderId },
+  });
+  revalidatePath("/wiki", "layout");
+  revalidatePath(`/wiki/${pageId}`);
+}
+
+// ---------- 폴더(#2) ----------
+
+export async function createWikiFolder(input: unknown) {
+  await requireUser();
+  const data = wikiFolderSchema.parse(input);
+
+  const siblingCount = await prisma.wikiFolder.count({
+    where: { parentId: data.parentId },
+  });
+
+  const folder = await prisma.wikiFolder.create({
+    data: {
+      name: data.name,
+      parentId: data.parentId,
+      position: siblingCount,
+    },
+  });
+
+  revalidatePath("/wiki", "layout");
+  return { id: folder.id };
+}
+
+export async function renameWikiFolder(id: string, name: string) {
+  await requireUser();
+  const nextName = name.trim();
+  if (!nextName) throw new Error("폴더 이름을 입력하세요");
+  await prisma.wikiFolder.update({ where: { id }, data: { name: nextName } });
+  revalidatePath("/wiki", "layout");
+}
+
+/**
+ * 폴더 삭제. 하위 폴더는 함께 삭제(Cascade)되지만, 폴더에 담긴 페이지는
+ * folderId만 null로 풀리고 보존된다(schema onDelete: SetNull). 문서는 사라지지 않는다.
+ */
+export async function deleteWikiFolder(id: string) {
+  await requireUser();
+  await prisma.wikiFolder.delete({ where: { id } });
+  revalidatePath("/wiki", "layout");
+}
+
+// ---------- 티켓 ↔ 위키 링크(#3) ----------
+
+export async function linkTaskToPage(pageId: string, taskId: string) {
+  await requireUser();
+  // 이미 있으면 무시(멱등). @@id([pageId, taskId]) 이므로 중복 생성은 실패한다.
+  await prisma.wikiPageTaskLink.upsert({
+    where: { pageId_taskId: { pageId, taskId } },
+    update: {},
+    create: { pageId, taskId },
+  });
+  revalidatePath(`/wiki/${pageId}`);
+  revalidatePath(`/tasks/${taskId}`);
+}
+
+export async function unlinkTaskFromPage(pageId: string, taskId: string) {
+  await requireUser();
+  await prisma.wikiPageTaskLink.delete({
+    where: { pageId_taskId: { pageId, taskId } },
+  });
+  revalidatePath(`/wiki/${pageId}`);
+  revalidatePath(`/tasks/${taskId}`);
+}
+
+// ---------- 검색 액션(클라이언트에서 호출: 링크 UI + 에디터 #) ----------
+
+export async function searchTasksAction(query: string) {
+  await requireUser();
+  return searchTasks(query);
+}
+
+export async function searchWikiPagesAction(query: string) {
+  await requireUser();
+  return searchWikiPages(query);
 }

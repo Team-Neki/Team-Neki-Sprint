@@ -241,6 +241,10 @@ export function getTask(id: string) {
         orderBy: { createdAt: "asc" },
         include: { author: miniUser },
       },
+      // 연결된 위키(#3).
+      wikiLinks: {
+        include: { page: { select: { id: true, title: true } } },
+      },
     },
   });
 }
@@ -282,9 +286,18 @@ export function getWikiTree() {
       id: true,
       title: true,
       parentId: true,
+      folderId: true,
       position: true,
       updatedAt: true,
     },
+  });
+}
+
+/** 문서 폴더(사이드바 그룹핑). 페이지와 별개 타입. */
+export function getWikiFolders() {
+  return prisma.wikiFolder.findMany({
+    orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+    select: { id: true, name: true, parentId: true, position: true },
   });
 }
 
@@ -294,12 +307,78 @@ export function getWikiPage(id: string) {
     include: {
       author: miniUser,
       editor: miniUser,
+      // 연결된 티켓(#3). key 표시에 team만 있으면 된다.
+      taskLinks: {
+        include: {
+          task: {
+            select: {
+              id: true,
+              number: true,
+              title: true,
+              status: true,
+              team: { select: { key: true } },
+            },
+          },
+        },
+      },
       revisions: {
         orderBy: { createdAt: "desc" },
         take: 10,
         select: { id: true, title: true, createdAt: true },
       },
     },
+  });
+}
+
+/**
+ * 티켓 검색(#3/#4). key(TEAM-n)나 제목으로 조회. formatIssueKey 기준의 key는
+ * team.key + '-' + number 이므로, 'BACKEND-2' / 'BACKEND' / '2' / 제목 조각을 받는다.
+ */
+export async function searchTasks(query: string, limit = 8) {
+  const q = query.trim();
+  const where: import("@prisma/client").Prisma.TaskWhereInput = {};
+
+  if (q) {
+    const or: import("@prisma/client").Prisma.TaskWhereInput[] = [
+      { title: { contains: q, mode: "insensitive" } },
+    ];
+    // "TEAM-123" 또는 "TEAM" + 숫자 형태를 key 매칭으로 해석.
+    const dashMatch = q.match(/^([A-Za-z0-9]+)-(\d+)$/);
+    if (dashMatch) {
+      or.push({
+        team: { key: { equals: dashMatch[1], mode: "insensitive" } },
+        number: Number(dashMatch[2]),
+      });
+    } else if (/^\d+$/.test(q)) {
+      or.push({ number: Number(q) });
+    } else if (/^[A-Za-z]+$/.test(q)) {
+      or.push({ team: { key: { contains: q, mode: "insensitive" } } });
+    }
+    where.OR = or;
+  }
+
+  return prisma.task.findMany({
+    where,
+    orderBy: { updatedAt: "desc" },
+    take: limit,
+    select: {
+      id: true,
+      number: true,
+      title: true,
+      status: true,
+      team: { select: { key: true } },
+    },
+  });
+}
+
+/** 위키 페이지 검색(#3, 티켓 상세에서 연결할 페이지 찾기). */
+export function searchWikiPages(query: string, limit = 8) {
+  const q = query.trim();
+  return prisma.wikiPage.findMany({
+    where: q ? { title: { contains: q, mode: "insensitive" } } : undefined,
+    orderBy: { updatedAt: "desc" },
+    take: limit,
+    select: { id: true, title: true },
   });
 }
 
