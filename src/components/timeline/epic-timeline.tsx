@@ -74,7 +74,8 @@ export function EpicTimeline({
   const toggle = (id: string) =>
     setExpanded((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
 
@@ -103,6 +104,20 @@ export function EpicTimeline({
     (differenceInCalendarDays(startOfDay(d), start) / totalDays) * 100;
   const todayLeft = pct(base);
 
+  // Density-based week-label thinning. Labels are absolutely positioned at
+  // `left: pct(w)%` of the ruler, which starts after the ml-64 (256px) name
+  // gutter. At the container's minimum width (min-w-[760px]) the ruler is
+  // ~504px wide, so each week occupies (7 / totalDays) * 504 px. If adjacent
+  // labels would sit closer than MIN_LABEL_PX we show only every Nth week
+  // (index 0 always shown). Computed against the min width so it stays
+  // collision-free when the timeline is scrolled at its narrowest.
+  const labelStep = useMemo(() => {
+    const RULER_MIN_PX = 760 - 256; // min-w-[760px] minus ml-64 name gutter
+    const MIN_LABEL_PX = 44;
+    const weekPx = (7 / totalDays) * RULER_MIN_PX;
+    return Math.max(1, Math.ceil(MIN_LABEL_PX / weekPx));
+  }, [totalDays]);
+
   // Group epics under their initiative, preserving order.
   const groups = useMemo(() => {
     const map = new Map<
@@ -123,15 +138,17 @@ export function EpicTimeline({
       <div className="min-w-[760px]">
         {/* Week header */}
         <div className="text-muted-foreground relative mb-2 ml-64 h-5 border-b text-[11px]">
-          {weeks.map((w) => (
-            <span
-              key={w.toISOString()}
-              className="absolute -translate-x-1/2"
-              style={{ left: `${pct(w)}%` }}
-            >
-              {format(w, "M/d", { locale: ko })}
-            </span>
-          ))}
+          {weeks.map((w, i) =>
+            i % labelStep === 0 ? (
+              <span
+                key={w.toISOString()}
+                className="absolute -translate-x-1/2 whitespace-nowrap"
+                style={{ left: `${pct(w)}%` }}
+              >
+                {format(w, "M/d", { locale: ko })}
+              </span>
+            ) : null,
+          )}
         </div>
 
         <div className="relative">
@@ -191,7 +208,7 @@ export function EpicTimeline({
                             <Link
                               href={`/epics/${epic.id}`}
                               className={cn(
-                                "absolute top-1/2 flex h-6 -translate-y-1/2 items-center rounded-md px-2 text-[11px] font-medium text-white shadow-sm",
+                                "absolute top-1/2 flex h-6 -translate-y-1/2 items-center overflow-hidden rounded-md px-2 text-[11px] font-medium text-white shadow-sm",
                                 STATUS_META[epic.status].dot,
                               )}
                               style={{
@@ -202,7 +219,7 @@ export function EpicTimeline({
                                 )}%`,
                               }}
                             >
-                              <span className="truncate">
+                              <span className="min-w-0 truncate">
                                 {epic.tasks.length > 0
                                   ? `${epic.tasks.length} 태스크`
                                   : format(r.end, "M/d", { locale: ko })}
