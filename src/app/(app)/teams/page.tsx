@@ -127,7 +127,7 @@ export default async function TeamsPage() {
       )}
 
       <h2 className="mb-3 text-lg font-semibold">멤버 배정</h2>
-      <Card className="divide-border flex flex-col divide-y py-0">
+      <Card className="divide-border flex flex-col gap-0 divide-y py-0">
         {members.length === 0 && (
           <p className="text-muted-foreground py-8 text-center text-sm">
             멤버가 없습니다.
