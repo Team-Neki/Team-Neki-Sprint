@@ -3,7 +3,7 @@ import { Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ko } from "date-fns/locale";
 import type { JSONContent } from "@tiptap/react";
-import { getWikiPage } from "@/server/queries";
+import { getWikiPage, getWikiTree } from "@/server/queries";
 import { deleteWikiPage } from "@/server/actions/wiki";
 import { WikiEditor } from "@/components/wiki/editor";
 import { UserBadge } from "@/components/user-badge";
@@ -29,14 +29,47 @@ function asDoc(content: unknown): JSONContent {
   return EMPTY_DOC;
 }
 
+/**
+ * parent 관계가 onDelete: Cascade 이므로 페이지를 지우면 모든 하위(재귀) 페이지도
+ * 함께 삭제된다. 삭제 경고에 노출할 후손 페이지 총 개수를 센다.
+ */
+function countDescendants(
+  nodes: { id: string; parentId: string | null }[],
+  rootId: string,
+): number {
+  const childrenOf = new Map<string, string[]>();
+  for (const n of nodes) {
+    if (!n.parentId) continue;
+    const list = childrenOf.get(n.parentId);
+    if (list) list.push(n.id);
+    else childrenOf.set(n.parentId, [n.id]);
+  }
+
+  let count = 0;
+  const stack = [...(childrenOf.get(rootId) ?? [])];
+  while (stack.length > 0) {
+    const id = stack.pop()!;
+    count += 1;
+    const kids = childrenOf.get(id);
+    if (kids) stack.push(...kids);
+  }
+  return count;
+}
+
 export default async function WikiPageView({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const page = await getWikiPage(id);
+  const [page, tree] = await Promise.all([getWikiPage(id), getWikiTree()]);
   if (!page) notFound();
+
+  const descendantCount = countDescendants(tree, id);
+  const deleteDescription =
+    descendantCount > 0
+      ? `하위 ${descendantCount}개 페이지도 함께 삭제됩니다. 이 작업은 되돌릴 수 없습니다.`
+      : "이 작업은 되돌릴 수 없습니다.";
 
   async function handleDelete() {
     "use server";
@@ -60,7 +93,7 @@ export default async function WikiPageView({
           onConfirm={handleDelete}
           redirectTo="/wiki"
           title="이 페이지를 삭제할까요?"
-          description="하위 페이지가 있다면 함께 삭제됩니다."
+          description={deleteDescription}
           trigger={
             <Button variant="ghost" size="sm" className="text-destructive">
               <Trash2 className="size-4" /> 삭제
