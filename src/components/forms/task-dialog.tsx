@@ -40,6 +40,8 @@ type Existing = {
   startDate: Date | string | null;
   dueDate: Date | string | null;
   storyPoints: number | null;
+  estimatedMd: number | null;
+  actualMd: number | null;
 };
 
 export type TaskEpicOption = { id: string; title: string; teamId: string };
@@ -95,6 +97,12 @@ export function TaskDialog({
   const [storyPoints, setStoryPoints] = useState(
     task?.storyPoints != null ? String(task.storyPoints) : "",
   );
+  const [estimatedMd, setEstimatedMd] = useState(
+    task?.estimatedMd != null ? String(task.estimatedMd) : "",
+  );
+  const [actualMd, setActualMd] = useState(
+    task?.actualMd != null ? String(task.actualMd) : "",
+  );
 
   function onEpicChange(next: string | null) {
     setEpicId(next);
@@ -122,6 +130,8 @@ export function TaskDialog({
       startDate,
       dueDate,
       storyPoints: storyPoints === "" ? null : Number(storyPoints),
+      estimatedMd: estimatedMd === "" ? null : Number(estimatedMd),
+      actualMd: actualMd === "" ? null : Number(actualMd),
     };
     start(async () => {
       try {
@@ -215,6 +225,30 @@ export function TaskDialog({
                 value={storyPoints}
                 onChange={(e) => setStoryPoints(e.target.value)}
                 placeholder="예: 3"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-2">
+              <Label>예상 MD</Label>
+              <Input
+                type="number"
+                min={0}
+                step={0.5}
+                value={estimatedMd}
+                onChange={(e) => setEstimatedMd(e.target.value)}
+                placeholder="예: 2"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>실제 MD</Label>
+              <Input
+                type="number"
+                min={0}
+                step={0.5}
+                value={actualMd}
+                onChange={(e) => setActualMd(e.target.value)}
+                placeholder="예: 1.5"
               />
             </div>
           </div>

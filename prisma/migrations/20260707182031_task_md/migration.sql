@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Task" ADD COLUMN     "actualMd" DOUBLE PRECISION,
+ADD COLUMN     "estimatedMd" DOUBLE PRECISION;

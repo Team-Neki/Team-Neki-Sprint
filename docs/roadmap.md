@@ -16,13 +16,13 @@
 
 - **B1 대시보드**: (10) 최근 활동에 티켓 key 표기 + 이동, (11) 상태 카운트(백로그/할일/진행중/리뷰/완료) 클릭 → 필터된 태스크 목록. → `dashboard/page.tsx`
 - **B2 목록/여백**: (1) 태스크 클릭 영역이 컴포넌트보다 좁음, (5) 에픽 목록 열 정렬 어긋남, (6) 태스크 마감에 날짜 표시, (9) 목록 vs 상세 좌우 여백 불일치, **(T) 스프린트·프로젝트·에픽 목록을 태스크처럼 테이블뷰(컬럼)로 — 열 정렬/간격 정리**. → `sprints/page`, `projects/page`, `epics/page`(← B7 MD 컬럼과 겹치니 detail-overhaul 병합 후), `tasks/page`, `item-row`, `(app)/layout`. **팀→에픽/태스크 라우팅(완료)**.
-- **B3 상세 페이지 개편**: (2) '수정' 버튼 제거 → 전 필드 인라인 편집, (3) 상태를 우측 카드(보고자/스토리포인트/에픽)로 이동, (4) 보고자 옆 담당자 추가, (back) 뒤로가기 스택 동작. → `{tasks,epics}/[id]`, `property-bar`, actions
+- **B3 상세 페이지 개편** (`DONE` 2026-07-08, `feat/detail-overhaul`): (2) '수정' 버튼 제거 → 전 필드 인라인 편집, (3) 상태를 우측 카드(보고자/스토리포인트/에픽)로 이동, (4) 보고자 옆 담당자 추가, (back) 뒤로가기 스택 동작. → `{tasks,epics,projects}/[id]`, `detail/inline-fields`·`back-button`(property-bar 삭제), `update*Fields` actions
 - **B4 타임라인**: (7) 가로 스크롤 시 좌측 에픽 목록 고정(sticky). → `epic-timeline.tsx`
 - **B5 프로필/소셜 (= 원래 phase 3 S3)**: (5/8/12) 사용자 프로필 페이지 + 사용자 클릭 시 이동(프로필 라우트 부재로 현재 접속 시 오류), (6) `@` 멘션, (7) 멘션 알림, (8) 알림 목록. → 신규 `users/[id]`, `Notification` 스키마(additive), 에디터 `@`.
 - **B6 리치 입력 확장**: 설명(description)·댓글에서도 링크(`#`티켓)/멘션(`@`사람) 동작. 현재 plain textarea → Tiptap 에디터로 교체(위키 에디터 확장 재사용). B5의 멘션/링크 인프라 위에 얹음.
 
-- **B7 MD(맨데이) 트래킹**: `estimatedMd`/`actualMd` 추가(Task에 additive, 편집은 **태스크만**). Epic md = 하위 태스크 md 합, Project md = 하위 에픽 md 합(계산/읽기전용 롤업). 상세·목록 표시. → Task 스키마 + 집계 쿼리 + 상세 UI.
-- **B8 업무 히스토리**: 프로젝트/에픽/태스크 상세에 **댓글 옆** 변경 이력 탭. "누가 기한/상태/내용을 변경" 기록. **기존 `Activity` 모델 활용** + 변경 로깅 강화(필드별 before/after를 `meta`에). set*/update* 액션에서 diff 기록. → activity 조회(`getEntityActivity`) + 상세 UI + 액션 로깅 보강.
+- **B7 MD(맨데이) 트래킹** (`DONE` 2026-07-08): `estimatedMd`/`actualMd` 추가(Task에 additive 마이그레이션 `task_md`, 편집은 **태스크만**). Epic md = 하위 태스크 md 합, Project md = 하위 에픽 md 합(`queries.ts` groupBy/집계, 읽기전용 롤업). 상세·목록 `MdRollupText` 표시.
+- **B8 업무 히스토리** (`DONE` 2026-07-08): 태스크=댓글 옆 우측 레일, 에픽/프로젝트=좌측 별도 섹션(Comment 모델 없음). "누가 기한/상태/내용을 변경" 기록. **기존 `Activity` 모델 활용** + generic diff 로거(`update*Fields`)가 필드별 `field_changed`+`meta:{field,from,to}` 기록. `getEntityActivity` 조회 + `history-panel` 한국어 문장 렌더.
 - **B9 위키 뷰/수정 모드 + 버전**: 기본 **뷰 모드**(읽기전용 렌더) 진입, 편집 시에만 수정 모드. 동시 편집 허용·저장 시 버전 기록(last-write-wins 덮어쓰기, 편집 중인 사람은 무영향). **기존 `WikiRevision` 활용** — 버전 목록·이전 버전 확인(diff/복원). → 위키 상세 뷰/편집 토글 + 버전 뷰어 UI.
 
 **B1 완료(2026-07-08)**: 대시보드 상태→필터목록 링크 + 최근활동 티켓 key·이동.

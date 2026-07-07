@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-07-08 — P4 상세 페이지 개편(B3 인라인 편집 + B7 MD + B8 히스토리)
+
+[스펙](./specs/p4-detail-overhaul.md) 기준으로 프로젝트/에픽/태스크 상세를 인라인 편집 중심으로 재구성. `feat/detail-overhaul` 단독 스트림(상세·액션·쿼리 광범위 공유 → 내부 순차).
+
+- **B3 인라인 편집**: 상세의 '수정' 다이얼로그 진입 제거 → 모든 필드를 상세에서 직접 편집. 레이아웃 3열 그리드 통일(좌=제목·설명·자식목록/댓글, 우=메타 카드). 상태를 우측 메타 카드로 이동, 태스크에 **담당자+보고자** 둘 다 인라인 편집(스키마에 `Task.reporterId` 편집 허용 추가). 신규 `components/detail/inline-fields.tsx`(제목/설명/상태/우선순위/멤버/링크/날짜/숫자, `OptionSelect` 칩 재사용, `useTransition`+`router.refresh`), 상단 단일 `property-bar.tsx` **삭제**(우측 카드로 흡수). 뒤로가기 하드코딩 `<Link>` → 재사용 `<BackButton fallback>`(`history.length>1`이면 `router.back()`).
+- **B7 MD**: additive 스키마 `Task.estimatedMd/actualMd Float?`(마이그레이션 `task_md`, 2 nullable 컬럼, 리셋 아님). 편집은 태스크만(인라인 + 생성 다이얼로그). Epic MD=하위 태스크 합, Project MD=하위 에픽→태스크 합 — `queries.ts`에서 `groupBy`/집계로 **읽기전용 롤업**. 상세 메타 카드 + 에픽/프로젝트 목록에 `MdRollupText`("예상 X / 실제 Y MD"). `taskSchema`에 `estimatedMd`/`actualMd`(`optionalMd` = ""/null→null, 그 외 coerce≥0).
+- **B8 업무 히스토리**: 기존 `Activity` 모델 활용(신규 스키마 없음). 인라인 편집을 **엔티티별 generic diff 로거** `updateTaskFields/updateEpicFields/updateProjectFields`로 통합 — 현재 값 로드 → 바뀐 필드만 update → 필드별 `field_changed` + `meta:{field,from,to}` 기록(`activity.ts`의 `diffFields` 헬퍼, Date→ISO 정규화·no-op 스킵). 팀/번호는 patch에서 제외(불변). 조회 `getEntityActivity(entityType,entityId)`. 신규 `components/detail/history-panel.tsx`가 한국어 문장("X님이 기한을 A→B 로 변경")으로 렌더(관계 필드는 전달된 목록으로 이름 해석). 구 `set*Status/Priority/Assignee/Owner` 경량 액션은 diff 로거로 흡수·삭제(`moveTask`는 칸반용으로 유지). 대시보드 최근활동에 `field_changed` 라벨 추가.
+
+설계 메모: prop→state 동기화는 repo 규칙(`react-hooks/set-state-in-effect`) 때문에 effect 대신 **'render 중 조건부 setState'(derive during render)** 패턴 사용(칸반 선례와 동일). 프로젝트엔 Comment 모델이 없어 히스토리는 좌측 별도 섹션(태스크는 댓글 옆 우측 레일).
+
+검증: `prisma migrate dev --name task_md`(additive, 로컬 dev DB, 데이터 보존) + `generate` 성공, `tsc --noEmit` clean, `eslint src` 신규 0. worktree라 `next build`/`dev`는 병합 후 main.
+
+---
+
 ## 2026-07-08 — Phase 3 진행 + 라이브 버그 픽스
 
 개편 병합 후 라이브 테스트에서 나온 이슈 + phase 3 스트림 병합.

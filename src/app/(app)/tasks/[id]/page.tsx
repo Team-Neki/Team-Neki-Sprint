@@ -1,24 +1,34 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Pencil, Trash2, ChevronLeft } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ko } from "date-fns/locale";
 import {
   getTask,
   getEpicOptions,
-  getTeamOptions,
   getMembers,
+  getEntityActivity,
 } from "@/server/queries";
 import { deleteTask } from "@/server/actions/tasks";
 import { formatIssueKey } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { UserBadge } from "@/components/user-badge";
-import { PropertyBar } from "@/components/detail/property-bar";
-import { TaskDialog } from "@/components/forms/task-dialog";
 import { ConfirmDelete } from "@/components/confirm-delete";
 import { CommentForm } from "@/components/tasks/comment-form";
 import { LinkedPages } from "@/components/wiki/linked-pages";
+import { BackButton } from "@/components/detail/back-button";
+import { HistoryPanel } from "@/components/detail/history-panel";
+import {
+  MetaRow,
+  InlineTitle,
+  InlineDescription,
+  InlineStatus,
+  InlinePriority,
+  InlineMember,
+  InlineLink,
+  InlineDate,
+  InlineNumber,
+} from "@/components/detail/inline-fields";
 
 export const dynamic = "force-dynamic";
 
@@ -28,19 +38,15 @@ export default async function TaskDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [task, epics, teams, members] = await Promise.all([
+  const [task, epics, members, activities] = await Promise.all([
     getTask(id),
     getEpicOptions(),
-    getTeamOptions(),
     getMembers(),
+    getEntityActivity("task", id),
   ]);
   if (!task) notFound();
 
-  const epicOptions = epics.map((e) => ({
-    id: e.id,
-    title: e.title,
-    teamId: e.team.id,
-  }));
+  const epicOptions = epics.map((e) => ({ id: e.id, label: e.title }));
 
   async function handleDelete() {
     "use server";
@@ -50,72 +56,36 @@ export default async function TaskDetail({
   return (
     <div className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-3">
       <div className="lg:col-span-2">
-        <Link
-          href="/board"
-          className="text-muted-foreground hover:text-foreground mb-3 inline-flex items-center gap-1 text-sm"
-        >
-          <ChevronLeft className="size-4" /> 보드
-        </Link>
+        <BackButton fallback="/board" label="보드" />
 
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <div>
+        <div className="mb-6 flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
             <span className="text-muted-foreground font-mono text-xs">
               {formatIssueKey(task.team?.key, task.number)}
             </span>
-            <h1 className="text-2xl font-semibold tracking-tight">
-              {task.title}
-            </h1>
+            <InlineTitle type="task" id={task.id} value={task.title} />
           </div>
-          <div className="flex shrink-0 items-center gap-1">
-            <TaskDialog
-              members={members}
-              teams={teams}
-              epics={epicOptions}
-              task={task}
-              trigger={
-                <Button variant="outline" size="sm">
-                  <Pencil className="size-4" /> 수정
-                </Button>
-              }
-            />
-            <ConfirmDelete
-              onConfirm={handleDelete}
-              redirectTo="/board"
-              trigger={
-                <Button variant="ghost" size="sm" className="text-destructive">
-                  <Trash2 className="size-4" />
-                </Button>
-              }
-            />
-          </div>
-        </div>
-
-        <div className="mb-6">
-          <PropertyBar
-            type="task"
-            id={task.id}
-            status={task.status}
-            priority={task.priority}
-            assignee={task.assignee}
-            members={members}
-            startDate={task.startDate}
-            dueDate={task.dueDate}
-            team={task.team}
+          <ConfirmDelete
+            onConfirm={handleDelete}
+            redirectTo="/board"
+            trigger={
+              <Button variant="ghost" size="sm" className="text-destructive">
+                <Trash2 className="size-4" />
+              </Button>
+            }
           />
         </div>
 
         <Card className="mb-6 p-5">
           <h3 className="mb-2 text-sm font-medium">설명</h3>
-          {task.description ? (
-            <p className="text-sm whitespace-pre-wrap">{task.description}</p>
-          ) : (
-            <p className="text-muted-foreground text-sm">설명이 없습니다.</p>
-          )}
+          <InlineDescription
+            type="task"
+            id={task.id}
+            value={task.description}
+          />
         </Card>
 
-        <h3 className="mb-3 text-sm font-medium">
-          댓글 {task.comments.length}
-        </h3>
+        <h3 className="mb-3 text-sm font-medium">댓글 {task.comments.length}</h3>
         <div className="mb-4 flex flex-col gap-4">
           {task.comments.map((c) => (
             <div key={c.id} className="flex gap-3">
@@ -140,31 +110,111 @@ export default async function TaskDetail({
         <CommentForm taskId={task.id} />
       </div>
 
-      <div className="lg:col-span-1">
-        <Card className="flex flex-col gap-4 p-5">
-          <Field label="보고자">
-            <UserBadge user={task.reporter} />
-          </Field>
-          {task.storyPoints != null && (
-            <Field label="스토리 포인트">
-              <span className="text-sm">{task.storyPoints}</span>
-            </Field>
-          )}
-          <Field label="에픽">
-            {task.epic ? (
-              <Link
-                href={`/epics/${task.epic.id}`}
-                className="text-primary text-sm hover:underline"
-              >
-                {task.epic.title}
-              </Link>
-            ) : (
-              <span className="text-muted-foreground text-sm">없음</span>
-            )}
-          </Field>
+      <div className="lg:col-span-1 flex flex-col gap-4">
+        <Card className="flex flex-col gap-3 p-5">
+          <MetaRow label="상태">
+            <InlineStatus type="task" id={task.id} value={task.status} />
+          </MetaRow>
+          <MetaRow label="담당자">
+            <InlineMember
+              type="task"
+              id={task.id}
+              field="assigneeId"
+              value={task.assignee}
+              members={members}
+            />
+          </MetaRow>
+          <MetaRow label="보고자">
+            <InlineMember
+              type="task"
+              id={task.id}
+              field="reporterId"
+              value={task.reporter}
+              members={members}
+            />
+          </MetaRow>
+          <MetaRow label="우선순위">
+            <InlinePriority type="task" id={task.id} value={task.priority} />
+          </MetaRow>
+          <MetaRow label="에픽">
+            <InlineLink
+              type="task"
+              id={task.id}
+              field="epicId"
+              value={task.epicId}
+              options={epicOptions}
+              noneLabel="없음"
+              placeholder="에픽 선택"
+            />
+          </MetaRow>
+          <MetaRow label="스토리 포인트">
+            <InlineNumber
+              type="task"
+              id={task.id}
+              field="storyPoints"
+              value={task.storyPoints}
+            />
+          </MetaRow>
+          <MetaRow label="예상 MD">
+            <InlineNumber
+              type="task"
+              id={task.id}
+              field="estimatedMd"
+              value={task.estimatedMd}
+              step="0.5"
+            />
+          </MetaRow>
+          <MetaRow label="실제 MD">
+            <InlineNumber
+              type="task"
+              id={task.id}
+              field="actualMd"
+              value={task.actualMd}
+              step="0.5"
+            />
+          </MetaRow>
+          <MetaRow label="시작일">
+            <InlineDate
+              type="task"
+              id={task.id}
+              field="startDate"
+              value={task.startDate}
+            />
+          </MetaRow>
+          <MetaRow label="기한">
+            <InlineDate
+              type="task"
+              id={task.id}
+              field="dueDate"
+              value={task.dueDate}
+            />
+          </MetaRow>
+          <MetaRow label="팀">
+            <span className="inline-flex items-center gap-1.5 pr-1.5">
+              <span
+                className="size-2 shrink-0 rounded-full"
+                style={
+                  task.team?.color
+                    ? { backgroundColor: task.team.color }
+                    : undefined
+                }
+              />
+              <span className="text-muted-foreground font-mono text-xs">
+                {task.team?.key}
+              </span>
+            </span>
+          </MetaRow>
         </Card>
 
-        <Card className="mt-4 p-5">
+        <Card className="p-5">
+          <HistoryPanel
+            activities={activities}
+            members={members}
+            epics={epics.map((e) => ({ id: e.id, title: e.title }))}
+          />
+        </Card>
+
+        <Card className="p-5">
           <LinkedPages
             taskId={task.id}
             pages={task.wikiLinks.map((l) => ({
@@ -174,15 +224,6 @@ export default async function TaskDetail({
           />
         </Card>
       </div>
-    </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-center justify-between gap-2">
-      <span className="text-muted-foreground text-xs">{label}</span>
-      {children}
     </div>
   );
 }
