@@ -1,8 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Plus, Pencil, Trash2, ChevronLeft } from "lucide-react";
-import { format } from "date-fns";
-import { ko } from "date-fns/locale";
 import { getEpic, getInitiatives, getMembers } from "@/server/queries";
 import { deleteEpic } from "@/server/actions/epics";
 import { PageHeader } from "@/components/page-header";
@@ -10,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge, PriorityBadge } from "@/components/badges";
 import { UserBadge } from "@/components/user-badge";
+import { PropertyBar } from "@/components/detail/property-bar";
 import { EpicDialog } from "@/components/forms/epic-dialog";
 import { TaskDialog } from "@/components/forms/task-dialog";
 import { ConfirmDelete } from "@/components/confirm-delete";
@@ -43,7 +42,7 @@ export default async function EpicDetail({
         <ChevronLeft className="size-4" /> 에픽
       </Link>
 
-      <PageHeader title={epic.title}>
+      <PageHeader title={epic.title} description={`EPIC-${epic.key}`}>
         <EpicDialog
           members={members}
           initiatives={initiatives.map((i) => ({ id: i.id, title: i.title }))}
@@ -65,36 +64,29 @@ export default async function EpicDetail({
         />
       </PageHeader>
 
-      <Card className="mb-6 grid grid-cols-2 gap-4 p-5 sm:grid-cols-4">
-        <Meta label="상태">
-          <StatusBadge status={epic.status} />
-        </Meta>
-        <Meta label="우선순위">
-          <PriorityBadge priority={epic.priority} />
-        </Meta>
-        <Meta label="담당자">
-          <UserBadge user={epic.owner} />
-        </Meta>
-        <Meta label="이니셔티브">
-          {epic.initiative ? (
+      <div className="mb-6 flex flex-col gap-2">
+        <PropertyBar
+          type="epic"
+          id={epic.id}
+          status={epic.status}
+          priority={epic.priority}
+          assignee={epic.owner}
+          members={members}
+          startDate={epic.startDate}
+          dueDate={epic.dueDate}
+        />
+        {epic.initiative && (
+          <p className="text-muted-foreground text-sm">
+            이니셔티브{" "}
             <Link
               href={`/initiatives/${epic.initiative.id}`}
-              className="text-primary truncate text-sm hover:underline"
+              className="text-primary hover:underline"
             >
               {epic.initiative.title}
             </Link>
-          ) : (
-            <span className="text-muted-foreground text-sm">없음</span>
-          )}
-        </Meta>
-        {epic.dueDate && (
-          <Meta label="종료일">
-            <span className="text-sm">
-              {format(epic.dueDate, "yyyy.M.d", { locale: ko })}
-            </span>
-          </Meta>
+          </p>
         )}
-      </Card>
+      </div>
 
       {epic.description && (
         <Card className="mb-6 p-5">
@@ -138,15 +130,6 @@ export default async function EpicDetail({
           </Link>
         ))}
       </div>
-    </div>
-  );
-}
-
-function Meta({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <span className="text-muted-foreground text-xs">{label}</span>
-      {children}
     </div>
   );
 }

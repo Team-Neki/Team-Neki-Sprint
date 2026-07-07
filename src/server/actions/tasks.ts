@@ -1,10 +1,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { Status } from "@prisma/client";
+import type { Status, Priority } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
-import { taskSchema } from "@/lib/validators";
+import {
+  taskSchema,
+  statusEnum,
+  priorityEnum,
+  assigneeIdSchema,
+} from "@/lib/validators";
 import { logActivity } from "@/server/activity";
 
 export async function createTask(input: unknown) {
@@ -62,6 +67,70 @@ export async function moveTask(id: string, status: Status) {
   });
   revalidatePath("/board");
   revalidatePath("/tasks");
+}
+
+function revalidateTaskPaths(id: string, epicId: string | null) {
+  revalidatePath("/board");
+  revalidatePath("/tasks");
+  revalidatePath(`/tasks/${id}`);
+  if (epicId) revalidatePath(`/epics/${epicId}`);
+}
+
+/** 상단 property bar 인라인 편집: 상태만 변경. */
+export async function setTaskStatus(id: string, status: Status) {
+  const user = await requireUser();
+  const value = statusEnum.parse(status);
+  const task = await prisma.task.update({
+    where: { id },
+    data: { status: value },
+  });
+  await logActivity({
+    userId: user.id,
+    entityType: "task",
+    entityId: id,
+    action: "status_changed",
+    meta: { status: value },
+  });
+  revalidateTaskPaths(id, task.epicId);
+  return { id };
+}
+
+/** 상단 property bar 인라인 편집: 우선순위만 변경. */
+export async function setTaskPriority(id: string, priority: Priority) {
+  const user = await requireUser();
+  const value = priorityEnum.parse(priority);
+  const task = await prisma.task.update({
+    where: { id },
+    data: { priority: value },
+  });
+  await logActivity({
+    userId: user.id,
+    entityType: "task",
+    entityId: id,
+    action: "updated",
+    meta: { priority: value },
+  });
+  revalidateTaskPaths(id, task.epicId);
+  return { id };
+}
+
+/** 상단 property bar 인라인 편집: 담당자만 변경. */
+export async function setTaskAssignee(id: string, assigneeId: string | null) {
+  const user = await requireUser();
+  const value = assigneeIdSchema.parse(assigneeId);
+  const task = await prisma.task.update({
+    where: { id },
+    data: { assigneeId: value },
+  });
+  await logActivity({
+    userId: user.id,
+    entityType: "task",
+    entityId: id,
+    action: "updated",
+    meta: { assigneeId: value },
+  });
+  revalidateTaskPaths(id, task.epicId);
+  return { id };
 }
 
 export async function deleteTask(id: string) {

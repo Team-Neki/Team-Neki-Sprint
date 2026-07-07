@@ -1,16 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Pencil, Trash2, ChevronLeft } from "lucide-react";
-import { format, formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow } from "date-fns";
 import { ko } from "date-fns/locale";
 import { getTask, getEpics, getMembers } from "@/server/queries";
 import { deleteTask } from "@/server/actions/tasks";
-import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { StatusBadge, PriorityBadge } from "@/components/badges";
 import { UserBadge } from "@/components/user-badge";
+import { PropertyBar } from "@/components/detail/property-bar";
 import { TaskDialog } from "@/components/forms/task-dialog";
 import { ConfirmDelete } from "@/components/confirm-delete";
 import { CommentForm } from "@/components/tasks/comment-form";
@@ -77,6 +75,19 @@ export default async function TaskDetail({
           </div>
         </div>
 
+        <div className="mb-6">
+          <PropertyBar
+            type="task"
+            id={task.id}
+            status={task.status}
+            priority={task.priority}
+            assignee={task.assignee}
+            members={members}
+            startDate={task.startDate}
+            dueDate={task.dueDate}
+          />
+        </div>
+
         <Card className="mb-6 p-5">
           <h3 className="mb-2 text-sm font-medium">설명</h3>
           {task.description ? (
@@ -115,18 +126,8 @@ export default async function TaskDetail({
 
       <div className="lg:col-span-1">
         <Card className="flex flex-col gap-4 p-5">
-          <Field label="상태">
-            <StatusBadge status={task.status} />
-          </Field>
-          <Separator />
-          <Field label="담당자">
-            <UserBadge user={task.assignee} />
-          </Field>
           <Field label="보고자">
             <UserBadge user={task.reporter} />
-          </Field>
-          <Field label="우선순위">
-            <PriorityBadge priority={task.priority} />
           </Field>
           {task.storyPoints != null && (
             <Field label="스토리 포인트">
@@ -145,13 +146,6 @@ export default async function TaskDetail({
               <span className="text-muted-foreground text-sm">없음</span>
             )}
           </Field>
-          {task.dueDate && (
-            <Field label="마감일">
-              <span className="text-sm">
-                {format(task.dueDate, "yyyy.M.d", { locale: ko })}
-              </span>
-            </Field>
-          )}
         </Card>
       </div>
     </div>
