@@ -4,13 +4,19 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ItemRow, RowMeta } from "@/components/item-row";
+import { OwnerFilter } from "@/components/filters/owner-filter";
 import { EpicDialog } from "@/components/forms/epic-dialog";
 
 export const dynamic = "force-dynamic";
 
-export default async function EpicsPage() {
+export default async function EpicsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ owner?: string }>;
+}) {
+  const sp = await searchParams;
   const [epics, initiatives, members] = await Promise.all([
-    getEpics(),
+    getEpics({ ownerId: sp.owner || undefined }),
     getInitiatives(),
     getMembers(),
   ]);
@@ -32,6 +38,8 @@ export default async function EpicsPage() {
           }
         />
       </PageHeader>
+
+      <OwnerFilter members={members} />
 
       {epics.length === 0 ? (
         <Card className="flex flex-col items-center gap-3 py-16">
