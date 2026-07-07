@@ -38,6 +38,9 @@ function entityHref(entityType: string, entityId: string): string | null {
   const base = ENTITY_PATH[entityType];
   return base ? `${base}/${entityId}` : null;
 }
+function ellipsize(s: string, n: number) {
+  return s.length > n ? `${s.slice(0, n)}…` : s;
+}
 
 export default async function DashboardPage() {
   const { statusCounts, myTasks, recentActivity, projects } =
@@ -155,12 +158,15 @@ export default async function DashboardPage() {
                     {a.user?.name ?? a.user?.email ?? "누군가"}
                   </span>{" "}
                   님이 {ENTITY_LABEL[a.entityType] ?? a.entityType}
-                  {a.entityKey && (
+                  {title ? (
+                    <span className="text-foreground"> “{ellipsize(title, 40)}”</span>
+                  ) : null}
+                  {a.entityKey ? (
                     <span className="text-muted-foreground ml-1 font-mono text-xs">
-                      {a.entityKey}
+                      ({a.entityKey})
                     </span>
-                  )}
-                  {title ? ` “${title}”` : ""} {ACTION_LABEL[a.action] ?? a.action}
+                  ) : null}{" "}
+                  {ACTION_LABEL[a.action] ?? a.action}
                 </span>
                 <span className="text-muted-foreground/70 ml-auto shrink-0 text-xs">
                   {formatDistanceToNow(a.createdAt, {
