@@ -5,7 +5,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { wikiPageSchema, wikiFolderSchema } from "@/lib/validators";
-import { searchTasks, searchWikiPages } from "@/server/queries";
+import { searchTasks, searchWikiPages, getWikiRevision } from "@/server/queries";
 import { logActivity } from "@/server/activity";
 
 const EMPTY_DOC: Prisma.InputJsonValue = {
@@ -99,6 +99,24 @@ export async function updateWikiContent(
   return { id };
 }
 
+/** 페이지 제목만 변경(사이드바 이름 변경). 본문 리비전은 남기지 않는 경량 액션. */
+export async function renameWikiPage(id: string, title: string) {
+  const user = await requireUser();
+  const nextTitle = title.trim() || "제목 없음";
+  await prisma.wikiPage.update({
+    where: { id },
+    data: { title: nextTitle, editorId: user.id },
+  });
+  await logActivity({
+    userId: user.id,
+    entityType: "wiki",
+    entityId: id,
+    action: "updated",
+  });
+  revalidatePath("/wiki", "layout");
+  revalidatePath(`/wiki/${id}`);
+}
+
 export async function deleteWikiPage(id: string) {
   const user = await requireUser();
   await prisma.wikiPage.delete({ where: { id } });
@@ -183,6 +201,82 @@ export async function unlinkTaskFromPage(pageId: string, taskId: string) {
   });
   revalidatePath(`/wiki/${pageId}`);
   revalidatePath(`/tasks/${taskId}`);
+}
+
+// ---------- 즐겨찾기(별표) ----------
+
+/**
+ * 현재 유저 기준 별표 토글. 이미 있으면 해제(delete), 없으면 별표(create).
+ * 반환값 favorited 로 클라이언트가 즉시 새 상태를 반영할 수 있다.
+ */
+export async function toggleWikiFavorite(pageId: string) {
+  const user = await requireUser();
+  const key = { userId_pageId: { userId: user.id, pageId } };
+  const existing = await prisma.wikiFavorite.findUnique({ where: key });
+  if (existing) {
+    await prisma.wikiFavorite.delete({ where: key });
+  } else {
+    await prisma.wikiFavorite.create({
+      data: { userId: user.id, pageId },
+    });
+  }
+  revalidatePath("/wiki", "layout");
+  revalidatePath(`/wiki/${pageId}`);
+  return { favorited: !existing };
+}
+
+// ---------- 버전 기록(리비전) ----------
+
+/**
+ * 과거 리비전 내용을 현재로 되돌린다. 되돌리기 전 현재 상태를 새 리비전으로
+ * 스냅샷한 뒤(안전장치) 페이지 내용을 리비전 내용으로 덮어쓴다 — 복원도 하나의
+ * 새 편집으로 취급(editorId=현재 유저).
+ */
+export async function restoreWikiRevision(revisionId: string) {
+  const user = await requireUser();
+
+  const rev = await prisma.wikiRevision.findUnique({ where: { id: revisionId } });
+  if (!rev) throw new Error("리비전을 찾을 수 없습니다");
+
+  const current = await prisma.wikiPage.findUnique({ where: { id: rev.pageId } });
+  if (!current) throw new Error("페이지를 찾을 수 없습니다");
+
+  // 되돌리기 전 현재 상태를 스냅샷(복원 취소를 위한 안전장치).
+  await prisma.wikiRevision.create({
+    data: {
+      pageId: rev.pageId,
+      title: current.title,
+      content: current.content as Prisma.InputJsonValue,
+      editorId: current.editorId,
+    },
+  });
+
+  await prisma.wikiPage.update({
+    where: { id: rev.pageId },
+    data: {
+      title: rev.title,
+      content: rev.content as Prisma.InputJsonValue,
+      editorId: user.id,
+    },
+  });
+
+  await logActivity({
+    userId: user.id,
+    entityType: "wiki",
+    entityId: rev.pageId,
+    action: "updated",
+    meta: { restoredFrom: revisionId },
+  });
+
+  revalidatePath("/wiki", "layout");
+  revalidatePath(`/wiki/${rev.pageId}`);
+  return { id: rev.pageId };
+}
+
+/** 단일 리비전 내용 조회(클라이언트 버전 미리보기에서 호출). */
+export async function getWikiRevisionAction(id: string) {
+  await requireUser();
+  return getWikiRevision(id);
 }
 
 // ---------- 검색 액션(클라이언트에서 호출: 링크 UI + 에디터 #) ----------

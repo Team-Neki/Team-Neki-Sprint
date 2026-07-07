@@ -1,15 +1,16 @@
 import { notFound } from "next/navigation";
-import { Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ko } from "date-fns/locale";
 import type { JSONContent } from "@tiptap/react";
-import { getWikiPage, getWikiTree, getWikiFolders } from "@/server/queries";
-import { deleteWikiPage } from "@/server/actions/wiki";
-import { WikiEditor } from "@/components/wiki/editor";
-import { UserBadge } from "@/components/user-badge";
-import { Button } from "@/components/ui/button";
-import { ConfirmDelete } from "@/components/confirm-delete";
-import { PageFolderSelect } from "@/components/wiki/page-folder-select";
+import {
+  getWikiPage,
+  getWikiTree,
+  getWikiFolders,
+  getWikiRevisions,
+  isWikiPageFavorited,
+} from "@/server/queries";
+import { requireUser } from "@/lib/session";
+import { WikiDetail } from "@/components/wiki/wiki-detail";
 import { LinkedTickets } from "@/components/wiki/linked-tickets";
 
 export const dynamic = "force-dynamic";
@@ -64,10 +65,13 @@ export default async function WikiPageView({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [page, tree, folders] = await Promise.all([
+  const user = await requireUser();
+  const [page, tree, folders, revisions, favorited] = await Promise.all([
     getWikiPage(id),
     getWikiTree(),
     getWikiFolders(),
+    getWikiRevisions(id),
+    isWikiPageFavorited(user.id, id),
   ]);
   if (!page) notFound();
 
@@ -85,49 +89,24 @@ export default async function WikiPageView({
       ? `하위 ${descendantCount}개 페이지도 함께 삭제됩니다. 이 작업은 되돌릴 수 없습니다.`
       : "이 작업은 되돌릴 수 없습니다.";
 
-  async function handleDelete() {
-    "use server";
-    await deleteWikiPage(id);
-  }
+  const updatedLabel = `${formatDistanceToNow(page.updatedAt, {
+    addSuffix: true,
+    locale: ko,
+  })} 수정`;
 
   return (
     <div>
-      <div className="mx-auto mb-4 flex max-w-3xl items-center justify-between gap-2">
-        <div className="text-muted-foreground flex min-w-0 items-center gap-2 text-xs">
-          {page.editor && <UserBadge user={page.editor} size="xs" />}
-          <span className="shrink-0">
-            {formatDistanceToNow(page.updatedAt, {
-              addSuffix: true,
-              locale: ko,
-            })}{" "}
-            수정
-          </span>
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-        <PageFolderSelect
-          pageId={page.id}
-          folderId={page.folderId}
-          folders={folders}
-        />
-        <ConfirmDelete
-          onConfirm={handleDelete}
-          redirectTo="/wiki"
-          title="이 페이지를 삭제할까요?"
-          description={deleteDescription}
-          trigger={
-            <Button variant="ghost" size="sm" className="text-destructive">
-              <Trash2 className="size-4" /> 삭제
-            </Button>
-          }
-        />
-        </div>
-      </div>
-
-      <WikiEditor
-        key={page.id}
+      <WikiDetail
         pageId={page.id}
-        initialTitle={page.title}
-        initialContent={asDoc(page.content)}
+        title={page.title}
+        content={asDoc(page.content)}
+        editor={page.editor}
+        updatedLabel={updatedLabel}
+        folderId={page.folderId}
+        folders={folders}
+        favorited={favorited}
+        revisions={revisions}
+        deleteDescription={deleteDescription}
       />
 
       <LinkedTickets pageId={page.id} tickets={linkedTickets} />

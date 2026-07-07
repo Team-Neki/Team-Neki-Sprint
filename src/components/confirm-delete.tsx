@@ -20,15 +20,22 @@ export function ConfirmDelete({
   title = "삭제하시겠어요?",
   description = "이 작업은 되돌릴 수 없습니다.",
   redirectTo,
+  open: openProp,
+  onOpenChange,
 }: {
   onConfirm: () => Promise<void>;
-  trigger: React.ReactElement;
+  /** 없으면 controlled 모드(open/onOpenChange 로 외부 제어). 예: 컨텍스트 메뉴에서 열기. */
+  trigger?: React.ReactElement;
   title?: string;
   description?: string;
   redirectTo?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = openProp ?? internalOpen;
+  const setOpen = (v: boolean) => (onOpenChange ?? setInternalOpen)(v);
   const [pending, start] = useTransition();
 
   function confirm() {
@@ -47,7 +54,7 @@ export function ConfirmDelete({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={trigger} />
+      {trigger && <DialogTrigger render={trigger} />}
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>

@@ -420,6 +420,55 @@ export function getWikiFolders() {
   });
 }
 
+/** 페이지의 버전 기록 목록(경량: 내용 제외, 작성자·시각만). ⋯ 메뉴 버전 기록 리스트용. */
+export function getWikiRevisions(pageId: string) {
+  return prisma.wikiRevision.findMany({
+    where: { pageId },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      title: true,
+      createdAt: true,
+      editor: miniUser,
+    },
+  });
+}
+
+/** 단일 리비전(내용 포함). 버전 미리보기용. */
+export function getWikiRevision(id: string) {
+  return prisma.wikiRevision.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      title: true,
+      content: true,
+      createdAt: true,
+      editor: miniUser,
+    },
+  });
+}
+
+/** 현재 유저가 별표한 페이지 목록(최신 별표 순). 즐겨찾기 패널용. */
+export function getWikiFavorites(userId: string) {
+  return prisma.wikiFavorite.findMany({
+    where: { userId },
+    orderBy: { createdAt: "desc" },
+    select: {
+      createdAt: true,
+      page: { select: { id: true, title: true } },
+    },
+  });
+}
+
+/** 특정 페이지를 현재 유저가 별표했는지 여부. ⋯ 메뉴 별표 토글 라벨용. */
+export async function isWikiPageFavorited(userId: string, pageId: string) {
+  const row = await prisma.wikiFavorite.findUnique({
+    where: { userId_pageId: { userId, pageId } },
+    select: { pageId: true },
+  });
+  return !!row;
+}
+
 export function getWikiPage(id: string) {
   return prisma.wikiPage.findUnique({
     where: { id },

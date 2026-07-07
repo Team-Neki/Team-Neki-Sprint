@@ -35,6 +35,8 @@ model User {
   comments      Comment[]
   authoredPages WikiPage[] @relation("PageAuthor")
   editedPages   WikiPage[] @relation("PageEditor")
+  editedRevisions WikiRevision[] @relation("RevisionEditor")
+  wikiFavorites WikiFavorite[]
   activities    Activity[]
 }
 
@@ -286,6 +288,7 @@ model WikiPage {
 
   revisions WikiRevision[]
   taskLinks WikiPageTaskLink[]
+  favorites WikiFavorite[]
 }
 
 model WikiRevision {
@@ -295,7 +298,19 @@ model WikiRevision {
   title     String
   content   Json
   editorId  String?
+  editor    User?    @relation("RevisionEditor", fields: [editorId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
+}
+
+// 유저별 위키 페이지 즐겨찾기(별표). @@id 로 (userId,pageId) 유일. 순수 조인 테이블.
+model WikiFavorite {
+  userId    String
+  pageId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  page      WikiPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([userId, pageId])
 }
 
 model WikiPageTaskLink {
