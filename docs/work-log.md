@@ -18,6 +18,20 @@
 
 ---
 
+## 2026-07-08 — Phase 4 라이브 QA + 대개편 스트림들
+
+개편 병합 후 라이브 테스트 피드백을 배치(B1~)로 처리 + 대형 스트림 병합.
+
+- **B1 대시보드**: 상태 카운트→필터 목록 링크, 최근 활동에 티켓 key·엔티티 이동. 이후 활동 포맷을 공용 `src/lib/activity-format.ts`(라벨·값해석·`activityDescription`)로 통일 — 대시보드/히스토리 패널이 "태스크명(DESIGN-3) 상태를 백로그→진행중 로 변경"처럼 실제 변경 표시.
+- **라이브 픽스**: 저장 전멸(zod `.nullish()`), 드롭다운 id→라벨(→공용 `OptionSelect` 추출), 좌측 탭 순서, 팀 '다음 번호' 제거·멤버 여백(divide-y gap-0), 대시보드 카드 이중 패딩, `InlineDate` controlled(Base UI 경고), 팀→에픽/태스크 라우팅, 아바타 hover 툴팁(이름-팀명).
+- **P4 상세 개편(B3+B7+B8)**(`feat/detail-overhaul`): 상세 인라인 편집(수정 다이얼로그 제거)·상태 우측 카드·담당자+보고자, MD 트래킹(태스크 편집·에픽/프로젝트 롤업, `task_md` additive), 업무 히스토리(Activity diff 로깅 + 필드별 before→after). 이후 태스크 상세 댓글/히스토리 **탭**화 + 에픽 필드 링크·검색 콤보박스(`epic-field.tsx`).
+- **B2 목록 테이블뷰**(`feat/b2-tables`)→**공용화**(`feat/tables-refactor`): 스프린트/프로젝트/에픽 목록 테이블뷰(전체 행 클릭 `TableRowLink`, 마감 날짜, 여백 통일), 이어 엔티티 표를 `components/tables/`로 추출해 목록+상세 하위목록 재사용(상세 하위목록도 테이블뷰).
+- **B9 위키 대개편**(`feat/wiki-overhaul`): 뷰/편집 모드 분리(기본 뷰, 우상단 '편집', `WikiView`/`WikiDetail`), ⋯메뉴 버전기록(복원)·별표, 즐겨찾기(additive `WikiFavorite` + 우측 패널), 사이드바 재설계(상단 버튼 제거→페이지별 `+` 드롭다운·'콘텐츠' 루트·**우클릭 컨텍스트 메뉴** `ui/context-menu.tsx`), Tiptap 확장 `extensions.ts` 공용화.
+
+각 스트림: worktree `tsc`+`eslint` 검증 → 병합 후 main에서 Turbopack `next build`. additive 마이그레이션(`task_md`·`wiki_favorite`)마다 dev 서버 재시작. worktree+Turbopack/npm/prisma 함정은 [gotchas](./gotchas.md).
+
+---
+
 ## 2026-07-08 — Phase 3 진행 + 라이브 버그 픽스
 
 개편 병합 후 라이브 테스트에서 나온 이슈 + phase 3 스트림 병합.

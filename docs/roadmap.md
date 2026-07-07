@@ -24,7 +24,7 @@
 
 - **B7 MD(맨데이) 트래킹** (`DONE` 2026-07-08): `estimatedMd`/`actualMd` 추가(Task에 additive 마이그레이션 `task_md`, 편집은 **태스크만**). Epic md = 하위 태스크 md 합, Project md = 하위 에픽 md 합(`queries.ts` groupBy/집계, 읽기전용 롤업). 상세·목록 `MdRollupText` 표시.
 - **B8 업무 히스토리** (`DONE` 2026-07-08): 태스크=댓글 옆 우측 레일, 에픽/프로젝트=좌측 별도 섹션(Comment 모델 없음). "누가 기한/상태/내용을 변경" 기록. **기존 `Activity` 모델 활용** + generic diff 로거(`update*Fields`)가 필드별 `field_changed`+`meta:{field,from,to}` 기록. `getEntityActivity` 조회 + `history-panel` 한국어 문장 렌더.
-- **B9 위키 대개편 (뷰/편집·버전·사이드바·즐겨찾기)**:
+- **B9 위키 대개편 (뷰/편집·버전·사이드바·즐겨찾기)** — `DONE`(2026-07-08, `feat/wiki-overhaul`):
   - **뷰/편집 모드**: 상세는 기본 **뷰 모드**(읽기전용 렌더) 진입, **우측 상단 '편집' 버튼**으로 편집 모드. 동시편집 허용·저장 시 버전 기록(last-write-wins, 편집 중인 사람 무영향). **기존 `WikiRevision` 활용**.
   - **⋯(점3개) 메뉴**: 버전 기록(목록·이전 버전 확인/복원) + **별표(즐겨찾기) 토글**.
   - **즐겨찾기(신규, additive 스키마)**: 유저별 별표 → `WikiFavorite { userId, pageId }` 조인. 위키 **우측에 즐겨찾기한 페이지 목록** 노출.
