@@ -29,6 +29,11 @@ import type { JSONContent } from "@tiptap/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { updateWikiContent } from "@/server/actions/wiki";
 
@@ -104,6 +109,18 @@ export function WikiEditor({
     return () => window.removeEventListener("keydown", onKey);
   }, [save]);
 
+  // dirty 상태(디바운스 자동저장 대기)에서 탭 닫기/새로고침 시 편집 유실 경고.
+  // dirtyRef를 읽으므로 재등록 없이 항상 최신 dirty 상태를 반영한다.
+  useEffect(() => {
+    function onBeforeUnload(e: BeforeUnloadEvent) {
+      if (!dirtyRef.current) return;
+      e.preventDefault();
+      e.returnValue = "";
+    }
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, []);
+
   return (
     <div className="mx-auto max-w-3xl">
       <div className="mb-2 flex items-center justify-between gap-2">
@@ -129,17 +146,6 @@ export function WikiEditor({
 }
 
 function Toolbar({ editor }: { editor: Editor }) {
-  const setLink = () => {
-    const prev = editor.getAttributes("link").href as string | undefined;
-    const url = window.prompt("링크 URL", prev ?? "https://");
-    if (url === null) return;
-    if (url === "") {
-      editor.chain().focus().unsetLink().run();
-      return;
-    }
-    editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
-  };
-
   return (
     <div className="bg-background/80 sticky top-14 z-10 flex flex-wrap items-center gap-0.5 rounded-md border p-1 backdrop-blur">
       <Btn active={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()}>
@@ -178,9 +184,7 @@ function Toolbar({ editor }: { editor: Editor }) {
       <Btn active={editor.isActive("codeBlock")} onClick={() => editor.chain().focus().toggleCodeBlock().run()}>
         <Code className="size-4" />
       </Btn>
-      <Btn active={editor.isActive("link")} onClick={setLink}>
-        <LinkIcon className="size-4" />
-      </Btn>
+      <LinkButton editor={editor} />
       <Sep />
       <Btn onClick={() => editor.chain().focus().undo().run()}>
         <Undo className="size-4" />
@@ -189,6 +193,77 @@ function Toolbar({ editor }: { editor: Editor }) {
         <Redo className="size-4" />
       </Btn>
     </div>
+  );
+}
+
+function LinkButton({ editor }: { editor: Editor }) {
+  const [open, setOpen] = useState(false);
+  const [url, setUrl] = useState("");
+  const isActive = editor.isActive("link");
+
+  function handleOpenChange(next: boolean) {
+    if (next) {
+      const prev = editor.getAttributes("link").href as string | undefined;
+      setUrl(prev ?? "");
+    }
+    setOpen(next);
+  }
+
+  function apply() {
+    const href = url.trim();
+    if (href === "") {
+      editor.chain().focus().extendMarkRange("link").unsetLink().run();
+    } else {
+      editor
+        .chain()
+        .focus()
+        .extendMarkRange("link")
+        .setLink({ href })
+        .run();
+    }
+    setOpen(false);
+  }
+
+  return (
+    <Popover open={open} onOpenChange={handleOpenChange}>
+      <PopoverTrigger
+        render={
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className={cn(
+              "size-8",
+              isActive && "bg-accent text-accent-foreground",
+            )}
+            aria-label="링크"
+          >
+            <LinkIcon className="size-4" />
+          </Button>
+        }
+      />
+      <PopoverContent align="start" className="w-72">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            apply();
+          }}
+          className="flex items-center gap-2"
+        >
+          <Input
+            autoFocus
+            type="url"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://example.com"
+            className="h-8"
+          />
+          <Button type="submit" size="sm" className="h-8 shrink-0">
+            {isActive ? "변경" : "추가"}
+          </Button>
+        </form>
+      </PopoverContent>
+    </Popover>
   );
 }
 

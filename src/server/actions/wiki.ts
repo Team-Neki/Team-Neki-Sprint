@@ -53,6 +53,18 @@ export async function updateWikiContent(
   const current = await prisma.wikiPage.findUnique({ where: { id } });
   if (!current) throw new Error("페이지를 찾을 수 없습니다");
 
+  const nextTitle = title.trim() || "제목 없음";
+
+  // 핵심: 실제 변경이 없으면(제목·본문 동일) DB 쓰기 자체를 건너뛴다.
+  // 에디터가 1.5초 디바운스로 자동저장하므로, 가드가 없으면 편집이 없어도
+  // 매 저장마다 리비전이 1건씩 쌓인다.
+  const unchanged =
+    current.title === nextTitle &&
+    JSON.stringify(current.content) === JSON.stringify(content);
+  if (unchanged) {
+    return { id };
+  }
+
   // Snapshot the previous version before overwriting.
   await prisma.wikiRevision.create({
     data: {
@@ -66,7 +78,7 @@ export async function updateWikiContent(
   await prisma.wikiPage.update({
     where: { id },
     data: {
-      title: title.trim() || "제목 없음",
+      title: nextTitle,
       content: content as Prisma.InputJsonValue,
       editorId: user.id,
     },
