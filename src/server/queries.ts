@@ -3,7 +3,14 @@ import type { Status } from "@prisma/client";
 import { formatIssueKey } from "@/lib/constants";
 
 const miniUser = {
-  select: { id: true, name: true, email: true, image: true },
+  select: {
+    id: true,
+    name: true,
+    email: true,
+    image: true,
+    // 아바타 hover 툴팁(이름 - 팀명)용.
+    team: { select: { key: true, name: true } },
+  },
 } as const;
 
 // Epic·Task 표시 key 계산에 필요한 최소 팀 정보.
