@@ -18,6 +18,8 @@ import { CommentForm } from "@/components/tasks/comment-form";
 import { LinkedPages } from "@/components/wiki/linked-pages";
 import { BackButton } from "@/components/detail/back-button";
 import { HistoryPanel } from "@/components/detail/history-panel";
+import { EpicField } from "@/components/detail/epic-field";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   MetaRow,
   InlineTitle,
@@ -25,7 +27,6 @@ import {
   InlineStatus,
   InlinePriority,
   InlineMember,
-  InlineLink,
   InlineDate,
   InlineNumber,
 } from "@/components/detail/inline-fields";
@@ -46,7 +47,12 @@ export default async function TaskDetail({
   ]);
   if (!task) notFound();
 
-  const epicOptions = epics.map((e) => ({ id: e.id, label: e.title }));
+  const epicPickOptions = epics.map((e) => ({
+    id: e.id,
+    title: e.title,
+    number: e.number,
+    teamKey: e.team?.key ?? null,
+  }));
 
   async function handleDelete() {
     "use server";
@@ -85,29 +91,55 @@ export default async function TaskDetail({
           />
         </Card>
 
-        <h3 className="mb-3 text-sm font-medium">댓글 {task.comments.length}</h3>
-        <div className="mb-4 flex flex-col gap-4">
-          {task.comments.map((c) => (
-            <div key={c.id} className="flex gap-3">
-              <UserBadge user={c.author} hideName />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">
-                    {c.author.name ?? c.author.email}
-                  </span>
-                  <span className="text-muted-foreground text-xs">
-                    {formatDistanceToNow(c.createdAt, {
-                      addSuffix: true,
-                      locale: ko,
-                    })}
-                  </span>
+        <Tabs defaultValue="comments">
+          <TabsList variant="line">
+            <TabsTrigger value="comments">
+              댓글 {task.comments.length}
+            </TabsTrigger>
+            <TabsTrigger value="history">업무 히스토리</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="comments" className="mt-4">
+            <div className="mb-4 flex flex-col gap-4">
+              {task.comments.map((c) => (
+                <div key={c.id} className="flex gap-3">
+                  <UserBadge user={c.author} hideName />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">
+                        {c.author.name ?? c.author.email}
+                      </span>
+                      <span className="text-muted-foreground text-xs">
+                        {formatDistanceToNow(c.createdAt, {
+                          addSuffix: true,
+                          locale: ko,
+                        })}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-sm whitespace-pre-wrap">
+                      {c.body}
+                    </p>
+                  </div>
                 </div>
-                <p className="mt-0.5 text-sm whitespace-pre-wrap">{c.body}</p>
-              </div>
+              ))}
+              {task.comments.length === 0 && (
+                <p className="text-muted-foreground text-sm">
+                  아직 댓글이 없습니다.
+                </p>
+              )}
             </div>
-          ))}
-        </div>
-        <CommentForm taskId={task.id} />
+            <CommentForm taskId={task.id} />
+          </TabsContent>
+
+          <TabsContent value="history" className="mt-4">
+            <HistoryPanel
+              activities={activities}
+              members={members}
+              epics={epics.map((e) => ({ id: e.id, title: e.title }))}
+              title=""
+            />
+          </TabsContent>
+        </Tabs>
       </div>
 
       <div className="lg:col-span-1 flex flex-col gap-4">
@@ -137,14 +169,10 @@ export default async function TaskDetail({
             <InlinePriority type="task" id={task.id} value={task.priority} />
           </MetaRow>
           <MetaRow label="에픽">
-            <InlineLink
-              type="task"
-              id={task.id}
-              field="epicId"
-              value={task.epicId}
-              options={epicOptions}
-              noneLabel="없음"
-              placeholder="에픽 선택"
+            <EpicField
+              taskId={task.id}
+              epicId={task.epicId}
+              epics={epicPickOptions}
             />
           </MetaRow>
           <MetaRow label="스토리 포인트">
@@ -204,14 +232,6 @@ export default async function TaskDetail({
               </span>
             </span>
           </MetaRow>
-        </Card>
-
-        <Card className="p-5">
-          <HistoryPanel
-            activities={activities}
-            members={members}
-            epics={epics.map((e) => ({ id: e.id, title: e.title }))}
-          />
         </Card>
 
         <Card className="p-5">

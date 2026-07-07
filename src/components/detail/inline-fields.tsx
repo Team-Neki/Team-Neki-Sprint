@@ -307,12 +307,21 @@ export function InlineDate({
 }) {
   const { pending, save } = useFieldSave(type, id);
   const initial = toDateInput(value);
+  // controlled + 서버 확정값 동기화(effect 미사용). defaultValue 사용 시
+  // prop 변경마다 Base UI FieldControl 이 uncontrolled 경고를 낸다.
+  const [text, setText] = useState(initial);
+  const [prev, setPrev] = useState(initial);
+  if (initial !== prev) {
+    setPrev(initial);
+    setText(initial);
+  }
   return (
     <Input
       type="date"
-      defaultValue={initial}
+      value={text}
       disabled={pending}
       onChange={(e) => {
+        setText(e.target.value);
         if (e.target.value !== initial) save({ [field]: e.target.value });
       }}
       className="h-7 w-[8.5rem] border-transparent bg-transparent px-1.5 text-xs hover:border-input focus-visible:border-ring"

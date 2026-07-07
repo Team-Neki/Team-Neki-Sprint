@@ -47,7 +47,7 @@ export function HistoryPanel({
 
   return (
     <div>
-      <h3 className="mb-3 text-sm font-medium">{title}</h3>
+      {title ? <h3 className="mb-3 text-sm font-medium">{title}</h3> : null}
       {activities.length === 0 ? (
         <p className="text-muted-foreground text-sm">변경 이력이 없습니다.</p>
       ) : (
