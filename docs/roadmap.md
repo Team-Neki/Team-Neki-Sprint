@@ -10,6 +10,16 @@
 - **2단계 완료(`DONE`)**: #2 + #3 + #4가 **핑퐁 결정으로 단일 개편에 병합** → [ADR 0002](./adr/0002-sprint-project-team-restructure.md) + [스펙](./specs/02-03-04-hierarchy-restructure.md). 계층을 `Sprint > Project > Epic > Task`로 개편(Initiative 제거), Team=key=유저그룹 통합. `feat/hierarchy-restructure`에서 스키마·마이그레이션·시드·서버·UI 전면 구현 → 리셋 재시드, Turbopack `next build` 통과, lint 신규 0. 상세는 [work-log](./work-log.md).
 - **선재 baseline(정리됨)**: 개편 과정에서 `kanban.tsx` set-state-in-effect(error)와 `dashboard/page.tsx` 미사용 변수(warning) 모두 해소 — 현재 lint 완전 clean.
 
+### Phase 4 — 라이브 QA 백로그 (2026-07-08 테스트 중 발견, `TODO`)
+
+배치로 묶어 순차 처리. select-refactor 병합 후 착수(공유 파일 정리 뒤).
+
+- **B1 대시보드**: (10) 최근 활동에 티켓 key 표기 + 이동, (11) 상태 카운트(백로그/할일/진행중/리뷰/완료) 클릭 → 필터된 태스크 목록. → `dashboard/page.tsx`
+- **B2 목록/여백**: (1) 태스크 클릭 영역이 컴포넌트보다 좁음, (5) 에픽 목록 열 정렬 어긋남, (6) 태스크 마감에 날짜 표시, (9) 목록 vs 상세 좌우 여백 불일치. → `tasks/page`, `epics/page`, `item-row`, `board`, `(app)/layout` 등
+- **B3 상세 페이지 개편**: (2) '수정' 버튼 제거 → 전 필드 인라인 편집, (3) 상태를 우측 카드(보고자/스토리포인트/에픽)로 이동, (4) 보고자 옆 담당자 추가, (back) 뒤로가기 스택 동작. → `{tasks,epics}/[id]`, `property-bar`, actions
+- **B4 타임라인**: (7) 가로 스크롤 시 좌측 에픽 목록 고정(sticky). → `epic-timeline.tsx`
+- **B5 프로필/소셜 (= 원래 phase 3 S3)**: (5/8/12) 사용자 프로필 페이지 + 사용자 클릭 시 이동(프로필 라우트 부재로 현재 접속 시 오류), (6) `@` 멘션, (7) 멘션 알림, (8) 알림 목록. → 신규 `users/[id]`, `Notification` 스키마(additive), 에디터 `@`.
+
 ### Phase 3 — 신규 8개 기능 (2026-07-08 요청, `WIP`)
 
 핑퐁으로 잠금: 폴더=별도 타입 / 멘션(@)=사람(클릭→프로필) / 링크(#)=티켓. 스트림 그룹핑([specs](./specs/)):
