@@ -10,6 +10,14 @@
 - **2단계 완료(`DONE`)**: #2 + #3 + #4가 **핑퐁 결정으로 단일 개편에 병합** → [ADR 0002](./adr/0002-sprint-project-team-restructure.md) + [스펙](./specs/02-03-04-hierarchy-restructure.md). 계층을 `Sprint > Project > Epic > Task`로 개편(Initiative 제거), Team=key=유저그룹 통합. `feat/hierarchy-restructure`에서 스키마·마이그레이션·시드·서버·UI 전면 구현 → 리셋 재시드, Turbopack `next build` 통과, lint 신규 0. 상세는 [work-log](./work-log.md).
 - **선재 baseline(정리됨)**: 개편 과정에서 `kanban.tsx` set-state-in-effect(error)와 `dashboard/page.tsx` 미사용 변수(warning) 모두 해소 — 현재 lint 완전 clean.
 
+### Phase 3 — 신규 8개 기능 (2026-07-08 요청, `WIP`)
+
+핑퐁으로 잠금: 폴더=별도 타입 / 멘션(@)=사람(클릭→프로필) / 링크(#)=티켓. 스트림 그룹핑([specs](./specs/)):
+- **S1 타임라인 일(day) 셀**(#1) — 스키마 없음, 독립 worktree 병렬. [p3-01](./specs/p3-01-timeline-day-cells.md)
+- **S2 위키 폴더+티켓링크**(#2·#3·#4) — additive Folder 스키마, editor.tsx. [p3-02](./specs/p3-02-wiki-folders-links.md)
+- **S3 프로필·멘션·알림**(#5·#6·#7·#8) — additive Notification/User.phone, editor.tsx. **S2 병합 후**(editor 공유). [p3-03](./specs/p3-03-social-mentions-notifications.md)
+- 순서: **S1 ∥ S2 → S3**. 스키마는 리셋 아닌 **additive**(기존 데이터 보존). 각 병합 후 dev 서버 재시작(새 client).
+
 ---
 
 ## 1. 타임라인 날짜 겹침 UI 버그 수정 · `DONE` · 규모 S
