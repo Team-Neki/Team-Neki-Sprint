@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Plus, Pencil, Trash2, Users } from "lucide-react";
 import { getTeams, getMembers, getTeamOptions } from "@/server/queries";
 import { deleteTeam } from "@/server/actions/teams";
@@ -98,8 +99,18 @@ export default async function TeamsPage() {
 
                 <div className="text-muted-foreground flex items-center gap-3 text-xs">
                   <span>멤버 {t._count.members}</span>
-                  <span>에픽 {t._count.epics}</span>
-                  <span>태스크 {t._count.tasks}</span>
+                  <Link
+                    href={`/epics?team=${t.id}`}
+                    className="hover:text-foreground hover:underline"
+                  >
+                    에픽 {t._count.epics}
+                  </Link>
+                  <Link
+                    href={`/tasks?team=${t.id}`}
+                    className="hover:text-foreground hover:underline"
+                  >
+                    태스크 {t._count.tasks}
+                  </Link>
                 </div>
 
                 {t.members.length > 0 && (
