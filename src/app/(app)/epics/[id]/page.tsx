@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Plus, Trash2 } from "lucide-react";
 import {
@@ -12,8 +11,7 @@ import { deleteEpic } from "@/server/actions/epics";
 import { formatIssueKey } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { StatusBadge, PriorityBadge } from "@/components/badges";
-import { UserBadge } from "@/components/user-badge";
+import { TasksTable } from "@/components/tables/tasks-table";
 import { TaskDialog } from "@/components/forms/task-dialog";
 import { ConfirmDelete } from "@/components/confirm-delete";
 import { BackButton } from "@/components/detail/back-button";
@@ -102,28 +100,13 @@ export default async function EpicDetail({
           />
         </div>
 
-        <div className="mb-6 flex flex-col gap-2">
-          {epic.tasks.length === 0 && (
-            <p className="text-muted-foreground py-8 text-center text-sm">
-              연결된 태스크가 없습니다.
-            </p>
-          )}
-          {epic.tasks.map((t) => (
-            <Link key={t.id} href={`/tasks/${t.id}`}>
-              <Card className="hover:border-primary/40 flex flex-row items-center gap-3 px-4 py-3 transition-colors">
-                <span className="text-muted-foreground w-24 shrink-0 font-mono text-xs">
-                  {formatIssueKey(t.team?.key, t.number)}
-                </span>
-                <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                  {t.title}
-                </span>
-                <PriorityBadge priority={t.priority} />
-                <UserBadge user={t.assignee} hideName />
-                <StatusBadge status={t.status} />
-              </Card>
-            </Link>
-          ))}
-        </div>
+        <Card className="mb-6 overflow-hidden py-0">
+          <TasksTable
+            tasks={epic.tasks}
+            hideEpic
+            emptyMessage="연결된 태스크가 없습니다."
+          />
+        </Card>
 
         <Card className="p-5">
           <HistoryPanel
