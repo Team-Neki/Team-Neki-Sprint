@@ -100,7 +100,6 @@ export default async function TeamsPage() {
                   <span>멤버 {t._count.members}</span>
                   <span>에픽 {t._count.epics}</span>
                   <span>태스크 {t._count.tasks}</span>
-                  <span className="ml-auto">다음 번호 {t.seq + 1}</span>
                 </div>
 
                 {t.members.length > 0 && (
