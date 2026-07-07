@@ -3,8 +3,14 @@ import { notFound } from "next/navigation";
 import { Pencil, Trash2, ChevronLeft } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ko } from "date-fns/locale";
-import { getTask, getEpics, getMembers } from "@/server/queries";
+import {
+  getTask,
+  getEpicOptions,
+  getTeamOptions,
+  getMembers,
+} from "@/server/queries";
 import { deleteTask } from "@/server/actions/tasks";
+import { formatIssueKey } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { UserBadge } from "@/components/user-badge";
@@ -21,12 +27,19 @@ export default async function TaskDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [task, epics, members] = await Promise.all([
+  const [task, epics, teams, members] = await Promise.all([
     getTask(id),
-    getEpics(),
+    getEpicOptions(),
+    getTeamOptions(),
     getMembers(),
   ]);
   if (!task) notFound();
+
+  const epicOptions = epics.map((e) => ({
+    id: e.id,
+    title: e.title,
+    teamId: e.team.id,
+  }));
 
   async function handleDelete() {
     "use server";
@@ -46,7 +59,7 @@ export default async function TaskDetail({
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
             <span className="text-muted-foreground font-mono text-xs">
-              TASK-{task.key}
+              {formatIssueKey(task.team?.key, task.number)}
             </span>
             <h1 className="text-2xl font-semibold tracking-tight">
               {task.title}
@@ -55,7 +68,8 @@ export default async function TaskDetail({
           <div className="flex shrink-0 items-center gap-1">
             <TaskDialog
               members={members}
-              epics={epics.map((e) => ({ id: e.id, title: e.title }))}
+              teams={teams}
+              epics={epicOptions}
               task={task}
               trigger={
                 <Button variant="outline" size="sm">
@@ -85,6 +99,7 @@ export default async function TaskDetail({
             members={members}
             startDate={task.startDate}
             dueDate={task.dueDate}
+            team={task.team}
           />
         </div>
 

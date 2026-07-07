@@ -21,7 +21,7 @@ export function ItemRow({
   meta,
 }: {
   href: string;
-  itemKey: string;
+  itemKey?: string;
   title: string;
   priority: Priority;
   status: Status;
@@ -32,9 +32,11 @@ export function ItemRow({
     <Link href={href}>
       <Card className="hover:border-primary/40 flex flex-row items-center gap-4 px-4 py-3 transition-colors">
         <div className="flex min-w-0 flex-1 items-center gap-3">
-          <span className="text-muted-foreground w-20 shrink-0 font-mono text-xs">
-            {itemKey}
-          </span>
+          {itemKey && (
+            <span className="text-muted-foreground w-20 shrink-0 font-mono text-xs">
+              {itemKey}
+            </span>
+          )}
           <span className="truncate font-medium">{title}</span>
         </div>
         <PriorityBadge priority={priority} />

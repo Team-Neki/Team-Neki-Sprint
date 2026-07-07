@@ -22,6 +22,8 @@ import {
   PrioritySelect,
   MemberSelect,
   GenericSelect,
+  TeamSelect,
+  type TeamOption,
   toDateInput,
 } from "@/components/forms/fields";
 import { createEpic, updateEpic } from "@/server/actions/epics";
@@ -33,22 +35,27 @@ type Existing = {
   status: Status;
   priority: Priority;
   ownerId: string | null;
-  initiativeId: string | null;
+  teamId: string;
+  projectId: string | null;
   startDate: Date | string | null;
   dueDate: Date | string | null;
 };
 
 export function EpicDialog({
   members,
-  initiatives,
+  teams,
+  projects,
   epic,
-  defaultInitiativeId,
+  defaultProjectId,
+  defaultTeamId,
   trigger,
 }: {
   members: MiniUser[];
-  initiatives: { id: string; title: string }[];
+  teams: TeamOption[];
+  projects: { id: string; title: string }[];
   epic?: Existing;
-  defaultInitiativeId?: string;
+  defaultProjectId?: string;
+  defaultTeamId?: string;
   trigger: React.ReactElement;
 }) {
   const router = useRouter();
@@ -60,15 +67,24 @@ export function EpicDialog({
   const [status, setStatus] = useState<Status>(epic?.status ?? "BACKLOG");
   const [priority, setPriority] = useState<Priority>(epic?.priority ?? "MEDIUM");
   const [ownerId, setOwnerId] = useState<string | null>(epic?.ownerId ?? null);
-  const [initiativeId, setInitiativeId] = useState<string | null>(
-    epic?.initiativeId ?? defaultInitiativeId ?? null,
+  const [teamId, setTeamId] = useState<string | null>(
+    epic?.teamId ?? defaultTeamId ?? null,
+  );
+  const [projectId, setProjectId] = useState<string | null>(
+    epic?.projectId ?? defaultProjectId ?? null,
   );
   const [startDate, setStartDate] = useState(toDateInput(epic?.startDate));
   const [dueDate, setDueDate] = useState(toDateInput(epic?.dueDate));
 
+  const isEdit = !!epic;
+
   function submit() {
     if (!title.trim()) {
       toast.error("제목을 입력하세요");
+      return;
+    }
+    if (!isEdit && !teamId) {
+      toast.error("팀을 선택하세요");
       return;
     }
     const payload = {
@@ -77,7 +93,8 @@ export function EpicDialog({
       status,
       priority,
       ownerId,
-      initiativeId,
+      teamId: teamId ?? epic?.teamId,
+      projectId,
       startDate,
       dueDate,
     };
@@ -119,15 +136,25 @@ export function EpicDialog({
               rows={3}
             />
           </div>
-          <div className="grid gap-2">
-            <Label>상위 이니셔티브</Label>
-            <GenericSelect
-              value={initiativeId}
-              onChange={setInitiativeId}
-              options={initiatives.map((i) => ({ id: i.id, label: i.title }))}
-              placeholder="이니셔티브 선택"
-              noneLabel="없음"
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-2">
+              <Label>소유 팀{isEdit && " (변경 불가)"}</Label>
+              {isEdit ? (
+                <TeamKeyReadonly teams={teams} teamId={epic!.teamId} />
+              ) : (
+                <TeamSelect value={teamId} onChange={setTeamId} teams={teams} />
+              )}
+            </div>
+            <div className="grid gap-2">
+              <Label>프로젝트</Label>
+              <GenericSelect
+                value={projectId}
+                onChange={setProjectId}
+                options={projects.map((p) => ({ id: p.id, label: p.title }))}
+                placeholder="프로젝트 선택"
+                noneLabel="없음"
+              />
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-2">
@@ -172,5 +199,26 @@ export function EpicDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** 수정 모드에서 팀은 불변 — 현재 팀 key를 읽기 전용으로 표시. */
+function TeamKeyReadonly({
+  teams,
+  teamId,
+}: {
+  teams: TeamOption[];
+  teamId: string;
+}) {
+  const team = teams.find((t) => t.id === teamId);
+  return (
+    <div className="border-input bg-muted/40 text-muted-foreground flex h-9 items-center gap-2 rounded-md border px-3 text-sm">
+      <span
+        className="size-2 shrink-0 rounded-full"
+        style={team?.color ? { backgroundColor: team.color } : undefined}
+      />
+      <span className="font-mono text-xs">{team?.key ?? "—"}</span>
+      <span>{team?.name}</span>
+    </div>
   );
 }

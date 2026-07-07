@@ -103,6 +103,53 @@ export function MemberSelect({
   );
 }
 
+export type TeamOption = {
+  id: string;
+  key: string;
+  name: string;
+  color?: string | null;
+};
+
+/** 팀 선택 (에픽/태스크 생성 시). key 접두어 + 색 도트로 표시. */
+export function TeamSelect({
+  value,
+  onChange,
+  teams,
+  placeholder = "팀 선택",
+}: {
+  value: string | null;
+  onChange: (v: string) => void;
+  teams: TeamOption[];
+  placeholder?: string;
+}) {
+  return (
+    <Select
+      value={value ?? undefined}
+      onValueChange={(v) => {
+        if (v) onChange(v);
+      }}
+    >
+      <SelectTrigger>
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent>
+        {teams.map((t) => (
+          <SelectItem key={t.id} value={t.id}>
+            <span className="flex items-center gap-2">
+              <span
+                className="size-2 shrink-0 rounded-full"
+                style={t.color ? { backgroundColor: t.color } : undefined}
+              />
+              <span className="font-mono text-xs">{t.key}</span>
+              <span className="text-muted-foreground">{t.name}</span>
+            </span>
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
 export function GenericSelect({
   value,
   onChange,

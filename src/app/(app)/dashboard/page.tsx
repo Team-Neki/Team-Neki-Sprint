@@ -19,14 +19,16 @@ const ACTION_LABEL: Record<string, string> = {
   commented: "댓글",
 };
 const ENTITY_LABEL: Record<string, string> = {
-  initiative: "이니셔티브",
+  sprint: "스프린트",
+  project: "프로젝트",
+  team: "팀",
   epic: "에픽",
   task: "태스크",
   wiki: "위키",
 };
 
 export default async function DashboardPage() {
-  const { statusCounts, totalTasks, myTasks, recentActivity, initiatives } =
+  const { statusCounts, myTasks, recentActivity, projects } =
     await getDashboardData();
 
   const countByStatus = Object.fromEntries(
@@ -90,24 +92,24 @@ export default async function DashboardPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">진행 중 이니셔티브</CardTitle>
+            <CardTitle className="text-base">진행 중 프로젝트</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-1">
-            {initiatives.length === 0 && (
+            {projects.length === 0 && (
               <p className="text-muted-foreground py-6 text-center text-sm">
-                이니셔티브가 없습니다.
+                프로젝트가 없습니다.
               </p>
             )}
-            {initiatives.map((i) => (
+            {projects.map((p) => (
               <Link
-                key={i.id}
-                href={`/initiatives/${i.id}`}
+                key={p.id}
+                href={`/projects/${p.id}`}
                 className="hover:bg-accent/60 flex items-center gap-2 rounded-md px-2 py-2"
               >
-                <StatusBadge status={i.status} />
-                <span className="min-w-0 flex-1 truncate text-sm">{i.title}</span>
+                <StatusBadge status={p.status} />
+                <span className="min-w-0 flex-1 truncate text-sm">{p.title}</span>
                 <span className="text-muted-foreground shrink-0 text-xs">
-                  에픽 {i._count.epics}
+                  에픽 {p._count.epics}
                 </span>
               </Link>
             ))}

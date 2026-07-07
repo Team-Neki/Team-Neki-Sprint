@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 
-type EntityType = "initiative" | "epic" | "task" | "wiki";
+type EntityType = "sprint" | "project" | "team" | "epic" | "task" | "wiki";
 
 /** Fire-and-forget activity log. Never throws into the caller's flow. */
 export async function logActivity(params: {

@@ -21,9 +21,10 @@ import {
   StatusSelect,
   PrioritySelect,
   MemberSelect,
+  GenericSelect,
   toDateInput,
 } from "@/components/forms/fields";
-import { createInitiative, updateInitiative } from "@/server/actions/initiatives";
+import { createProject, updateProject } from "@/server/actions/projects";
 
 type Existing = {
   id: string;
@@ -32,34 +33,40 @@ type Existing = {
   status: Status;
   priority: Priority;
   ownerId: string | null;
+  sprintId: string | null;
   startDate: Date | string | null;
   dueDate: Date | string | null;
 };
 
-export function InitiativeDialog({
+export function ProjectDialog({
   members,
-  initiative,
+  sprints,
+  project,
+  defaultSprintId,
   trigger,
 }: {
   members: MiniUser[];
-  initiative?: Existing;
+  sprints: { id: string; name: string }[];
+  project?: Existing;
+  defaultSprintId?: string;
   trigger: React.ReactElement;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
 
-  const [title, setTitle] = useState(initiative?.title ?? "");
-  const [description, setDescription] = useState(initiative?.description ?? "");
-  const [status, setStatus] = useState<Status>(initiative?.status ?? "BACKLOG");
+  const [title, setTitle] = useState(project?.title ?? "");
+  const [description, setDescription] = useState(project?.description ?? "");
+  const [status, setStatus] = useState<Status>(project?.status ?? "BACKLOG");
   const [priority, setPriority] = useState<Priority>(
-    initiative?.priority ?? "MEDIUM",
+    project?.priority ?? "MEDIUM",
   );
-  const [ownerId, setOwnerId] = useState<string | null>(
-    initiative?.ownerId ?? null,
+  const [ownerId, setOwnerId] = useState<string | null>(project?.ownerId ?? null);
+  const [sprintId, setSprintId] = useState<string | null>(
+    project?.sprintId ?? defaultSprintId ?? null,
   );
-  const [startDate, setStartDate] = useState(toDateInput(initiative?.startDate));
-  const [dueDate, setDueDate] = useState(toDateInput(initiative?.dueDate));
+  const [startDate, setStartDate] = useState(toDateInput(project?.startDate));
+  const [dueDate, setDueDate] = useState(toDateInput(project?.dueDate));
 
   function submit() {
     if (!title.trim()) {
@@ -72,14 +79,15 @@ export function InitiativeDialog({
       status,
       priority,
       ownerId,
+      sprintId,
       startDate,
       dueDate,
     };
     start(async () => {
       try {
-        if (initiative) await updateInitiative(initiative.id, payload);
-        else await createInitiative(payload);
-        toast.success(initiative ? "수정했습니다" : "이니셔티브를 만들었습니다");
+        if (project) await updateProject(project.id, payload);
+        else await createProject(payload);
+        toast.success(project ? "수정했습니다" : "프로젝트를 만들었습니다");
         setOpen(false);
         router.refresh();
       } catch {
@@ -93,9 +101,7 @@ export function InitiativeDialog({
       <DialogTrigger render={trigger} />
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>
-            {initiative ? "이니셔티브 수정" : "새 이니셔티브"}
-          </DialogTitle>
+          <DialogTitle>{project ? "프로젝트 수정" : "새 프로젝트"}</DialogTitle>
         </DialogHeader>
         <div className="grid gap-4 py-2">
           <div className="grid gap-2">
@@ -103,7 +109,7 @@ export function InitiativeDialog({
             <Input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="예: 2026 상반기 브랜드 캠페인"
+              placeholder="예: 브랜드 캠페인 리뉴얼"
               autoFocus
             />
           </div>
@@ -113,7 +119,17 @@ export function InitiativeDialog({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
-              placeholder="목표와 배경을 적어주세요"
+              placeholder="팀 횡단으로 진행할 작업의 목표와 배경"
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label>스프린트</Label>
+            <GenericSelect
+              value={sprintId}
+              onChange={setSprintId}
+              options={sprints.map((s) => ({ id: s.id, label: s.name }))}
+              placeholder="스프린트 선택"
+              noneLabel="없음"
             />
           </div>
           <div className="grid grid-cols-2 gap-3">

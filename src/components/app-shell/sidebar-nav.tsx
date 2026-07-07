@@ -4,11 +4,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
+  Rocket,
   Target,
   Layers,
   KanbanSquare,
   ListTodo,
   CalendarRange,
+  Users,
   BookText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -16,15 +18,17 @@ import { cn } from "@/lib/utils";
 const NAV = [
   { group: "개요", items: [{ href: "/dashboard", label: "대시보드", icon: LayoutDashboard }] },
   {
-    group: "프로젝트",
+    group: "작업",
     items: [
-      { href: "/initiatives", label: "이니셔티브", icon: Target },
+      { href: "/sprints", label: "스프린트", icon: Rocket },
+      { href: "/projects", label: "프로젝트", icon: Target },
       { href: "/epics", label: "에픽", icon: Layers },
       { href: "/board", label: "보드", icon: KanbanSquare },
       { href: "/tasks", label: "태스크", icon: ListTodo },
       { href: "/timeline", label: "타임라인", icon: CalendarRange },
     ],
   },
+  { group: "조직", items: [{ href: "/teams", label: "팀", icon: Users }] },
   { group: "문서", items: [{ href: "/wiki", label: "위키", icon: BookText }] },
 ];
 

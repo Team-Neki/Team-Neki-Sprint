@@ -14,30 +14,32 @@ import {
 } from "date-fns";
 import { ko } from "date-fns/locale";
 import type { Status, Priority } from "@prisma/client";
-import { STATUS_META } from "@/lib/constants";
+import { STATUS_META, formatIssueKey } from "@/lib/constants";
 import { UserBadge, type MiniUser } from "@/components/user-badge";
 import { cn } from "@/lib/utils";
 
 type TimelineTask = {
   id: string;
-  key: number;
+  number: number;
   title: string;
   status: Status;
   startDate: Date | null;
   dueDate: Date | null;
+  team: { key: string } | null;
   assignee: MiniUser | null;
 };
 
 export type TimelineEpic = {
   id: string;
-  key: number;
+  number: number;
   title: string;
   status: Status;
   priority: Priority;
   startDate: Date | null;
   dueDate: Date | null;
   owner: MiniUser | null;
-  initiative: { id: string; title: string; key: number } | null;
+  team: { id: string; key: string; name: string; color?: string | null } | null;
+  project: { id: string; title: string } | null;
   tasks: TimelineTask[];
 };
 
@@ -118,15 +120,15 @@ export function EpicTimeline({
     return Math.max(1, Math.ceil(MIN_LABEL_PX / weekPx));
   }, [totalDays]);
 
-  // Group epics under their initiative, preserving order.
+  // Group epics under their project, preserving order.
   const groups = useMemo(() => {
     const map = new Map<
       string,
       { title: string; epics: TimelineEpic[] }
     >();
     for (const e of epics) {
-      const key = e.initiative?.id ?? "__none__";
-      const title = e.initiative?.title ?? "이니셔티브 없음";
+      const key = e.project?.id ?? "__none__";
+      const title = e.project?.title ?? "프로젝트 없음";
       if (!map.has(key)) map.set(key, { title, epics: [] });
       map.get(key)!.epics.push(e);
     }
@@ -197,7 +199,7 @@ export function EpicTimeline({
                             title={epic.title}
                           >
                             <span className="text-muted-foreground font-mono text-[11px]">
-                              EPIC-{epic.key}
+                              {formatIssueKey(epic.team?.key, epic.number)}
                             </span>{" "}
                             {epic.title}
                           </Link>

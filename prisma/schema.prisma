@@ -21,17 +21,21 @@ model User {
   role          Role      @default(MEMBER)
   createdAt     DateTime  @default(now())
 
+  // 팀 소속(단일). 한 사람 = 한 팀. 배정은 팀 관리 UI에서 수동으로.
+  teamId String?
+  team   Team?   @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
   accounts Account[]
   sessions Session[]
 
-  ownedInitiatives Initiative[] @relation("InitiativeOwner")
-  ownedEpics       Epic[]       @relation("EpicOwner")
-  assignedTasks    Task[]       @relation("TaskAssignee")
-  createdTasks     Task[]       @relation("TaskReporter")
-  comments         Comment[]
-  authoredPages    WikiPage[]   @relation("PageAuthor")
-  editedPages      WikiPage[]   @relation("PageEditor")
-  activities       Activity[]
+  ownedProjects Project[]  @relation("ProjectOwner")
+  ownedEpics    Epic[]     @relation("EpicOwner")
+  assignedTasks Task[]     @relation("TaskAssignee")
+  createdTasks  Task[]     @relation("TaskReporter")
+  comments      Comment[]
+  authoredPages WikiPage[] @relation("PageAuthor")
+  editedPages   WikiPage[] @relation("PageEditor")
+  activities    Activity[]
 }
 
 enum Role {
@@ -91,9 +95,28 @@ enum Priority {
   URGENT
 }
 
-model Initiative {
+enum SprintStatus {
+  PLANNED
+  ACTIVE
+  DONE
+}
+
+// 기간 단위. 하위에 팀 횡단 작업(Project)을 담는다.
+model Sprint {
+  id        String       @id @default(cuid())
+  name      String
+  startDate DateTime?
+  endDate   DateTime?
+  status    SprintStatus @default(PLANNED)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  projects Project[]
+}
+
+// 팀 횡단 작업(구 Initiative를 전환). key 없음 — 제목만.
+model Project {
   id          String    @id @default(cuid())
-  key         Int       @unique @default(autoincrement()) // human-friendly INI-<key>
   title       String
   description String?   @db.Text
   status      Status    @default(BACKLOG)
@@ -101,37 +124,56 @@ model Initiative {
   startDate   DateTime?
   dueDate     DateTime?
   ownerId     String?
-  owner       User?     @relation("InitiativeOwner", fields: [ownerId], references: [id])
+  owner       User?     @relation("ProjectOwner", fields: [ownerId], references: [id])
+  sprintId    String?
+  sprint      Sprint?   @relation(fields: [sprintId], references: [id], onDelete: SetNull)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
   epics  Epic[]
-  labels LabelsOnInitiatives[]
+  labels LabelsOnProjects[]
+}
+
+// 팀 = 이슈 key 접두어 = 유저 그룹. 한 사람 = 한 팀.
+model Team {
+  id    String  @id @default(cuid())
+  key   String  @unique // "DESIGN" — 이슈 key 접두어
+  name  String
+  color String?
+  seq   Int     @default(0) // 팀 단위 이슈 번호 카운터(epic+task 공유)
+
+  members User[]
+  epics   Epic[]
+  tasks   Task[]
 }
 
 model Epic {
-  id           String      @id @default(cuid())
-  key          Int         @unique @default(autoincrement())
-  title        String
-  description  String?     @db.Text
-  status       Status      @default(BACKLOG)
-  priority     Priority    @default(MEDIUM)
-  startDate    DateTime?
-  dueDate      DateTime?
-  ownerId      String?
-  owner        User?       @relation("EpicOwner", fields: [ownerId], references: [id])
-  initiativeId String?
-  initiative   Initiative? @relation(fields: [initiativeId], references: [id], onDelete: SetNull)
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  id          String    @id @default(cuid())
+  number      Int // 팀 시퀀스. 표시 key = team.key-number
+  title       String
+  description String?   @db.Text
+  status      Status    @default(BACKLOG)
+  priority    Priority  @default(MEDIUM)
+  startDate   DateTime?
+  dueDate     DateTime?
+  ownerId     String?
+  owner       User?     @relation("EpicOwner", fields: [ownerId], references: [id])
+  teamId      String
+  team        Team      @relation(fields: [teamId], references: [id])
+  projectId   String?
+  project     Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   tasks  Task[]
   labels LabelsOnEpics[]
+
+  @@unique([teamId, number])
 }
 
 model Task {
   id          String    @id @default(cuid())
-  key         Int       @unique @default(autoincrement())
+  number      Int // 팀 시퀀스. 표시 key = team.key-number
   title       String
   description String?   @db.Text
   status      Status    @default(TODO)
@@ -143,6 +185,8 @@ model Task {
   assignee    User?     @relation("TaskAssignee", fields: [assigneeId], references: [id])
   reporterId  String?
   reporter    User?     @relation("TaskReporter", fields: [reporterId], references: [id])
+  teamId      String
+  team        Team      @relation(fields: [teamId], references: [id])
   epicId      String?
   epic        Epic?     @relation(fields: [epicId], references: [id], onDelete: SetNull)
   createdAt   DateTime  @default(now())
@@ -151,6 +195,8 @@ model Task {
   comments  Comment[]
   labels    LabelsOnTasks[]
   wikiLinks WikiPageTaskLink[]
+
+  @@unique([teamId, number])
 }
 
 model Comment {
@@ -169,25 +215,25 @@ model Label {
   name  String @unique
   color String @default("#94a3b8")
 
-  initiatives LabelsOnInitiatives[]
-  epics       LabelsOnEpics[]
-  tasks       LabelsOnTasks[]
+  projects LabelsOnProjects[]
+  epics    LabelsOnEpics[]
+  tasks    LabelsOnTasks[]
 }
 
-model LabelsOnInitiatives {
-  initiativeId String
-  labelId      String
-  initiative   Initiative @relation(fields: [initiativeId], references: [id], onDelete: Cascade)
-  label        Label      @relation(fields: [labelId], references: [id], onDelete: Cascade)
+model LabelsOnProjects {
+  projectId String
+  labelId   String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  label     Label   @relation(fields: [labelId], references: [id], onDelete: Cascade)
 
-  @@id([initiativeId, labelId])
+  @@id([projectId, labelId])
 }
 
 model LabelsOnEpics {
   epicId  String
   labelId String
-  epic    Epic  @relation(fields: [epicId], references: [id], onDelete: Cascade)
-  label   Label @relation(fields: [labelId], references: [id], onDelete: Cascade)
+  epic    Epic   @relation(fields: [epicId], references: [id], onDelete: Cascade)
+  label   Label  @relation(fields: [labelId], references: [id], onDelete: Cascade)
 
   @@id([epicId, labelId])
 }
@@ -195,8 +241,8 @@ model LabelsOnEpics {
 model LabelsOnTasks {
   taskId  String
   labelId String
-  task    Task  @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  label   Label @relation(fields: [labelId], references: [id], onDelete: Cascade)
+  task    Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  label   Label  @relation(fields: [labelId], references: [id], onDelete: Cascade)
 
   @@id([taskId, labelId])
 }
@@ -247,7 +293,7 @@ model Activity {
   id         String   @id @default(cuid())
   userId     String?
   user       User?    @relation(fields: [userId], references: [id])
-  entityType String // "initiative" | "epic" | "task" | "wiki"
+  entityType String // "sprint" | "project" | "team" | "epic" | "task" | "wiki"
   entityId   String
   action     String // "created" | "updated" | "status_changed" | ...
   meta       Json?

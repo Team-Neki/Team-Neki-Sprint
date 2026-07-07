@@ -11,13 +11,26 @@ import {
   assigneeIdSchema,
 } from "@/lib/validators";
 import { logActivity } from "@/server/activity";
+import { nextTeamNumber } from "@/server/keys";
 
 export async function createTask(input: unknown) {
   const user = await requireUser();
   const data = taskSchema.parse(input);
 
-  const task = await prisma.task.create({
-    data: { ...data, reporterId: user.id },
+  const task = await prisma.$transaction(async (tx) => {
+    // Task는 생성 시점 Epic의 팀을 상속(teamId 고정). 에픽이 없으면 폼 선택 팀 사용.
+    let teamId = data.teamId;
+    if (data.epicId) {
+      const epic = await tx.epic.findUnique({
+        where: { id: data.epicId },
+        select: { teamId: true },
+      });
+      if (epic) teamId = epic.teamId;
+    }
+    const number = await nextTeamNumber(tx, teamId);
+    return tx.task.create({
+      data: { ...data, teamId, number, reporterId: user.id },
+    });
   });
 
   await logActivity({
@@ -37,6 +50,8 @@ export async function createTask(input: unknown) {
 export async function updateTask(id: string, input: unknown) {
   const user = await requireUser();
   const data = taskSchema.partial().parse(input);
+  // 팀(teamId)과 번호는 생성 후 불변 — 에픽 이동에도 key는 안정(재번호 없음).
+  delete (data as { teamId?: string }).teamId;
 
   const task = await prisma.task.update({ where: { id }, data });
 

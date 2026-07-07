@@ -3,7 +3,13 @@ import { Plus } from "lucide-react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import type { Status } from "@prisma/client";
-import { getTasks, getEpics, getMembers } from "@/server/queries";
+import {
+  getTasks,
+  getEpicOptions,
+  getTeamOptions,
+  getMembers,
+} from "@/server/queries";
+import { formatIssueKey } from "@/lib/constants";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -25,25 +31,39 @@ export const dynamic = "force-dynamic";
 export default async function TasksPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; assignee?: string; q?: string }>;
+  searchParams: Promise<{
+    status?: string;
+    assignee?: string;
+    team?: string;
+    q?: string;
+  }>;
 }) {
   const sp = await searchParams;
-  const [tasks, epics, members] = await Promise.all([
+  const [tasks, epics, teams, members] = await Promise.all([
     getTasks({
       status: (sp.status as Status) || undefined,
       assigneeId: sp.assignee || undefined,
+      teamId: sp.team || undefined,
       q: sp.q || undefined,
     }),
-    getEpics(),
+    getEpicOptions(),
+    getTeamOptions(),
     getMembers(),
   ]);
+
+  const epicOptions = epics.map((e) => ({
+    id: e.id,
+    title: e.title,
+    teamId: e.team.id,
+  }));
 
   return (
     <div>
       <PageHeader title="태스크" description="모든 태스크를 표로 관리하세요.">
         <TaskDialog
           members={members}
-          epics={epics.map((e) => ({ id: e.id, title: e.title }))}
+          teams={teams}
+          epics={epicOptions}
           trigger={
             <Button>
               <Plus className="size-4" /> 새 태스크
@@ -52,13 +72,13 @@ export default async function TasksPage({
         />
       </PageHeader>
 
-      <TaskFilters members={members} />
+      <TaskFilters members={members} teams={teams} />
 
       <Card className="overflow-hidden py-0">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-24">키</TableHead>
+              <TableHead className="w-28">키</TableHead>
               <TableHead>제목</TableHead>
               <TableHead className="w-40">에픽</TableHead>
               <TableHead className="w-20">우선순위</TableHead>
@@ -82,7 +102,7 @@ export default async function TasksPage({
               <TableRow key={t.id} className="cursor-pointer">
                 <TableCell className="text-muted-foreground font-mono text-xs">
                   <Link href={`/tasks/${t.id}`} className="block">
-                    TASK-{t.key}
+                    {formatIssueKey(t.team?.key, t.number)}
                   </Link>
                 </TableCell>
                 <TableCell className="font-medium">
