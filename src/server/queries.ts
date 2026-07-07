@@ -11,6 +11,67 @@ const miniTeam = {
   select: { id: true, key: true, name: true, color: true },
 } as const;
 
+// ---------- MD(맨데이) 롤업 (B7, 읽기전용 계산) ----------
+
+/** MD 롤업 값. estimated=예상 합, actual=실제 합. */
+export type MdRollup = { estimated: number; actual: number };
+const ZERO_MD: MdRollup = { estimated: 0, actual: 0 };
+
+/** 태스크 배열의 estimated/actual MD 합. */
+function sumMd(
+  tasks: { estimatedMd: number | null; actualMd: number | null }[],
+): MdRollup {
+  return tasks.reduce<MdRollup>(
+    (acc, t) => ({
+      estimated: acc.estimated + (t.estimatedMd ?? 0),
+      actual: acc.actual + (t.actualMd ?? 0),
+    }),
+    { estimated: 0, actual: 0 },
+  );
+}
+
+/** 에픽 id별 하위 태스크 MD 합(groupBy 집계). */
+async function mdByEpic(epicIds: string[]): Promise<Map<string, MdRollup>> {
+  const map = new Map<string, MdRollup>();
+  if (epicIds.length === 0) return map;
+  const rows = await prisma.task.groupBy({
+    by: ["epicId"],
+    where: { epicId: { in: epicIds } },
+    _sum: { estimatedMd: true, actualMd: true },
+  });
+  for (const r of rows) {
+    if (!r.epicId) continue;
+    map.set(r.epicId, {
+      estimated: r._sum.estimatedMd ?? 0,
+      actual: r._sum.actualMd ?? 0,
+    });
+  }
+  return map;
+}
+
+/** 프로젝트 id별 하위(에픽→태스크) MD 합. Task 에 projectId 가 없어 에픽 경유로 집계. */
+async function mdByProject(projectIds: string[]): Promise<Map<string, MdRollup>> {
+  const map = new Map<string, MdRollup>();
+  if (projectIds.length === 0) return map;
+  const epics = await prisma.epic.findMany({
+    where: { projectId: { in: projectIds } },
+    select: {
+      projectId: true,
+      tasks: { select: { estimatedMd: true, actualMd: true } },
+    },
+  });
+  for (const e of epics) {
+    if (!e.projectId) continue;
+    const cur = map.get(e.projectId) ?? { estimated: 0, actual: 0 };
+    const s = sumMd(e.tasks);
+    map.set(e.projectId, {
+      estimated: cur.estimated + s.estimated,
+      actual: cur.actual + s.actual,
+    });
+  }
+  return map;
+}
+
 export function getMembers() {
   return prisma.user.findMany({
     select: {
@@ -81,8 +142,8 @@ export type ProjectFilter = {
   sprintId?: string;
 };
 
-export function getProjects(filter: ProjectFilter = {}) {
-  return prisma.project.findMany({
+export async function getProjects(filter: ProjectFilter = {}) {
+  const projects = await prisma.project.findMany({
     where: {
       ownerId: filter.ownerId,
       sprintId: filter.sprintId,
@@ -94,10 +155,13 @@ export function getProjects(filter: ProjectFilter = {}) {
       _count: { select: { epics: true } },
     },
   });
+  // MD 롤업(하위 에픽→태스크 합) 부착.
+  const md = await mdByProject(projects.map((p) => p.id));
+  return projects.map((p) => ({ ...p, md: md.get(p.id) ?? ZERO_MD }));
 }
 
-export function getProject(id: string) {
-  return prisma.project.findUnique({
+export async function getProject(id: string) {
+  const project = await prisma.project.findUnique({
     where: { id },
     include: {
       owner: miniUser,
@@ -112,6 +176,21 @@ export function getProject(id: string) {
       },
     },
   });
+  if (!project) return null;
+  // 하위 에픽별 MD + 프로젝트 총합(읽기전용 롤업).
+  const perEpic = await mdByEpic(project.epics.map((e) => e.id));
+  const epics = project.epics.map((e) => ({
+    ...e,
+    md: perEpic.get(e.id) ?? ZERO_MD,
+  }));
+  const md = epics.reduce<MdRollup>(
+    (a, e) => ({
+      estimated: a.estimated + e.md.estimated,
+      actual: a.actual + e.md.actual,
+    }),
+    { estimated: 0, actual: 0 },
+  );
+  return { ...project, epics, md };
 }
 
 export function getProjectOptions() {
@@ -128,8 +207,8 @@ export type EpicFilter = {
   teamId?: string;
 };
 
-export function getEpics(filter: EpicFilter = {}) {
-  return prisma.epic.findMany({
+export async function getEpics(filter: EpicFilter = {}) {
+  const epics = await prisma.epic.findMany({
     where: {
       ownerId: filter.ownerId,
       teamId: filter.teamId,
@@ -142,10 +221,12 @@ export function getEpics(filter: EpicFilter = {}) {
       _count: { select: { tasks: true } },
     },
   });
+  const md = await mdByEpic(epics.map((e) => e.id));
+  return epics.map((e) => ({ ...e, md: md.get(e.id) ?? ZERO_MD }));
 }
 
-export function getEpic(id: string) {
-  return prisma.epic.findUnique({
+export async function getEpic(id: string) {
+  const epic = await prisma.epic.findUnique({
     where: { id },
     include: {
       owner: miniUser,
@@ -157,6 +238,9 @@ export function getEpic(id: string) {
       },
     },
   });
+  if (!epic) return null;
+  // 하위 태스크 MD 합(이미 로드된 tasks 로 계산).
+  return { ...epic, md: sumMd(epic.tasks) };
 }
 
 /** 에픽 옵션(폼 select). 태스크 생성 시 에픽의 팀을 상속하기 위해 team도 함께. */
@@ -247,6 +331,25 @@ export function getTask(id: string) {
         include: { page: { select: { id: true, title: true } } },
       },
     },
+  });
+}
+
+// ---------- Activity (업무 히스토리, B8) ----------
+
+/**
+ * 특정 엔티티의 변경 이력(Activity) 최신순 + 액터. 상세 페이지 업무 히스토리 패널용.
+ * meta 에 { field, from, to } 가 담긴 field_changed 이벤트 + 기존 created/commented 등을 함께 반환.
+ */
+export function getEntityActivity(
+  entityType: "sprint" | "project" | "team" | "epic" | "task" | "wiki",
+  entityId: string,
+  take = 50,
+) {
+  return prisma.activity.findMany({
+    where: { entityType, entityId },
+    orderBy: { createdAt: "desc" },
+    take,
+    include: { user: miniUser },
   });
 }
 

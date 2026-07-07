@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ItemRow, RowMeta } from "@/components/item-row";
+import { MdRollupText } from "@/components/detail/md-rollup";
 import { OwnerFilter } from "@/components/filters/owner-filter";
 import { TeamFilter } from "@/components/filters/team-filter";
 import { EpicDialog } from "@/components/forms/epic-dialog";
@@ -86,6 +87,12 @@ export default async function EpicsPage({
                       {e.project.title}
                     </RowMeta>
                   )}
+                  <RowMeta className="w-32 truncate lg:block">
+                    <MdRollupText
+                      estimated={e.md.estimated}
+                      actual={e.md.actual}
+                    />
+                  </RowMeta>
                   <RowMeta className="w-16 sm:block">
                     태스크 {e._count.tasks}
                   </RowMeta>

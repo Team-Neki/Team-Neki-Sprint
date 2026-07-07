@@ -16,6 +16,7 @@ const ACTION_LABEL: Record<string, string> = {
   updated: "수정",
   deleted: "삭제",
   status_changed: "상태 변경",
+  field_changed: "변경",
   commented: "댓글",
 };
 const ENTITY_LABEL: Record<string, string> = {

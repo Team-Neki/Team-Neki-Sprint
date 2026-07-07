@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ItemRow, RowMeta } from "@/components/item-row";
+import { MdRollupText } from "@/components/detail/md-rollup";
 import { OwnerFilter } from "@/components/filters/owner-filter";
 import { ProjectDialog } from "@/components/forms/project-dialog";
 
@@ -61,6 +62,12 @@ export default async function ProjectsPage({
                       {p.sprint.name}
                     </RowMeta>
                   )}
+                  <RowMeta className="w-32 truncate lg:block">
+                    <MdRollupText
+                      estimated={p.md.estimated}
+                      actual={p.md.actual}
+                    />
+                  </RowMeta>
                   <RowMeta className="w-16 sm:block">에픽 {p._count.epics}</RowMeta>
                   {p.dueDate && (
                     <RowMeta className="w-24 md:block">

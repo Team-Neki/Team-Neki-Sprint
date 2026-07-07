@@ -1,16 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { Status, Priority } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
-import {
-  projectSchema,
-  statusEnum,
-  priorityEnum,
-  assigneeIdSchema,
-} from "@/lib/validators";
-import { logActivity } from "@/server/activity";
+import { projectSchema } from "@/lib/validators";
+import { logActivity, diffFields } from "@/server/activity";
 
 export async function createProject(input: unknown) {
   const user = await requireUser();
@@ -58,60 +52,54 @@ function revalidateProjectPaths(id: string, sprintId: string | null) {
   if (sprintId) revalidatePath(`/sprints/${sprintId}`);
 }
 
-/** 상단 property bar 인라인 편집: 상태만 변경. */
-export async function setProjectStatus(id: string, status: Status) {
-  const user = await requireUser();
-  const value = statusEnum.parse(status);
-  const project = await prisma.project.update({
-    where: { id },
-    data: { status: value },
-  });
-  await logActivity({
-    userId: user.id,
-    entityType: "project",
-    entityId: id,
-    action: "status_changed",
-    meta: { status: value },
-  });
-  revalidateProjectPaths(id, project.sprintId);
-  return { id };
-}
+// 프로젝트 인라인 편집(diff 대상).
+const PROJECT_EDITABLE = {
+  title: true,
+  description: true,
+  status: true,
+  priority: true,
+  ownerId: true,
+  sprintId: true,
+  startDate: true,
+  dueDate: true,
+} as const;
 
-/** 상단 property bar 인라인 편집: 우선순위만 변경. */
-export async function setProjectPriority(id: string, priority: Priority) {
+/**
+ * 프로젝트 상세 인라인 편집(B3) 단일 진입점: patch diff → 바뀐 필드만 update +
+ * 필드별 before→after 를 Activity(`field_changed`)로 기록(B8).
+ */
+export async function updateProjectFields(id: string, input: unknown) {
   const user = await requireUser();
-  const value = priorityEnum.parse(priority);
-  const project = await prisma.project.update({
-    where: { id },
-    data: { priority: value },
-  });
-  await logActivity({
-    userId: user.id,
-    entityType: "project",
-    entityId: id,
-    action: "updated",
-    meta: { priority: value },
-  });
-  revalidateProjectPaths(id, project.sprintId);
-  return { id };
-}
+  const patch = projectSchema.partial().parse(input) as Record<string, unknown>;
 
-/** 상단 property bar 인라인 편집: 담당자(owner)만 변경. */
-export async function setProjectOwner(id: string, ownerId: string | null) {
-  const user = await requireUser();
-  const value = assigneeIdSchema.parse(ownerId);
-  const project = await prisma.project.update({
+  const current = await prisma.project.findUnique({
     where: { id },
-    data: { ownerId: value },
+    select: PROJECT_EDITABLE,
   });
-  await logActivity({
-    userId: user.id,
-    entityType: "project",
-    entityId: id,
-    action: "updated",
-    meta: { ownerId: value },
-  });
+  if (!current) throw new Error("프로젝트를 찾을 수 없습니다");
+
+  const { changes, data } = diffFields(current, patch);
+  if (changes.length === 0) return { id };
+
+  const project = await prisma.project.update({ where: { id }, data });
+
+  await Promise.all(
+    changes.map((c) =>
+      logActivity({
+        userId: user.id,
+        entityType: "project",
+        entityId: id,
+        action: "field_changed",
+        meta: { field: c.field, from: c.from, to: c.to },
+      }),
+    ),
+  );
+
   revalidateProjectPaths(id, project.sprintId);
+  // 스프린트 이동 시 이전 스프린트도 무효화.
+  if (current.sprintId && current.sprintId !== project.sprintId) {
+    revalidatePath(`/sprints/${current.sprintId}`);
+  }
   return { id };
 }
 

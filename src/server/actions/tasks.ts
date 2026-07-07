@@ -1,16 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { Status, Priority } from "@prisma/client";
+import type { Status } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
-import {
-  taskSchema,
-  statusEnum,
-  priorityEnum,
-  assigneeIdSchema,
-} from "@/lib/validators";
-import { logActivity } from "@/server/activity";
+import { taskSchema } from "@/lib/validators";
+import { logActivity, diffFields } from "@/server/activity";
 import { nextTeamNumber } from "@/server/keys";
 
 export async function createTask(input: unknown) {
@@ -91,60 +86,61 @@ function revalidateTaskPaths(id: string, epicId: string | null) {
   if (epicId) revalidatePath(`/epics/${epicId}`);
 }
 
-/** 상단 property bar 인라인 편집: 상태만 변경. */
-export async function setTaskStatus(id: string, status: Status) {
-  const user = await requireUser();
-  const value = statusEnum.parse(status);
-  const task = await prisma.task.update({
-    where: { id },
-    data: { status: value },
-  });
-  await logActivity({
-    userId: user.id,
-    entityType: "task",
-    entityId: id,
-    action: "status_changed",
-    meta: { status: value },
-  });
-  revalidateTaskPaths(id, task.epicId);
-  return { id };
-}
+// 인라인 편집 시 로드하는 태스크의 편집 가능 필드(diff 대상). 팀/번호는 불변이라 제외.
+const TASK_EDITABLE = {
+  title: true,
+  description: true,
+  status: true,
+  priority: true,
+  assigneeId: true,
+  reporterId: true,
+  epicId: true,
+  startDate: true,
+  dueDate: true,
+  storyPoints: true,
+  estimatedMd: true,
+  actualMd: true,
+} as const;
 
-/** 상단 property bar 인라인 편집: 우선순위만 변경. */
-export async function setTaskPriority(id: string, priority: Priority) {
+/**
+ * 상세 페이지 인라인 편집(B3)의 단일 진입점: 부분 patch 를 현재 값과 diff 해
+ * 바뀐 필드만 update 하고, 필드별 before→after 를 Activity(`field_changed`)로 기록(B8).
+ * 인라인 편집기는 단일 필드 patch(예: `{ status }`)로 호출한다.
+ */
+export async function updateTaskFields(id: string, input: unknown) {
   const user = await requireUser();
-  const value = priorityEnum.parse(priority);
-  const task = await prisma.task.update({
-    where: { id },
-    data: { priority: value },
-  });
-  await logActivity({
-    userId: user.id,
-    entityType: "task",
-    entityId: id,
-    action: "updated",
-    meta: { priority: value },
-  });
-  revalidateTaskPaths(id, task.epicId);
-  return { id };
-}
+  const patch = taskSchema.partial().parse(input) as Record<string, unknown>;
+  // 팀(teamId)과 번호는 생성 후 불변 — patch 에서 제외.
+  delete patch.teamId;
 
-/** 상단 property bar 인라인 편집: 담당자만 변경. */
-export async function setTaskAssignee(id: string, assigneeId: string | null) {
-  const user = await requireUser();
-  const value = assigneeIdSchema.parse(assigneeId);
-  const task = await prisma.task.update({
+  const current = await prisma.task.findUnique({
     where: { id },
-    data: { assigneeId: value },
+    select: TASK_EDITABLE,
   });
-  await logActivity({
-    userId: user.id,
-    entityType: "task",
-    entityId: id,
-    action: "updated",
-    meta: { assigneeId: value },
-  });
+  if (!current) throw new Error("태스크를 찾을 수 없습니다");
+
+  const { changes, data } = diffFields(current, patch);
+  if (changes.length === 0) return { id };
+
+  const task = await prisma.task.update({ where: { id }, data });
+
+  await Promise.all(
+    changes.map((c) =>
+      logActivity({
+        userId: user.id,
+        entityType: "task",
+        entityId: id,
+        action: "field_changed",
+        meta: { field: c.field, from: c.from, to: c.to },
+      }),
+    ),
+  );
+
   revalidateTaskPaths(id, task.epicId);
+  // 에픽 이동 시 이전 에픽 상세도 무효화.
+  if (current.epicId && current.epicId !== task.epicId) {
+    revalidatePath(`/epics/${current.epicId}`);
+  }
   return { id };
 }
 

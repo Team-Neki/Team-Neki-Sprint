@@ -1,23 +1,34 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Plus, Pencil, Trash2, ChevronLeft } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import {
   getEpic,
   getProjectOptions,
   getTeamOptions,
   getMembers,
+  getEntityActivity,
 } from "@/server/queries";
 import { deleteEpic } from "@/server/actions/epics";
 import { formatIssueKey } from "@/lib/constants";
-import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { StatusBadge, PriorityBadge } from "@/components/badges";
 import { UserBadge } from "@/components/user-badge";
-import { PropertyBar } from "@/components/detail/property-bar";
-import { EpicDialog } from "@/components/forms/epic-dialog";
 import { TaskDialog } from "@/components/forms/task-dialog";
 import { ConfirmDelete } from "@/components/confirm-delete";
+import { BackButton } from "@/components/detail/back-button";
+import { HistoryPanel } from "@/components/detail/history-panel";
+import { MdRollupText } from "@/components/detail/md-rollup";
+import {
+  MetaRow,
+  InlineTitle,
+  InlineDescription,
+  InlineStatus,
+  InlinePriority,
+  InlineMember,
+  InlineLink,
+  InlineDate,
+} from "@/components/detail/inline-fields";
 
 export const dynamic = "force-dynamic";
 
@@ -27,11 +38,12 @@ export default async function EpicDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [epic, projects, teams, members] = await Promise.all([
+  const [epic, projects, teams, members, activities] = await Promise.all([
     getEpic(id),
     getProjectOptions(),
     getTeamOptions(),
     getMembers(),
+    getEntityActivity("epic", id),
   ]);
   if (!epic) notFound();
 
@@ -43,105 +55,152 @@ export default async function EpicDetail({
   const issueKey = formatIssueKey(epic.team?.key, epic.number);
 
   return (
-    <div className="mx-auto max-w-4xl">
-      <Link
-        href="/epics"
-        className="text-muted-foreground hover:text-foreground mb-3 inline-flex items-center gap-1 text-sm"
-      >
-        <ChevronLeft className="size-4" /> 에픽
-      </Link>
+    <div className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-3">
+      <div className="lg:col-span-2">
+        <BackButton fallback="/epics" label="에픽" />
 
-      <PageHeader title={epic.title} description={issueKey}>
-        <EpicDialog
-          members={members}
-          teams={teams}
-          projects={projects}
-          epic={epic}
-          trigger={
-            <Button variant="outline" size="sm">
-              <Pencil className="size-4" /> 수정
-            </Button>
-          }
-        />
-        <ConfirmDelete
-          onConfirm={handleDelete}
-          redirectTo="/epics"
-          trigger={
-            <Button variant="ghost" size="sm" className="text-destructive">
-              <Trash2 className="size-4" />
-            </Button>
-          }
-        />
-      </PageHeader>
+        <div className="mb-6 flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <span className="text-muted-foreground font-mono text-xs">
+              {issueKey}
+            </span>
+            <InlineTitle type="epic" id={epic.id} value={epic.title} />
+          </div>
+          <ConfirmDelete
+            onConfirm={handleDelete}
+            redirectTo="/epics"
+            trigger={
+              <Button variant="ghost" size="sm" className="text-destructive">
+                <Trash2 className="size-4" />
+              </Button>
+            }
+          />
+        </div>
 
-      <div className="mb-6 flex flex-col gap-2">
-        <PropertyBar
-          type="epic"
-          id={epic.id}
-          status={epic.status}
-          priority={epic.priority}
-          assignee={epic.owner}
-          members={members}
-          startDate={epic.startDate}
-          dueDate={epic.dueDate}
-          team={epic.team}
-        />
-        {epic.project && (
-          <p className="text-muted-foreground text-sm">
-            프로젝트{" "}
-            <Link
-              href={`/projects/${epic.project.id}`}
-              className="text-primary hover:underline"
-            >
-              {epic.project.title}
-            </Link>
-          </p>
-        )}
-      </div>
-
-      {epic.description && (
         <Card className="mb-6 p-5">
-          <p className="text-sm whitespace-pre-wrap">{epic.description}</p>
+          <h3 className="mb-2 text-sm font-medium">설명</h3>
+          <InlineDescription
+            type="epic"
+            id={epic.id}
+            value={epic.description}
+          />
         </Card>
-      )}
 
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-lg font-semibold">태스크 {epic.tasks.length}</h2>
-        <TaskDialog
-          members={members}
-          teams={teams}
-          epics={[{ id: epic.id, title: epic.title, teamId: epic.teamId }]}
-          defaultEpicId={epic.id}
-          defaultTeamId={epic.teamId}
-          trigger={
-            <Button size="sm" variant="outline">
-              <Plus className="size-4" /> 태스크 추가
-            </Button>
-          }
-        />
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-lg font-semibold">태스크 {epic.tasks.length}</h2>
+          <TaskDialog
+            members={members}
+            teams={teams}
+            epics={[{ id: epic.id, title: epic.title, teamId: epic.teamId }]}
+            defaultEpicId={epic.id}
+            defaultTeamId={epic.teamId}
+            trigger={
+              <Button size="sm" variant="outline">
+                <Plus className="size-4" /> 태스크 추가
+              </Button>
+            }
+          />
+        </div>
+
+        <div className="mb-6 flex flex-col gap-2">
+          {epic.tasks.length === 0 && (
+            <p className="text-muted-foreground py-8 text-center text-sm">
+              연결된 태스크가 없습니다.
+            </p>
+          )}
+          {epic.tasks.map((t) => (
+            <Link key={t.id} href={`/tasks/${t.id}`}>
+              <Card className="hover:border-primary/40 flex flex-row items-center gap-3 px-4 py-3 transition-colors">
+                <span className="text-muted-foreground w-24 shrink-0 font-mono text-xs">
+                  {formatIssueKey(t.team?.key, t.number)}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                  {t.title}
+                </span>
+                <PriorityBadge priority={t.priority} />
+                <UserBadge user={t.assignee} hideName />
+                <StatusBadge status={t.status} />
+              </Card>
+            </Link>
+          ))}
+        </div>
+
+        <Card className="p-5">
+          <HistoryPanel
+            activities={activities}
+            members={members}
+            projects={projects.map((p) => ({ id: p.id, title: p.title }))}
+          />
+        </Card>
       </div>
 
-      <div className="flex flex-col gap-2">
-        {epic.tasks.length === 0 && (
-          <p className="text-muted-foreground py-8 text-center text-sm">
-            연결된 태스크가 없습니다.
-          </p>
-        )}
-        {epic.tasks.map((t) => (
-          <Link key={t.id} href={`/tasks/${t.id}`}>
-            <Card className="hover:border-primary/40 flex flex-row items-center gap-3 px-4 py-3 transition-colors">
-              <span className="text-muted-foreground w-24 shrink-0 font-mono text-xs">
-                {formatIssueKey(t.team?.key, t.number)}
+      <div className="lg:col-span-1">
+        <Card className="flex flex-col gap-3 p-5">
+          <MetaRow label="상태">
+            <InlineStatus type="epic" id={epic.id} value={epic.status} />
+          </MetaRow>
+          <MetaRow label="담당자">
+            <InlineMember
+              type="epic"
+              id={epic.id}
+              field="ownerId"
+              value={epic.owner}
+              members={members}
+            />
+          </MetaRow>
+          <MetaRow label="우선순위">
+            <InlinePriority type="epic" id={epic.id} value={epic.priority} />
+          </MetaRow>
+          <MetaRow label="프로젝트">
+            <InlineLink
+              type="epic"
+              id={epic.id}
+              field="projectId"
+              value={epic.projectId}
+              options={projects.map((p) => ({ id: p.id, label: p.title }))}
+              noneLabel="없음"
+              placeholder="프로젝트 선택"
+            />
+          </MetaRow>
+          <MetaRow label="시작일">
+            <InlineDate
+              type="epic"
+              id={epic.id}
+              field="startDate"
+              value={epic.startDate}
+            />
+          </MetaRow>
+          <MetaRow label="기한">
+            <InlineDate
+              type="epic"
+              id={epic.id}
+              field="dueDate"
+              value={epic.dueDate}
+            />
+          </MetaRow>
+          <MetaRow label="팀">
+            <span className="inline-flex items-center gap-1.5 pr-1.5">
+              <span
+                className="size-2 shrink-0 rounded-full"
+                style={
+                  epic.team?.color
+                    ? { backgroundColor: epic.team.color }
+                    : undefined
+                }
+              />
+              <span className="text-muted-foreground font-mono text-xs">
+                {epic.team?.key}
               </span>
-              <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                {t.title}
-              </span>
-              <PriorityBadge priority={t.priority} />
-              <UserBadge user={t.assignee} hideName />
-              <StatusBadge status={t.status} />
-            </Card>
-          </Link>
-        ))}
+            </span>
+          </MetaRow>
+          <MetaRow label="MD (롤업)">
+            <MdRollupText
+              estimated={epic.md.estimated}
+              actual={epic.md.actual}
+              className="text-sm"
+            />
+          </MetaRow>
+        </Card>
       </div>
     </div>
   );

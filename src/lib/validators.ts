@@ -26,6 +26,12 @@ const optionalDate = z
   .nullish()
   .transform((v) => (v ? new Date(v) : null));
 
+// 숫자 옵션 필드(MD 등). ""/null/undefined 는 모두 null 로 정규화, 그 외엔 0 이상 실수.
+const optionalMd = z.preprocess(
+  (v) => (v === "" || v == null ? null : v),
+  z.coerce.number().min(0).nullable(),
+);
+
 export const sprintSchema = z.object({
   name: z.string().trim().min(1, "이름을 입력하세요").max(200),
   status: sprintStatus.default("PLANNED"),
@@ -74,11 +80,14 @@ export const taskSchema = z.object({
   status: status.default("TODO"),
   priority: priority.default("MEDIUM"),
   assigneeId: optionalId,
+  reporterId: optionalId,
   teamId: requiredId,
   epicId: optionalId,
   startDate: optionalDate,
   dueDate: optionalDate,
   storyPoints: z.coerce.number().int().min(0).max(100).optional().nullable(),
+  estimatedMd: optionalMd,
+  actualMd: optionalMd,
 });
 
 export const wikiPageSchema = z.object({

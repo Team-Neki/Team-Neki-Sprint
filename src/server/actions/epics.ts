@@ -1,16 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { Status, Priority } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
-import {
-  epicSchema,
-  statusEnum,
-  priorityEnum,
-  assigneeIdSchema,
-} from "@/lib/validators";
-import { logActivity } from "@/server/activity";
+import { epicSchema } from "@/lib/validators";
+import { logActivity, diffFields } from "@/server/activity";
 import { nextTeamNumber } from "@/server/keys";
 
 export async function createEpic(input: unknown) {
@@ -65,60 +59,56 @@ function revalidateEpicPaths(id: string, projectId: string | null) {
   if (projectId) revalidatePath(`/projects/${projectId}`);
 }
 
-/** 상단 property bar 인라인 편집: 상태만 변경. */
-export async function setEpicStatus(id: string, status: Status) {
-  const user = await requireUser();
-  const value = statusEnum.parse(status);
-  const epic = await prisma.epic.update({
-    where: { id },
-    data: { status: value },
-  });
-  await logActivity({
-    userId: user.id,
-    entityType: "epic",
-    entityId: id,
-    action: "status_changed",
-    meta: { status: value },
-  });
-  revalidateEpicPaths(id, epic.projectId);
-  return { id };
-}
+// 에픽 인라인 편집(diff 대상). 팀/번호는 불변이라 제외.
+const EPIC_EDITABLE = {
+  title: true,
+  description: true,
+  status: true,
+  priority: true,
+  ownerId: true,
+  projectId: true,
+  startDate: true,
+  dueDate: true,
+} as const;
 
-/** 상단 property bar 인라인 편집: 우선순위만 변경. */
-export async function setEpicPriority(id: string, priority: Priority) {
+/**
+ * 에픽 상세 인라인 편집(B3) 단일 진입점: patch diff → 바뀐 필드만 update +
+ * 필드별 before→after 를 Activity(`field_changed`)로 기록(B8).
+ */
+export async function updateEpicFields(id: string, input: unknown) {
   const user = await requireUser();
-  const value = priorityEnum.parse(priority);
-  const epic = await prisma.epic.update({
-    where: { id },
-    data: { priority: value },
-  });
-  await logActivity({
-    userId: user.id,
-    entityType: "epic",
-    entityId: id,
-    action: "updated",
-    meta: { priority: value },
-  });
-  revalidateEpicPaths(id, epic.projectId);
-  return { id };
-}
+  const patch = epicSchema.partial().parse(input) as Record<string, unknown>;
+  // 팀(teamId)은 생성 후 불변 — 표시 key 안정성 위해 patch 에서 제외.
+  delete patch.teamId;
 
-/** 상단 property bar 인라인 편집: 담당자(owner)만 변경. */
-export async function setEpicOwner(id: string, ownerId: string | null) {
-  const user = await requireUser();
-  const value = assigneeIdSchema.parse(ownerId);
-  const epic = await prisma.epic.update({
+  const current = await prisma.epic.findUnique({
     where: { id },
-    data: { ownerId: value },
+    select: EPIC_EDITABLE,
   });
-  await logActivity({
-    userId: user.id,
-    entityType: "epic",
-    entityId: id,
-    action: "updated",
-    meta: { ownerId: value },
-  });
+  if (!current) throw new Error("에픽을 찾을 수 없습니다");
+
+  const { changes, data } = diffFields(current, patch);
+  if (changes.length === 0) return { id };
+
+  const epic = await prisma.epic.update({ where: { id }, data });
+
+  await Promise.all(
+    changes.map((c) =>
+      logActivity({
+        userId: user.id,
+        entityType: "epic",
+        entityId: id,
+        action: "field_changed",
+        meta: { field: c.field, from: c.from, to: c.to },
+      }),
+    ),
+  );
+
   revalidateEpicPaths(id, epic.projectId);
+  // 프로젝트 이동 시 이전 프로젝트 상세도 무효화.
+  if (current.projectId && current.projectId !== epic.projectId) {
+    revalidatePath(`/projects/${current.projectId}`);
+  }
   return { id };
 }
 
