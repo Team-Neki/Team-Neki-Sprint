@@ -10,10 +10,11 @@ export const priorityEnum = priority;
 export const sprintStatusEnum = sprintStatus;
 export const assigneeIdSchema = z.string().min(1).nullable();
 
+// 폼은 미선택 시 null 을 보낸다(undefined 아님). null·undefined·"" 모두 null 로 정규화.
 const optionalId = z
   .string()
   .trim()
-  .optional()
+  .nullish()
   .transform((v) => (v ? v : null));
 
 // 필수 관계 id (팀 등): 비어 있으면 검증 실패.
@@ -22,7 +23,7 @@ const requiredId = z.string().trim().min(1, "값을 선택하세요");
 const optionalDate = z
   .string()
   .trim()
-  .optional()
+  .nullish()
   .transform((v) => (v ? new Date(v) : null));
 
 export const sprintSchema = z.object({
