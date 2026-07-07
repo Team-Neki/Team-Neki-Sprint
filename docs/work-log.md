@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-07-08 — Phase 3 진행 + 라이브 버그 픽스
+
+개편 병합 후 라이브 테스트에서 나온 이슈 + phase 3 스트림 병합.
+
+- **긴급: 저장 전멸 수정** — `validators.ts`의 `optionalId`/`optionalDate`가 `.optional()`만이라 폼이 보내는 `null`(미선택 관계/빈 날짜)에서 ZodError → 모든 create/update 실패. `.nullish()`로 정규화. (DB 문제 아님)
+- **드롭다운 id→라벨** — Base UI `SelectValue`가 render 함수 없이 원시 value(cuid/enum)를 노출. 6개 파일 12개 select에 `(v)=>라벨` render 추가. 이후 공용 `OptionSelect`로 추출 리팩터링(`feat/select-refactor`).
+- **UI 픽스** — 좌측 탭 순서(태스크→보드), 팀 카드 '다음 번호' 노출 제거.
+- **P3-S1 타임라인 일(day) 셀**(`feat/timeline-day`) 병합 — 주 눈금 → 고정폭 일 셀, 주말/오늘 음영, day-index px 배치.
+- **P3-S2 위키 폴더+티켓링크**(`feat/wiki-chunk`) 병합 — additive `wiki_folder` 마이그레이션(WikiFolder 테이블 + WikiPage.folderId, 리셋 아님). 폴더 타입(페이지 중첩과 별개), 티켓↔위키 상호링크(WikiPageTaskLink), 에디터 `#` 티켓 멘션(Tiptap v3 suggestion). editor.tsx는 S3의 `@` 멘션용으로 국소화. 병합 시 `@tiptap/suggestion` 물리설치 누락(worktree symlink)으로 빌드 깨져 `npm install`+`prisma generate`로 복구.
+
+검증: 각 병합 후 `main`에서 Turbopack `next build` 통과, lint clean. 스키마 변경(WikiFolder)마다 dev 서버 재시작.
+
+---
+
 ## 2026-07-08 — 2단계: Sprint/Project/Team 계층 개편 구현 (#2+#3+#4)
 
 [ADR 0002](./adr/0002-sprint-project-team-restructure.md) + [스펙](./specs/02-03-04-hierarchy-restructure.md)에 따라 계층을 `Initiative > Epic > Task` → **`Sprint > Project > Epic > Task`**로 개편. Initiative 제거, Team=key=유저그룹 통합. `feat/hierarchy-restructure` 브랜치 단독 순차 구현(스키마·공유 파일 광범위라 병렬 대신 순차).
