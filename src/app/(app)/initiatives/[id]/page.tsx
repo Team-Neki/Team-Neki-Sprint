@@ -1,15 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Plus, Pencil, Trash2, ChevronLeft } from "lucide-react";
-import { format } from "date-fns";
-import { ko } from "date-fns/locale";
 import { getInitiative, getMembers } from "@/server/queries";
 import { deleteInitiative } from "@/server/actions/initiatives";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { StatusBadge, PriorityBadge } from "@/components/badges";
+import { StatusBadge } from "@/components/badges";
 import { UserBadge } from "@/components/user-badge";
+import { PropertyBar } from "@/components/detail/property-bar";
 import { InitiativeDialog } from "@/components/forms/initiative-dialog";
 import { EpicDialog } from "@/components/forms/epic-dialog";
 import { ConfirmDelete } from "@/components/confirm-delete";
@@ -42,7 +41,7 @@ export default async function InitiativeDetail({
         <ChevronLeft className="size-4" /> 이니셔티브
       </Link>
 
-      <PageHeader title={initiative.title}>
+      <PageHeader title={initiative.title} description={`INI-${initiative.key}`}>
         <InitiativeDialog
           members={members}
           initiative={initiative}
@@ -63,34 +62,18 @@ export default async function InitiativeDetail({
         />
       </PageHeader>
 
-      <Card className="mb-6 grid grid-cols-2 gap-4 p-5 sm:grid-cols-4">
-        <Meta label="상태">
-          <StatusBadge status={initiative.status} />
-        </Meta>
-        <Meta label="우선순위">
-          <PriorityBadge priority={initiative.priority} />
-        </Meta>
-        <Meta label="담당자">
-          <UserBadge user={initiative.owner} />
-        </Meta>
-        <Meta label="키">
-          <span className="font-mono text-sm">INI-{initiative.key}</span>
-        </Meta>
-        {initiative.startDate && (
-          <Meta label="시작일">
-            <span className="text-sm">
-              {format(initiative.startDate, "yyyy.M.d", { locale: ko })}
-            </span>
-          </Meta>
-        )}
-        {initiative.dueDate && (
-          <Meta label="종료일">
-            <span className="text-sm">
-              {format(initiative.dueDate, "yyyy.M.d", { locale: ko })}
-            </span>
-          </Meta>
-        )}
-      </Card>
+      <div className="mb-6">
+        <PropertyBar
+          type="initiative"
+          id={initiative.id}
+          status={initiative.status}
+          priority={initiative.priority}
+          assignee={initiative.owner}
+          members={members}
+          startDate={initiative.startDate}
+          dueDate={initiative.dueDate}
+        />
+      </div>
 
       {initiative.description && (
         <Card className="mb-6 p-5">
@@ -136,15 +119,6 @@ export default async function InitiativeDetail({
           </Link>
         ))}
       </div>
-    </div>
-  );
-}
-
-function Meta({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <span className="text-muted-foreground text-xs">{label}</span>
-      {children}
     </div>
   );
 }

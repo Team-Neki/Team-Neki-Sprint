@@ -3,6 +3,11 @@ import { z } from "zod";
 const status = z.enum(["BACKLOG", "TODO", "IN_PROGRESS", "IN_REVIEW", "DONE"]);
 const priority = z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]);
 
+// 상단 property bar의 인라인 편집이 쓰는 단일 필드 검증용 스키마.
+export const statusEnum = status;
+export const priorityEnum = priority;
+export const assigneeIdSchema = z.string().min(1).nullable();
+
 const optionalId = z
   .string()
   .trim()
