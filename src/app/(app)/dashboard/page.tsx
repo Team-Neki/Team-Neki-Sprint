@@ -26,6 +26,18 @@ const ENTITY_LABEL: Record<string, string> = {
   task: "태스크",
   wiki: "위키",
 };
+const ENTITY_PATH: Record<string, string> = {
+  sprint: "/sprints",
+  project: "/projects",
+  epic: "/epics",
+  task: "/tasks",
+  wiki: "/wiki",
+};
+function entityHref(entityType: string, entityId: string): string | null {
+  if (entityType === "team") return "/teams";
+  const base = ENTITY_PATH[entityType];
+  return base ? `${base}/${entityId}` : null;
+}
 
 export default async function DashboardPage() {
   const { statusCounts, myTasks, recentActivity, projects } =
@@ -44,19 +56,21 @@ export default async function DashboardPage() {
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {STATUS_ORDER.map((s) => (
-          <Card key={s}>
-            <CardContent className="py-4">
-              <div className="flex items-center gap-2">
-                <span className={`size-2 rounded-full ${STATUS_META[s].dot}`} />
-                <span className="text-muted-foreground text-xs">
-                  {STATUS_META[s].label}
-                </span>
-              </div>
-              <p className="mt-2 text-2xl font-semibold">
-                {countByStatus[s] ?? 0}
-              </p>
-            </CardContent>
-          </Card>
+          <Link key={s} href={`/tasks?status=${s}`}>
+            <Card className="hover:border-primary/40 transition-colors">
+              <CardContent className="py-4">
+                <div className="flex items-center gap-2">
+                  <span className={`size-2 rounded-full ${STATUS_META[s].dot}`} />
+                  <span className="text-muted-foreground text-xs">
+                    {STATUS_META[s].label}
+                  </span>
+                </div>
+                <p className="mt-2 text-2xl font-semibold">
+                  {countByStatus[s] ?? 0}
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
         ))}
       </div>
 
@@ -127,24 +141,52 @@ export default async function DashboardPage() {
               아직 활동 기록이 없습니다.
             </p>
           )}
-          {recentActivity.map((a) => (
-            <div key={a.id} className="flex items-center gap-2 text-sm">
-              <UserBadge user={a.user} hideName size="xs" />
-              <span className="text-muted-foreground">
-                <span className="text-foreground font-medium">
-                  {a.user?.name ?? a.user?.email ?? "누군가"}
-                </span>{" "}
-                님이 {ENTITY_LABEL[a.entityType] ?? a.entityType}
-                {typeof a.meta === "object" && a.meta && "title" in a.meta
-                  ? ` “${(a.meta as { title?: string }).title}”`
-                  : ""}{" "}
-                {ACTION_LABEL[a.action] ?? a.action}
-              </span>
-              <span className="text-muted-foreground/70 ml-auto shrink-0 text-xs">
-                {formatDistanceToNow(a.createdAt, { addSuffix: true, locale: ko })}
-              </span>
-            </div>
-          ))}
+          {recentActivity.map((a) => {
+            const href = entityHref(a.entityType, a.entityId);
+            const title =
+              typeof a.meta === "object" && a.meta && "title" in a.meta
+                ? (a.meta as { title?: string }).title
+                : undefined;
+            const body = (
+              <>
+                <UserBadge user={a.user} hideName size="xs" />
+                <span className="text-muted-foreground min-w-0 flex-1 truncate">
+                  <span className="text-foreground font-medium">
+                    {a.user?.name ?? a.user?.email ?? "누군가"}
+                  </span>{" "}
+                  님이 {ENTITY_LABEL[a.entityType] ?? a.entityType}
+                  {a.entityKey && (
+                    <span className="text-muted-foreground ml-1 font-mono text-xs">
+                      {a.entityKey}
+                    </span>
+                  )}
+                  {title ? ` “${title}”` : ""} {ACTION_LABEL[a.action] ?? a.action}
+                </span>
+                <span className="text-muted-foreground/70 ml-auto shrink-0 text-xs">
+                  {formatDistanceToNow(a.createdAt, {
+                    addSuffix: true,
+                    locale: ko,
+                  })}
+                </span>
+              </>
+            );
+            return href ? (
+              <Link
+                key={a.id}
+                href={href}
+                className="hover:bg-accent/60 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm"
+              >
+                {body}
+              </Link>
+            ) : (
+              <div
+                key={a.id}
+                className="flex items-center gap-2 px-2 py-1.5 text-sm"
+              >
+                {body}
+              </div>
+            );
+          })}
         </CardContent>
       </Card>
     </div>

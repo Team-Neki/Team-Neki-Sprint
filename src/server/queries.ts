@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { Status } from "@prisma/client";
+import { formatIssueKey } from "@/lib/constants";
 
 const miniUser = {
   select: { id: true, name: true, email: true, image: true },
@@ -383,7 +384,7 @@ export function searchWikiPages(query: string, limit = 8) {
 }
 
 export async function getDashboardData() {
-  const [statusCounts, totalTasks, myTasks, recentActivity, projects] =
+  const [statusCounts, totalTasks, myTasks, recentActivityRaw, projects] =
     await Promise.all([
       prisma.task.groupBy({ by: ["status"], _count: true }),
       prisma.task.count(),
@@ -408,6 +409,36 @@ export async function getDashboardData() {
         include: { _count: { select: { epics: true } } },
       }),
     ]);
+
+  // 최근 활동에 티켓 key(TEAM-n) 를 붙인다. entityId 는 폴리모픽이라 task/epic 만 모아 조회.
+  const taskIds = recentActivityRaw
+    .filter((a) => a.entityType === "task")
+    .map((a) => a.entityId);
+  const epicIds = recentActivityRaw
+    .filter((a) => a.entityType === "epic")
+    .map((a) => a.entityId);
+  const [actTasks, actEpics] = await Promise.all([
+    taskIds.length
+      ? prisma.task.findMany({
+          where: { id: { in: taskIds } },
+          select: { id: true, number: true, team: { select: { key: true } } },
+        })
+      : Promise.resolve([]),
+    epicIds.length
+      ? prisma.epic.findMany({
+          where: { id: { in: epicIds } },
+          select: { id: true, number: true, team: { select: { key: true } } },
+        })
+      : Promise.resolve([]),
+  ]);
+  const keyMap = new Map<string, string>();
+  for (const t of actTasks) keyMap.set(t.id, formatIssueKey(t.team.key, t.number));
+  for (const e of actEpics) keyMap.set(e.id, formatIssueKey(e.team.key, e.number));
+
+  const recentActivity = recentActivityRaw.map((a) => ({
+    ...a,
+    entityKey: keyMap.get(a.entityId) ?? null,
+  }));
 
   return { statusCounts, totalTasks, myTasks, recentActivity, projects };
 }
