@@ -1,38 +1,40 @@
 import { Plus, Target } from "lucide-react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
-import { getInitiatives, getMembers } from "@/server/queries";
+import { getProjects, getMembers, getSprintOptions } from "@/server/queries";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ItemRow, RowMeta } from "@/components/item-row";
 import { OwnerFilter } from "@/components/filters/owner-filter";
-import { InitiativeDialog } from "@/components/forms/initiative-dialog";
+import { ProjectDialog } from "@/components/forms/project-dialog";
 
 export const dynamic = "force-dynamic";
 
-export default async function InitiativesPage({
+export default async function ProjectsPage({
   searchParams,
 }: {
   searchParams: Promise<{ owner?: string }>;
 }) {
   const sp = await searchParams;
-  const [initiatives, members] = await Promise.all([
-    getInitiatives({ ownerId: sp.owner || undefined }),
+  const [projects, members, sprints] = await Promise.all([
+    getProjects({ ownerId: sp.owner || undefined }),
     getMembers(),
+    getSprintOptions(),
   ]);
 
   return (
     <div>
       <PageHeader
-        title="이니셔티브"
-        description="가장 큰 단위의 목표입니다. 하위에 에픽과 태스크가 연결됩니다."
+        title="프로젝트"
+        description="스프린트 안의 팀 횡단 작업입니다. 하위에 팀별 에픽·태스크가 연결됩니다."
       >
-        <InitiativeDialog
+        <ProjectDialog
           members={members}
+          sprints={sprints}
           trigger={
             <Button>
-              <Plus className="size-4" /> 새 이니셔티브
+              <Plus className="size-4" /> 새 프로젝트
             </Button>
           }
         />
@@ -40,27 +42,29 @@ export default async function InitiativesPage({
 
       <OwnerFilter members={members} />
 
-      {initiatives.length === 0 ? (
-        <EmptyState members={members} />
+      {projects.length === 0 ? (
+        <EmptyState members={members} sprints={sprints} />
       ) : (
         <div className="flex flex-col gap-2">
-          {initiatives.map((i) => (
+          {projects.map((p) => (
             <ItemRow
-              key={i.id}
-              href={`/initiatives/${i.id}`}
-              itemKey={`INI-${i.key}`}
-              title={i.title}
-              priority={i.priority}
-              status={i.status}
-              owner={i.owner}
+              key={p.id}
+              href={`/projects/${p.id}`}
+              title={p.title}
+              priority={p.priority}
+              status={p.status}
+              owner={p.owner}
               meta={
                 <>
-                  <RowMeta className="w-20 sm:block">
-                    에픽 {i._count.epics}
-                  </RowMeta>
-                  {i.dueDate && (
+                  {p.sprint && (
+                    <RowMeta className="max-w-40 truncate md:block">
+                      {p.sprint.name}
+                    </RowMeta>
+                  )}
+                  <RowMeta className="w-16 sm:block">에픽 {p._count.epics}</RowMeta>
+                  {p.dueDate && (
                     <RowMeta className="w-24 md:block">
-                      ~{format(i.dueDate, "yy.M.d", { locale: ko })}
+                      ~{format(p.dueDate, "yy.M.d", { locale: ko })}
                     </RowMeta>
                   )}
                 </>
@@ -75,20 +79,23 @@ export default async function InitiativesPage({
 
 function EmptyState({
   members,
+  sprints,
 }: {
   members: Awaited<ReturnType<typeof getMembers>>;
+  sprints: Awaited<ReturnType<typeof getSprintOptions>>;
 }) {
   return (
     <Card className="flex flex-col items-center gap-3 py-16">
       <div className="bg-muted flex size-12 items-center justify-center rounded-full">
         <Target className="text-muted-foreground size-6" />
       </div>
-      <p className="text-muted-foreground text-sm">아직 이니셔티브가 없습니다.</p>
-      <InitiativeDialog
+      <p className="text-muted-foreground text-sm">아직 프로젝트가 없습니다.</p>
+      <ProjectDialog
         members={members}
+        sprints={sprints}
         trigger={
           <Button variant="outline">
-            <Plus className="size-4" /> 첫 이니셔티브 만들기
+            <Plus className="size-4" /> 첫 프로젝트 만들기
           </Button>
         }
       />

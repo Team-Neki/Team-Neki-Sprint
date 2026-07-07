@@ -31,8 +31,29 @@ export const PRIORITY_META: Record<
   LOW: { label: "낮음", color: "text-neutral-400" },
 };
 
-export const ISSUE_PREFIX = {
-  initiative: "INI",
-  epic: "EPIC",
-  task: "TASK",
-} as const;
+/**
+ * 표시용 이슈 key. Epic·Task는 소유 팀의 key 접두어 + 팀 단위 연속 번호로 표기한다.
+ * 예: formatIssueKey("DESIGN", 1) → "DESIGN-1".
+ * team이 없는 경우(이론상 없음)는 번호만 fallback으로 보여준다.
+ */
+export function formatIssueKey(
+  teamKey: string | null | undefined,
+  number: number,
+): string {
+  return teamKey ? `${teamKey}-${number}` : `#${number}`;
+}
+
+export const SPRINT_STATUS_META: Record<
+  "PLANNED" | "ACTIVE" | "DONE",
+  { label: string; color: string; dot: string }
+> = {
+  PLANNED: { label: "예정", color: "text-neutral-500", dot: "bg-neutral-400" },
+  ACTIVE: { label: "진행 중", color: "text-blue-600", dot: "bg-blue-500" },
+  DONE: { label: "완료", color: "text-emerald-600", dot: "bg-emerald-500" },
+};
+
+export const SPRINT_STATUS_ORDER: ("PLANNED" | "ACTIVE" | "DONE")[] = [
+  "PLANNED",
+  "ACTIVE",
+  "DONE",
+];

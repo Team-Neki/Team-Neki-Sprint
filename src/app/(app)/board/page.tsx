@@ -1,9 +1,15 @@
 import { Plus } from "lucide-react";
-import { getBoardTasks, getEpics, getMembers } from "@/server/queries";
+import {
+  getBoardTasks,
+  getEpicOptions,
+  getTeamOptions,
+  getMembers,
+} from "@/server/queries";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { KanbanBoard } from "@/components/board/kanban";
 import { OwnerFilter } from "@/components/filters/owner-filter";
+import { TeamFilter } from "@/components/filters/team-filter";
 import { TaskDialog } from "@/components/forms/task-dialog";
 
 export const dynamic = "force-dynamic";
@@ -11,14 +17,24 @@ export const dynamic = "force-dynamic";
 export default async function BoardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ assignee?: string }>;
+  searchParams: Promise<{ assignee?: string; team?: string }>;
 }) {
   const sp = await searchParams;
-  const [tasks, epics, members] = await Promise.all([
-    getBoardTasks({ assigneeId: sp.assignee || undefined }),
-    getEpics(),
+  const [tasks, epics, teams, members] = await Promise.all([
+    getBoardTasks({
+      assigneeId: sp.assignee || undefined,
+      teamId: sp.team || undefined,
+    }),
+    getEpicOptions(),
+    getTeamOptions(),
     getMembers(),
   ]);
+
+  const epicOptions = epics.map((e) => ({
+    id: e.id,
+    title: e.title,
+    teamId: e.team.id,
+  }));
 
   return (
     <div>
@@ -28,7 +44,8 @@ export default async function BoardPage({
       >
         <TaskDialog
           members={members}
-          epics={epics.map((e) => ({ id: e.id, title: e.title }))}
+          teams={teams}
+          epics={epicOptions}
           trigger={
             <Button>
               <Plus className="size-4" /> 새 태스크
@@ -42,7 +59,9 @@ export default async function BoardPage({
         paramKey="assignee"
         placeholder="담당자"
         allLabel="모든 담당자"
-      />
+      >
+        <TeamFilter teams={teams} />
+      </OwnerFilter>
 
       <KanbanBoard tasks={tasks} />
     </div>

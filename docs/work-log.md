@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-07-08 — 2단계: Sprint/Project/Team 계층 개편 구현 (#2+#3+#4)
+
+[ADR 0002](./adr/0002-sprint-project-team-restructure.md) + [스펙](./specs/02-03-04-hierarchy-restructure.md)에 따라 계층을 `Initiative > Epic > Task` → **`Sprint > Project > Epic > Task`**로 개편. Initiative 제거, Team=key=유저그룹 통합. `feat/hierarchy-restructure` 브랜치 단독 순차 구현(스키마·공유 파일 광범위라 병렬 대신 순차).
+
+- **스키마**(`prisma/schema.prisma`): `Sprint`·`Team` 신설 + `SprintStatus` enum. `Initiative`→`Project`(key 제거, `sprintId` 추가, 관계명 `InitiativeOwner`→`ProjectOwner`, `LabelsOnInitiatives`→`LabelsOnProjects`). `Epic`/`Task`: `key Int` 제거 → `number Int`+`teamId`+`@@unique([teamId, number])`, `Epic.initiativeId`→`projectId`. `User.teamId` 추가.
+- **마이그레이션/시드**: 더미 데이터라 보존 마이그레이션 대신 **리셋 재시드**(`migrate reset` + `migrate dev --name sprint_project_team` + 새 `seed.ts`). 시드는 팀 7개(DESIGN/FRONTEND/BACKEND/AOS/IOS/MARKETING/PM) + 스프린트 2 + 프로젝트 2 + 팀 key 붙은 에픽/태스크(DESIGN-1 에픽·DESIGN-2/3 태스크 등) + 위키. 데모 유저 일부에 팀 배정.
+- **key 번호(핵심)**: `src/server/keys.ts`의 `nextTeamNumber(tx, teamId)`가 `prisma.$transaction` 안에서 `Team.seq`를 원자적 증가 → epic·task 공유 연속 시퀀스. 표시 헬퍼 `formatIssueKey(teamKey, number)`(`constants.ts`, 구 `ISSUE_PREFIX` 대체). 병렬 생성 시 번호 중복 없음(검증됨).
+- **서버**: `queries.ts` 전면 개편(get*Projects/Sprints/Teams/*Options, 타임라인 그룹핑 project 기준), `actions/initiatives.ts`→`projects.ts`, `sprints.ts`·`teams.ts` 신설, `epics.ts`/`tasks.ts`에 팀 번호 부여(태스크는 에픽 팀 상속), `validators.ts` project/sprint/team 스키마.
+- **UI**: 라우트 `initiatives/`→`projects/`, `sprints/`·`teams/` 신설(목록+상세/관리). 폼 `project-dialog`·`sprint-dialog`·`team-dialog` + 에픽/태스크 폼에 팀 select(태스크는 에픽 팀 상속·읽기전용). 네비 이니셔티브→프로젝트 + 스프린트·팀. key 표시 전면 `formatIssueKey`화(item-row/kanban/timeline/property-bar/상세). 팀 필터(`filters/team-filter.tsx`, owner-filter children 슬롯) 에픽/태스크/보드에 추가. 팀 유저 배정 UI(`teams/member-team-select.tsx`).
+
+검증: Turbopack `next build` 통과(TypeScript OK, 신규 라우트 5개 포함). lint **신규 이슈 0**, 오히려 baseline 2건→0건(dashboard 미사용변수 제거 + kanban set-state-in-effect를 'derive during render' 패턴으로 정리). 시드/마이그레이션 성공, 팀 번호 부여 동시성 검증(3 병렬 생성 → 4·5·6 연속·무중복).
+
+---
+
 ## 2026-07-08 — 추가 변경 8건: 문서화 + git worktree 병렬 구현
 
 `docs/` 문서 인프라(README·design-system·work-log·roadmap·specs·adr) 구축 + `CLAUDE.md` 라우팅 추가(옛 Linear 다크 서술 현행화). git 저장소 초기화(`main`) 후, 결정·스키마가 필요 없는 독립 스트림 4개를 **git worktree + 병렬 서브에이전트**로 구현하고 `main`에 순차 병합.

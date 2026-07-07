@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Sprint — 팀 워크스페이스",
-  description: "일정과 문서를 한곳에서. Initiative · Epic · Task 관리와 위키.",
+  description: "일정과 문서를 한곳에서. Sprint · Project · Epic · Task 관리와 위키.",
 };
 
 export default function RootLayout({

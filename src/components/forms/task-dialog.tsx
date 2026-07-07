@@ -22,6 +22,8 @@ import {
   PrioritySelect,
   MemberSelect,
   GenericSelect,
+  TeamSelect,
+  type TeamOption,
   toDateInput,
 } from "@/components/forms/fields";
 import { createTask, updateTask } from "@/server/actions/tasks";
@@ -33,30 +35,39 @@ type Existing = {
   status: Status;
   priority: Priority;
   assigneeId: string | null;
+  teamId: string;
   epicId: string | null;
   startDate: Date | string | null;
   dueDate: Date | string | null;
   storyPoints: number | null;
 };
 
+export type TaskEpicOption = { id: string; title: string; teamId: string };
+
 export function TaskDialog({
   members,
+  teams,
   epics,
   task,
   defaultEpicId,
+  defaultTeamId,
   defaultStatus,
   trigger,
 }: {
   members: MiniUser[];
-  epics: { id: string; title: string }[];
+  teams: TeamOption[];
+  epics: TaskEpicOption[];
   task?: Existing;
   defaultEpicId?: string;
+  defaultTeamId?: string;
   defaultStatus?: Status;
   trigger: React.ReactElement;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
+
+  const isEdit = !!task;
 
   const [title, setTitle] = useState(task?.title ?? "");
   const [description, setDescription] = useState(task?.description ?? "");
@@ -70,15 +81,34 @@ export function TaskDialog({
   const [epicId, setEpicId] = useState<string | null>(
     task?.epicId ?? defaultEpicId ?? null,
   );
+  // 에픽이 지정되면 팀은 그 에픽의 팀을 상속(서버에서도 강제). 없으면 직접 선택.
+  const epicTeamId = epicId
+    ? (epics.find((e) => e.id === epicId)?.teamId ?? null)
+    : null;
+  const [teamId, setTeamId] = useState<string | null>(
+    task?.teamId ?? defaultTeamId ?? null,
+  );
+  const effectiveTeamId = epicTeamId ?? teamId;
+
   const [startDate, setStartDate] = useState(toDateInput(task?.startDate));
   const [dueDate, setDueDate] = useState(toDateInput(task?.dueDate));
   const [storyPoints, setStoryPoints] = useState(
     task?.storyPoints != null ? String(task.storyPoints) : "",
   );
 
+  function onEpicChange(next: string | null) {
+    setEpicId(next);
+    const t = next ? epics.find((e) => e.id === next)?.teamId : null;
+    if (t) setTeamId(t);
+  }
+
   function submit() {
     if (!title.trim()) {
       toast.error("제목을 입력하세요");
+      return;
+    }
+    if (!isEdit && !effectiveTeamId) {
+      toast.error("팀을 선택하거나 에픽을 지정하세요");
       return;
     }
     const payload = {
@@ -87,6 +117,7 @@ export function TaskDialog({
       status,
       priority,
       assigneeId,
+      teamId: effectiveTeamId ?? task?.teamId,
       epicId,
       startDate,
       dueDate,
@@ -130,15 +161,32 @@ export function TaskDialog({
               rows={3}
             />
           </div>
-          <div className="grid gap-2">
-            <Label>상위 에픽</Label>
-            <GenericSelect
-              value={epicId}
-              onChange={setEpicId}
-              options={epics.map((e) => ({ id: e.id, label: e.title }))}
-              placeholder="에픽 선택"
-              noneLabel="없음"
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-2">
+              <Label>상위 에픽</Label>
+              <GenericSelect
+                value={epicId}
+                onChange={onEpicChange}
+                options={epics.map((e) => ({ id: e.id, label: e.title }))}
+                placeholder="에픽 선택"
+                noneLabel="없음"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>
+                소유 팀
+                {isEdit
+                  ? " (변경 불가)"
+                  : epicTeamId
+                    ? " (에픽 상속)"
+                    : ""}
+              </Label>
+              {isEdit || epicTeamId ? (
+                <TeamKeyReadonly teams={teams} teamId={effectiveTeamId} />
+              ) : (
+                <TeamSelect value={teamId} onChange={setTeamId} teams={teams} />
+              )}
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-2">
@@ -199,5 +247,26 @@ export function TaskDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** 팀이 고정된 경우(수정/에픽 상속) 팀 key를 읽기 전용으로 표시. */
+function TeamKeyReadonly({
+  teams,
+  teamId,
+}: {
+  teams: TeamOption[];
+  teamId: string | null;
+}) {
+  const team = teams.find((t) => t.id === teamId);
+  return (
+    <div className="border-input bg-muted/40 text-muted-foreground flex h-9 items-center gap-2 rounded-md border px-3 text-sm">
+      <span
+        className="size-2 shrink-0 rounded-full"
+        style={team?.color ? { backgroundColor: team.color } : undefined}
+      />
+      <span className="font-mono text-xs">{team?.key ?? "—"}</span>
+      <span>{team?.name}</span>
+    </div>
   );
 }

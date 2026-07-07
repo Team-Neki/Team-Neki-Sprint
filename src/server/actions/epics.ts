@@ -11,13 +11,18 @@ import {
   assigneeIdSchema,
 } from "@/lib/validators";
 import { logActivity } from "@/server/activity";
+import { nextTeamNumber } from "@/server/keys";
 
 export async function createEpic(input: unknown) {
   const user = await requireUser();
   const data = epicSchema.parse(input);
 
-  const epic = await prisma.epic.create({
-    data: { ...data, ownerId: data.ownerId ?? user.id },
+  // 팀 시퀀스를 원자적으로 증가시켜 number를 부여한다(epic·task 공유).
+  const epic = await prisma.$transaction(async (tx) => {
+    const number = await nextTeamNumber(tx, data.teamId);
+    return tx.epic.create({
+      data: { ...data, number, ownerId: data.ownerId ?? user.id },
+    });
   });
 
   await logActivity({
@@ -29,13 +34,15 @@ export async function createEpic(input: unknown) {
   });
 
   revalidatePath("/epics");
-  if (epic.initiativeId) revalidatePath(`/initiatives/${epic.initiativeId}`);
+  if (epic.projectId) revalidatePath(`/projects/${epic.projectId}`);
   return { id: epic.id };
 }
 
 export async function updateEpic(id: string, input: unknown) {
   const user = await requireUser();
   const data = epicSchema.partial().parse(input);
+  // 팀(teamId)은 생성 후 불변 — 표시 key 안정성 위해 수정에서 제외.
+  delete (data as { teamId?: string }).teamId;
 
   const epic = await prisma.epic.update({ where: { id }, data });
 
@@ -48,14 +55,14 @@ export async function updateEpic(id: string, input: unknown) {
 
   revalidatePath("/epics");
   revalidatePath(`/epics/${id}`);
-  if (epic.initiativeId) revalidatePath(`/initiatives/${epic.initiativeId}`);
+  if (epic.projectId) revalidatePath(`/projects/${epic.projectId}`);
   return { id };
 }
 
-function revalidateEpicPaths(id: string, initiativeId: string | null) {
+function revalidateEpicPaths(id: string, projectId: string | null) {
   revalidatePath("/epics");
   revalidatePath(`/epics/${id}`);
-  if (initiativeId) revalidatePath(`/initiatives/${initiativeId}`);
+  if (projectId) revalidatePath(`/projects/${projectId}`);
 }
 
 /** 상단 property bar 인라인 편집: 상태만 변경. */
@@ -73,7 +80,7 @@ export async function setEpicStatus(id: string, status: Status) {
     action: "status_changed",
     meta: { status: value },
   });
-  revalidateEpicPaths(id, epic.initiativeId);
+  revalidateEpicPaths(id, epic.projectId);
   return { id };
 }
 
@@ -92,7 +99,7 @@ export async function setEpicPriority(id: string, priority: Priority) {
     action: "updated",
     meta: { priority: value },
   });
-  revalidateEpicPaths(id, epic.initiativeId);
+  revalidateEpicPaths(id, epic.projectId);
   return { id };
 }
 
@@ -111,7 +118,7 @@ export async function setEpicOwner(id: string, ownerId: string | null) {
     action: "updated",
     meta: { ownerId: value },
   });
-  revalidateEpicPaths(id, epic.initiativeId);
+  revalidateEpicPaths(id, epic.projectId);
   return { id };
 }
 

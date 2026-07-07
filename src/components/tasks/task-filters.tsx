@@ -13,10 +13,17 @@ import {
 } from "@/components/ui/select";
 import { STATUS_ORDER, STATUS_META } from "@/lib/constants";
 import type { MiniUser } from "@/components/user-badge";
+import type { TeamOption } from "@/components/filters/team-filter";
 
 const ALL = "__all__";
 
-export function TaskFilters({ members }: { members: MiniUser[] }) {
+export function TaskFilters({
+  members,
+  teams,
+}: {
+  members: MiniUser[];
+  teams: TeamOption[];
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -28,7 +35,9 @@ export function TaskFilters({ members }: { members: MiniUser[] }) {
     router.replace(`${pathname}?${next.toString()}`);
   }
 
-  const hasFilters = ["status", "assignee", "q"].some((k) => params.get(k));
+  const hasFilters = ["status", "assignee", "team", "q"].some((k) =>
+    params.get(k),
+  );
 
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -71,6 +80,29 @@ export function TaskFilters({ members }: { members: MiniUser[] }) {
           {members.map((m) => (
             <SelectItem key={m.id} value={m.id}>
               {m.name ?? m.email}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Select
+        value={params.get("team") ?? ALL}
+        onValueChange={(v) => setParam("team", v)}
+      >
+        <SelectTrigger className="w-40">
+          <SelectValue placeholder="팀" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ALL}>모든 팀</SelectItem>
+          {teams.map((t) => (
+            <SelectItem key={t.id} value={t.id}>
+              <span className="flex items-center gap-2">
+                <span
+                  className="size-2 shrink-0 rounded-full"
+                  style={t.color ? { backgroundColor: t.color } : undefined}
+                />
+                <span className="font-mono text-xs">{t.key}</span>
+              </span>
             </SelectItem>
           ))}
         </SelectContent>

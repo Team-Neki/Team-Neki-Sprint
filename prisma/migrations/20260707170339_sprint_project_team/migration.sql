@@ -1,6 +1,3 @@
--- CreateSchema
-CREATE SCHEMA IF NOT EXISTS "public";
-
 -- CreateEnum
 CREATE TYPE "Role" AS ENUM ('ADMIN', 'MEMBER');
 
@@ -9,6 +6,9 @@ CREATE TYPE "Status" AS ENUM ('BACKLOG', 'TODO', 'IN_PROGRESS', 'IN_REVIEW', 'DO
 
 -- CreateEnum
 CREATE TYPE "Priority" AS ENUM ('LOW', 'MEDIUM', 'HIGH', 'URGENT');
+
+-- CreateEnum
+CREATE TYPE "SprintStatus" AS ENUM ('PLANNED', 'ACTIVE', 'DONE');
 
 -- CreateTable
 CREATE TABLE "User" (
@@ -19,6 +19,7 @@ CREATE TABLE "User" (
     "image" TEXT,
     "role" "Role" NOT NULL DEFAULT 'MEMBER',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "teamId" TEXT,
 
     CONSTRAINT "User_pkey" PRIMARY KEY ("id")
 );
@@ -59,9 +60,21 @@ CREATE TABLE "VerificationToken" (
 );
 
 -- CreateTable
-CREATE TABLE "Initiative" (
+CREATE TABLE "Sprint" (
     "id" TEXT NOT NULL,
-    "key" SERIAL NOT NULL,
+    "name" TEXT NOT NULL,
+    "startDate" TIMESTAMP(3),
+    "endDate" TIMESTAMP(3),
+    "status" "SprintStatus" NOT NULL DEFAULT 'PLANNED',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Sprint_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Project" (
+    "id" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "description" TEXT,
     "status" "Status" NOT NULL DEFAULT 'BACKLOG',
@@ -69,16 +82,28 @@ CREATE TABLE "Initiative" (
     "startDate" TIMESTAMP(3),
     "dueDate" TIMESTAMP(3),
     "ownerId" TEXT,
+    "sprintId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "Initiative_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "Project_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Team" (
+    "id" TEXT NOT NULL,
+    "key" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "color" TEXT,
+    "seq" INTEGER NOT NULL DEFAULT 0,
+
+    CONSTRAINT "Team_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Epic" (
     "id" TEXT NOT NULL,
-    "key" SERIAL NOT NULL,
+    "number" INTEGER NOT NULL,
     "title" TEXT NOT NULL,
     "description" TEXT,
     "status" "Status" NOT NULL DEFAULT 'BACKLOG',
@@ -86,7 +111,8 @@ CREATE TABLE "Epic" (
     "startDate" TIMESTAMP(3),
     "dueDate" TIMESTAMP(3),
     "ownerId" TEXT,
-    "initiativeId" TEXT,
+    "teamId" TEXT NOT NULL,
+    "projectId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -96,7 +122,7 @@ CREATE TABLE "Epic" (
 -- CreateTable
 CREATE TABLE "Task" (
     "id" TEXT NOT NULL,
-    "key" SERIAL NOT NULL,
+    "number" INTEGER NOT NULL,
     "title" TEXT NOT NULL,
     "description" TEXT,
     "status" "Status" NOT NULL DEFAULT 'TODO',
@@ -106,6 +132,7 @@ CREATE TABLE "Task" (
     "storyPoints" INTEGER,
     "assigneeId" TEXT,
     "reporterId" TEXT,
+    "teamId" TEXT NOT NULL,
     "epicId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -135,11 +162,11 @@ CREATE TABLE "Label" (
 );
 
 -- CreateTable
-CREATE TABLE "LabelsOnInitiatives" (
-    "initiativeId" TEXT NOT NULL,
+CREATE TABLE "LabelsOnProjects" (
+    "projectId" TEXT NOT NULL,
     "labelId" TEXT NOT NULL,
 
-    CONSTRAINT "LabelsOnInitiatives_pkey" PRIMARY KEY ("initiativeId","labelId")
+    CONSTRAINT "LabelsOnProjects_pkey" PRIMARY KEY ("projectId","labelId")
 );
 
 -- CreateTable
@@ -222,13 +249,13 @@ CREATE UNIQUE INDEX "VerificationToken_token_key" ON "VerificationToken"("token"
 CREATE UNIQUE INDEX "VerificationToken_identifier_token_key" ON "VerificationToken"("identifier", "token");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Initiative_key_key" ON "Initiative"("key");
+CREATE UNIQUE INDEX "Team_key_key" ON "Team"("key");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Epic_key_key" ON "Epic"("key");
+CREATE UNIQUE INDEX "Epic_teamId_number_key" ON "Epic"("teamId", "number");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Task_key_key" ON "Task"("key");
+CREATE UNIQUE INDEX "Task_teamId_number_key" ON "Task"("teamId", "number");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Label_name_key" ON "Label"("name");
@@ -237,25 +264,37 @@ CREATE UNIQUE INDEX "Label_name_key" ON "Label"("name");
 CREATE INDEX "Activity_entityType_entityId_idx" ON "Activity"("entityType", "entityId");
 
 -- AddForeignKey
+ALTER TABLE "User" ADD CONSTRAINT "User_teamId_fkey" FOREIGN KEY ("teamId") REFERENCES "Team"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "Account" ADD CONSTRAINT "Account_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Session" ADD CONSTRAINT "Session_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Initiative" ADD CONSTRAINT "Initiative_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "Project" ADD CONSTRAINT "Project_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Project" ADD CONSTRAINT "Project_sprintId_fkey" FOREIGN KEY ("sprintId") REFERENCES "Sprint"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Epic" ADD CONSTRAINT "Epic_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Epic" ADD CONSTRAINT "Epic_initiativeId_fkey" FOREIGN KEY ("initiativeId") REFERENCES "Initiative"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "Epic" ADD CONSTRAINT "Epic_teamId_fkey" FOREIGN KEY ("teamId") REFERENCES "Team"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Epic" ADD CONSTRAINT "Epic_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Task" ADD CONSTRAINT "Task_assigneeId_fkey" FOREIGN KEY ("assigneeId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Task" ADD CONSTRAINT "Task_reporterId_fkey" FOREIGN KEY ("reporterId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Task" ADD CONSTRAINT "Task_teamId_fkey" FOREIGN KEY ("teamId") REFERENCES "Team"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Task" ADD CONSTRAINT "Task_epicId_fkey" FOREIGN KEY ("epicId") REFERENCES "Epic"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -267,10 +306,10 @@ ALTER TABLE "Comment" ADD CONSTRAINT "Comment_taskId_fkey" FOREIGN KEY ("taskId"
 ALTER TABLE "Comment" ADD CONSTRAINT "Comment_authorId_fkey" FOREIGN KEY ("authorId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "LabelsOnInitiatives" ADD CONSTRAINT "LabelsOnInitiatives_initiativeId_fkey" FOREIGN KEY ("initiativeId") REFERENCES "Initiative"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "LabelsOnProjects" ADD CONSTRAINT "LabelsOnProjects_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "LabelsOnInitiatives" ADD CONSTRAINT "LabelsOnInitiatives_labelId_fkey" FOREIGN KEY ("labelId") REFERENCES "Label"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "LabelsOnProjects" ADD CONSTRAINT "LabelsOnProjects_labelId_fkey" FOREIGN KEY ("labelId") REFERENCES "Label"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "LabelsOnEpics" ADD CONSTRAINT "LabelsOnEpics_epicId_fkey" FOREIGN KEY ("epicId") REFERENCES "Epic"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -304,4 +343,3 @@ ALTER TABLE "WikiPageTaskLink" ADD CONSTRAINT "WikiPageTaskLink_taskId_fkey" FOR
 
 -- AddForeignKey
 ALTER TABLE "Activity" ADD CONSTRAINT "Activity_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-

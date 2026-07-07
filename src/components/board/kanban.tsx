@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   DndContext,
@@ -15,7 +15,7 @@ import {
 } from "@dnd-kit/core";
 import { toast } from "sonner";
 import type { Status, Priority } from "@prisma/client";
-import { STATUS_ORDER, STATUS_META } from "@/lib/constants";
+import { STATUS_ORDER, STATUS_META, formatIssueKey } from "@/lib/constants";
 import { PriorityBadge } from "@/components/badges";
 import { UserBadge, type MiniUser } from "@/components/user-badge";
 import { Card } from "@/components/ui/card";
@@ -24,12 +24,13 @@ import { cn } from "@/lib/utils";
 
 export type BoardTask = {
   id: string;
-  key: number;
+  number: number;
   title: string;
   status: Status;
   priority: Priority;
   assignee: MiniUser | null;
-  epic: { id: string; title: string; key: number } | null;
+  team: { key: string } | null;
+  epic: { id: string; title: string } | null;
 };
 
 export function KanbanBoard({ tasks }: { tasks: BoardTask[] }) {
@@ -37,12 +38,14 @@ export function KanbanBoard({ tasks }: { tasks: BoardTask[] }) {
   const [items, setItems] = useState<BoardTask[]>(tasks);
   const [activeId, setActiveId] = useState<string | null>(null);
 
-  // Re-sync when the server sends fresh data.
+  // Re-sync when the server sends fresh data. React 'adjust state during render'
+  // 패턴(useEffect + setState 대신) — cascading render 없이 서버 데이터를 반영한다.
   const signature = tasks.map((t) => `${t.id}:${t.status}`).join(",");
-  useEffect(() => {
+  const [prevSignature, setPrevSignature] = useState(signature);
+  if (signature !== prevSignature) {
+    setPrevSignature(signature);
     setItems(tasks);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [signature]);
+  }
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -157,7 +160,7 @@ function TaskCard({ task, overlay }: { task: BoardTask; overlay?: boolean }) {
       <p className="text-sm leading-snug font-medium">{task.title}</p>
       <div className="flex items-center justify-between gap-2">
         <span className="text-muted-foreground font-mono text-[11px]">
-          TASK-{task.key}
+          {formatIssueKey(task.team?.key, task.number)}
         </span>
         <div className="flex items-center gap-2">
           <PriorityBadge priority={task.priority} />

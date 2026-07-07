@@ -33,10 +33,10 @@ import {
   setEpicOwner,
 } from "@/server/actions/epics";
 import {
-  setInitiativeStatus,
-  setInitiativePriority,
-  setInitiativeOwner,
-} from "@/server/actions/initiatives";
+  setProjectStatus,
+  setProjectPriority,
+  setProjectOwner,
+} from "@/server/actions/projects";
 
 const UNASSIGNED = "__none__";
 
@@ -44,7 +44,9 @@ const UNASSIGNED = "__none__";
 const chipTrigger =
   "h-7 gap-1 border-transparent bg-transparent px-1.5 shadow-none hover:bg-accent";
 
-type EntityType = "task" | "epic" | "initiative";
+type EntityType = "task" | "epic" | "project";
+
+type TeamChip = { key: string; name: string; color?: string | null };
 
 type FieldActions = {
   setStatus: (id: string, status: Status) => Promise<unknown>;
@@ -63,10 +65,10 @@ const ACTIONS: Record<EntityType, FieldActions> = {
     setPriority: setEpicPriority,
     setAssignee: setEpicOwner,
   },
-  initiative: {
-    setStatus: setInitiativeStatus,
-    setPriority: setInitiativePriority,
-    setAssignee: setInitiativeOwner,
+  project: {
+    setStatus: setProjectStatus,
+    setPriority: setProjectPriority,
+    setAssignee: setProjectOwner,
   },
 };
 
@@ -84,6 +86,7 @@ export function PropertyBar({
   members,
   startDate,
   dueDate,
+  team,
 }: {
   type: EntityType;
   id: string;
@@ -93,6 +96,7 @@ export function PropertyBar({
   members: MiniUser[];
   startDate?: Date | string | null;
   dueDate?: Date | string | null;
+  team?: TeamChip | null;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -116,6 +120,21 @@ export function PropertyBar({
         pending && "opacity-60",
       )}
     >
+      {team && (
+        <>
+          <span className="inline-flex items-center gap-1.5 px-1.5">
+            <span
+              className="size-2 shrink-0 rounded-full"
+              style={team.color ? { backgroundColor: team.color } : undefined}
+            />
+            <span className="text-muted-foreground font-mono text-xs">
+              {team.key}
+            </span>
+          </span>
+          <Divider />
+        </>
+      )}
+
       <Select
         value={status}
         onValueChange={(v) => run(() => actions.setStatus(id, v as Status))}

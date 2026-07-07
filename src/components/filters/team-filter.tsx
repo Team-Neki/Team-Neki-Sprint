@@ -10,30 +10,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { MiniUser } from "@/components/user-badge";
 
 const ALL = "__all__";
 
+export type TeamOption = {
+  id: string;
+  key: string;
+  name: string;
+  color?: string | null;
+};
+
 /**
- * 사용자(오너/담당자) 단위 URL 필터. 태스크 필터(task-filters.tsx)와 같은
- * searchParams 방식을 재사용해 이니셔티브/에픽(오너)·보드(담당자)에서 공통으로 쓴다.
- *
- * paramKey 로 URL 파라미터 키를 바꿔 오너(`owner`)/담당자(`assignee`) 양쪽에 대응한다.
- * 초기화는 자기 파라미터만 지우므로, 4번(유저 그룹) 필터를 같은 바에 얹어도
- * 서로의 값을 건드리지 않는다.
+ * 팀(유저 그룹) 단위 URL 필터. owner-filter.tsx 와 같은 searchParams 패턴을 재사용해
+ * 에픽/태스크 목록에서 owner·assignee 필터와 나란히 얹는다(서로의 파라미터를 안 건드림).
  */
-export function OwnerFilter({
-  members,
-  paramKey = "owner",
-  placeholder = "오너",
-  allLabel = "모든 오너",
-  children,
+export function TeamFilter({
+  teams,
+  paramKey = "team",
 }: {
-  members: MiniUser[];
+  teams: TeamOption[];
   paramKey?: string;
-  placeholder?: string;
-  allLabel?: string;
-  children?: React.ReactNode;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -50,16 +46,23 @@ export function OwnerFilter({
   const active = params.get(paramKey);
 
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-2">
+    <>
       <Select value={active ?? ALL} onValueChange={(v) => setParam(v)}>
         <SelectTrigger className="w-40">
-          <SelectValue placeholder={placeholder} />
+          <SelectValue placeholder="팀" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={ALL}>{allLabel}</SelectItem>
-          {members.map((m) => (
-            <SelectItem key={m.id} value={m.id}>
-              {m.name ?? m.email}
+          <SelectItem value={ALL}>모든 팀</SelectItem>
+          {teams.map((t) => (
+            <SelectItem key={t.id} value={t.id}>
+              <span className="flex items-center gap-2">
+                <span
+                  className="size-2 shrink-0 rounded-full"
+                  style={t.color ? { backgroundColor: t.color } : undefined}
+                />
+                <span className="font-mono text-xs">{t.key}</span>
+                <span className="text-muted-foreground">{t.name}</span>
+              </span>
             </SelectItem>
           ))}
         </SelectContent>
@@ -70,8 +73,6 @@ export function OwnerFilter({
           <X className="size-4" /> 초기화
         </Button>
       )}
-
-      {children}
-    </div>
+    </>
   );
 }

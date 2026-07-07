@@ -1,8 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Plus, Pencil, Trash2, ChevronLeft } from "lucide-react";
-import { getEpic, getInitiatives, getMembers } from "@/server/queries";
+import {
+  getEpic,
+  getProjectOptions,
+  getTeamOptions,
+  getMembers,
+} from "@/server/queries";
 import { deleteEpic } from "@/server/actions/epics";
+import { formatIssueKey } from "@/lib/constants";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -21,9 +27,10 @@ export default async function EpicDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [epic, initiatives, members] = await Promise.all([
+  const [epic, projects, teams, members] = await Promise.all([
     getEpic(id),
-    getInitiatives(),
+    getProjectOptions(),
+    getTeamOptions(),
     getMembers(),
   ]);
   if (!epic) notFound();
@@ -32,6 +39,8 @@ export default async function EpicDetail({
     "use server";
     await deleteEpic(id);
   }
+
+  const issueKey = formatIssueKey(epic.team?.key, epic.number);
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -42,10 +51,11 @@ export default async function EpicDetail({
         <ChevronLeft className="size-4" /> 에픽
       </Link>
 
-      <PageHeader title={epic.title} description={`EPIC-${epic.key}`}>
+      <PageHeader title={epic.title} description={issueKey}>
         <EpicDialog
           members={members}
-          initiatives={initiatives.map((i) => ({ id: i.id, title: i.title }))}
+          teams={teams}
+          projects={projects}
           epic={epic}
           trigger={
             <Button variant="outline" size="sm">
@@ -74,15 +84,16 @@ export default async function EpicDetail({
           members={members}
           startDate={epic.startDate}
           dueDate={epic.dueDate}
+          team={epic.team}
         />
-        {epic.initiative && (
+        {epic.project && (
           <p className="text-muted-foreground text-sm">
-            이니셔티브{" "}
+            프로젝트{" "}
             <Link
-              href={`/initiatives/${epic.initiative.id}`}
+              href={`/projects/${epic.project.id}`}
               className="text-primary hover:underline"
             >
-              {epic.initiative.title}
+              {epic.project.title}
             </Link>
           </p>
         )}
@@ -98,8 +109,10 @@ export default async function EpicDetail({
         <h2 className="text-lg font-semibold">태스크 {epic.tasks.length}</h2>
         <TaskDialog
           members={members}
-          epics={[{ id: epic.id, title: epic.title }]}
+          teams={teams}
+          epics={[{ id: epic.id, title: epic.title, teamId: epic.teamId }]}
           defaultEpicId={epic.id}
+          defaultTeamId={epic.teamId}
           trigger={
             <Button size="sm" variant="outline">
               <Plus className="size-4" /> 태스크 추가
@@ -117,8 +130,8 @@ export default async function EpicDetail({
         {epic.tasks.map((t) => (
           <Link key={t.id} href={`/tasks/${t.id}`}>
             <Card className="hover:border-primary/40 flex flex-row items-center gap-3 px-4 py-3 transition-colors">
-              <span className="text-muted-foreground w-20 shrink-0 font-mono text-xs">
-                TASK-{t.key}
+              <span className="text-muted-foreground w-24 shrink-0 font-mono text-xs">
+                {formatIssueKey(t.team?.key, t.number)}
               </span>
               <span className="min-w-0 flex-1 truncate text-sm font-medium">
                 {t.title}

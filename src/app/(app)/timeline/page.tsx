@@ -13,7 +13,7 @@ export default async function TimelinePage() {
     <div>
       <PageHeader
         title="타임라인"
-        description="이니셔티브별 에픽 일정을 한눈에. 에픽을 펼치면 하위 태스크가 보입니다."
+        description="프로젝트별 에픽 일정을 한눈에. 에픽을 펼치면 하위 태스크가 보입니다."
       >
         <div className="hidden items-center gap-3 sm:flex">
           {STATUS_ORDER.map((s) => (
