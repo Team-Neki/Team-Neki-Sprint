@@ -8,7 +8,7 @@
 
 - **1단계 완료·병합(`DONE`)**: #1 타임라인, #5+#6 상태바, #7 필터, #8 위키 → 스펙([`specs/`](./specs/)) 작성 후 4개 `feat/*` 브랜치에서 **git worktree 병렬 구현** → `main` 병합. Turbopack `next build` 통과, lint 신규 이슈 0(오히려 선재 baseline 4→2 감소).
 - **#2 (`REVIEW`)**: [`adr/0001-initiative-parent.md`](./adr/0001-initiative-parent.md) 검토·권장안(현행 유지) 작성, **사용자 확정 대기**.
-- **2단계 보류(`TODO`)**: #3(커스텀 key/Project), #4(유저 그룹) — 스키마·마이그레이션 동반 + 열린 질문 확정 필요. 착수 전 접근안/질문 합의 필요.
+- **2단계 통합 설계(`TODO`, 스펙 승인 대기)**: #2 + #3 + #4가 **핑퐁 결정으로 단일 개편에 병합** → [ADR 0002](./adr/0002-sprint-project-team-restructure.md) + [스펙](./specs/02-03-04-hierarchy-restructure.md). 계층을 `Sprint > Project > Epic > Task`로 개편(Initiative 제거), Team=key=유저그룹 통합. 스키마·마이그레이션 동반 XL 과제.
 - **선재 baseline(범위 밖)**: `kanban.tsx:43` set-state-in-effect(error), `dashboard/page.tsx:29` 미사용 변수(warning) — 이번 8개 항목과 무관, 필요 시 별도 정리.
 
 ---
@@ -25,7 +25,9 @@
 - **열린 질문**: 겹침이 주 헤더에서만인지, epic/task 바 라벨에서도인지 확인 필요.
 - **비고**: 순수 프론트, 사이드이펙트 없음 → 착수 쉬움(quick win).
 
-## 2. 이니셔티브 상위 항목 필요 여부 검토 · `REVIEW` · 규모 XS(결정)
+## 2. 이니셔티브 상위 항목 필요 여부 검토 · `RESOLVED` → [ADR 0002](./adr/0002-sprint-project-team-restructure.md)
+
+> 핑퐁 결정으로 #3·#4와 함께 Sprint/Project/Team 개편에 병합(Initiative 제거, Project가 상위). 아래 원문은 검토 맥락으로 보존.
 
 - **배경**: 현재 계층은 `Initiative > Epic > Task`(schema 기준 Initiative가 최상위, `parentId` 없음). "이니셔티브 위에 상위 항목이 필요한가"에 대한 제품 결정.
 - **옵션**:
@@ -36,7 +38,9 @@
 - **권장(초안)**: 실제 필요가 확인되기 전엔 **(a) 유지**. 그룹핑 필요는 3번(프로젝트 key)이나 라벨로 흡수 가능한지 먼저 검토.
 - **열린 질문**: 상위 항목이 필요한 실제 유스케이스(로드맵 묶음? OKR?)가 무엇인가.
 
-## 3. 커스텀 key 지정 기능(DESIGN, SEARCHPL, BACKEND, AOS, IOS…) · `TODO` · 규모 L
+## 3. 커스텀 key 지정 기능(DESIGN, SEARCHPL, BACKEND, AOS, IOS…) · `MERGED` → [ADR 0002](./adr/0002-sprint-project-team-restructure.md)
+
+> key = Team으로 확정, #4와 통합. 상세는 [개편 스펙](./specs/02-03-04-hierarchy-restructure.md). 아래 원문은 초기 스코핑으로 보존.
 
 - **배경**: 현재 key는 전역 auto-increment 정수(`INI-1`/`EPIC-1`/`TASK-1`, schema `key Int @unique @default(autoincrement())`). Jira처럼 **프로젝트 접두어 key**(`DESIGN-1`, `SEARCHPL-42`)를 지정하고 싶음.
 - **접근안**: **Project(또는 Board)** 개념 도입.
@@ -48,7 +52,9 @@
 - **열린 질문**: key는 이니셔티브/에픽/태스크가 **공유 시퀀스**(프로젝트 단위 하나의 번호대)인가, 타입별 분리인가? 프로젝트와 이니셔티브의 관계(1:1? 1:N?)는?
 - **비고**: 2번(상위 항목)과 연관 — "프로젝트"가 사실상 상위 그룹 역할을 할 수 있음.
 
-## 4. 유저 그룹 기능(backend, frontend, designer…) · `TODO` · 규모 M
+## 4. 유저 그룹 기능(backend, frontend, designer…) · `MERGED` → [ADR 0002](./adr/0002-sprint-project-team-restructure.md)
+
+> 유저 그룹 = Team으로 확정(#3 key와 동일 개념, 한 사람=한 팀). 상세는 [개편 스펙](./specs/02-03-04-hierarchy-restructure.md). 아래 원문은 초기 스코핑으로 보존.
 
 - **배경**: 사용자를 직능 그룹으로 묶기. 현재 `User`에 그룹 개념 없음(`role`은 ADMIN/MEMBER뿐).
 - **접근안**:

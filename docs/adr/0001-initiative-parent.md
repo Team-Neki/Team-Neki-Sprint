@@ -1,6 +1,6 @@
 # ADR 0001 — 이니셔티브 상위 항목 도입 여부
 
-- **상태**: Proposed (사용자 확정 대기)
+- **상태**: Superseded by [ADR 0002](./0002-sprint-project-team-restructure.md) (2026-07-08 핑퐁 결정 — Initiative 제거 후 Sprint/Project/Team 개편으로 #2 해소)
 - **날짜**: 2026-07-08
 - **관련**: roadmap #2, #3(커스텀 key/Project)
 
