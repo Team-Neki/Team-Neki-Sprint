@@ -20,6 +20,7 @@
 - **B4 타임라인**: (7) 가로 스크롤 시 좌측 에픽 목록 고정(sticky). → `epic-timeline.tsx`
 - **B5 프로필/소셜 (= 원래 phase 3 S3)**: (5/8/12) 사용자 프로필 페이지 + 사용자 클릭 시 이동(프로필 라우트 부재로 현재 접속 시 오류), (6) `@` 멘션, (7) 멘션 알림, (8) 알림 목록. → 신규 `users/[id]`, `Notification` 스키마(additive), 에디터 `@`.
 - **B6 리치 입력 확장**: 설명(description)·댓글에서도 링크(`#`티켓)/멘션(`@`사람) 동작. 현재 plain textarea → Tiptap 에디터로 교체(위키 에디터 확장 재사용). B5의 멘션/링크 인프라 위에 얹음.
+- **B7-board 보드 순서 변경**: 칸반에서 드래그앤드롭으로 **순서 재정렬**(현재는 상태 변경만). 생성 시 컬럼 하단 append, 자유 재정렬. → Task에 순서 필드(additive, 예: `boardOrder Float?`) + `board/kanban.tsx`(@dnd-kit sortable) + 재정렬 서버액션. 스키마 스트림.
 
 - **B7 MD(맨데이) 트래킹** (`DONE` 2026-07-08): `estimatedMd`/`actualMd` 추가(Task에 additive 마이그레이션 `task_md`, 편집은 **태스크만**). Epic md = 하위 태스크 md 합, Project md = 하위 에픽 md 합(`queries.ts` groupBy/집계, 읽기전용 롤업). 상세·목록 `MdRollupText` 표시.
 - **B8 업무 히스토리** (`DONE` 2026-07-08): 태스크=댓글 옆 우측 레일, 에픽/프로젝트=좌측 별도 섹션(Comment 모델 없음). "누가 기한/상태/내용을 변경" 기록. **기존 `Activity` 모델 활용** + generic diff 로거(`update*Fields`)가 필드별 `field_changed`+`meta:{field,from,to}` 기록. `getEntityActivity` 조회 + `history-panel` 한국어 문장 렌더.
