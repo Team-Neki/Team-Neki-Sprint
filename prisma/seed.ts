@@ -249,9 +249,15 @@ async function main() {
   ]);
 
   // ---------- 위키 ----------
+  // 데모 폴더(문서 그룹핑). 페이지 중첩(parentId)과는 별개 타입.
+  const campaignFolder = await prisma.wikiFolder.create({
+    data: { name: "캠페인 문서" },
+  });
+
   const parent = await prisma.wikiPage.create({
     data: {
       title: "브랜드 캠페인 위키",
+      folderId: campaignFolder.id,
       authorId: jiwon.id,
       editorId: jiwon.id,
       content: {

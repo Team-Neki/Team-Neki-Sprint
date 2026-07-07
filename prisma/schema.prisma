@@ -249,6 +249,20 @@ model LabelsOnTasks {
 
 // ---------- Wiki side ----------
 
+// 문서 그룹핑용 폴더. 페이지 중첩(WikiPage.parentId)과는 별개 타입이다.
+// 폴더는 스스로 중첩되며(parentId), 페이지는 folderId로 최상위(부모 없는) 위치가 결정된다.
+model WikiFolder {
+  id        String       @id @default(cuid())
+  name      String
+  parentId  String? // 폴더 중첩 허용
+  parent    WikiFolder?  @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children  WikiFolder[] @relation("FolderTree")
+  position  Int          @default(0)
+  pages     WikiPage[]
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+}
+
 model WikiPage {
   id        String     @id @default(cuid())
   title     String
@@ -256,6 +270,9 @@ model WikiPage {
   parentId  String?
   parent    WikiPage?  @relation("PageTree", fields: [parentId], references: [id], onDelete: Cascade)
   children  WikiPage[] @relation("PageTree")
+  // 폴더는 페이지 삭제와 무관하므로 폴더 삭제 시 페이지는 보존(SetNull)한다.
+  folderId  String?
+  folder    WikiFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
   position  Int        @default(0)
   authorId  String?
   author    User?      @relation("PageAuthor", fields: [authorId], references: [id])
