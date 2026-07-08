@@ -1,11 +1,15 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { Status, Priority } from "@prisma/client";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import {
+  RichEditor,
+  editorContentString,
+} from "@/components/rich-text/rich-editor";
+import { parseDoc } from "@/lib/rich-content";
 import {
   OptionSelect,
   memberLabel,
@@ -133,7 +137,7 @@ export function InlineTitle({
   );
 }
 
-/* ---------- 설명(인라인 textarea) ---------- */
+/* ---------- 설명(인라인 리치 에디터, B6) ---------- */
 
 export function InlineDescription({
   type,
@@ -144,30 +148,29 @@ export function InlineDescription({
   id: string;
   value: string | null;
 }) {
-  const { pending, save } = useFieldSave(type, id);
-  const v = value ?? "";
-  const [text, setText] = useState(v);
-  const [prev, setPrev] = useState(v);
-  if (v !== prev) {
-    setPrev(v);
-    setText(v);
-  }
-
-  function commit() {
-    if (text !== v) save({ description: text });
-  }
+  const { save } = useFieldSave(type, id);
+  // 에디터가 만들어내는 정규화된 초기 내용을 기준으로 삼아 blur 시 실변경만 저장.
+  const baseline = useRef<string | null>(null);
 
   return (
-    <Textarea
-      value={text}
-      onChange={(e) => setText(e.target.value)}
-      onBlur={commit}
-      disabled={pending}
-      rows={3}
-      placeholder="설명을 입력하세요…"
-      className="border-transparent bg-transparent px-2 hover:border-input focus-visible:border-ring"
-      aria-label="설명"
-    />
+    <div className="focus-within:border-ring hover:border-input rounded-md border border-transparent px-2 py-1 transition-colors">
+      <RichEditor
+        initialContent={parseDoc(value)}
+        placeholder="설명을 입력하세요… (#티켓, @사람)"
+        onEditor={(editor) => {
+          if (editor && baseline.current === null) {
+            baseline.current = editorContentString(editor);
+          }
+        }}
+        onBlur={(editor) => {
+          const next = editorContentString(editor);
+          if (next !== baseline.current) {
+            baseline.current = next;
+            save({ description: next });
+          }
+        }}
+      />
+    </div>
   );
 }
 

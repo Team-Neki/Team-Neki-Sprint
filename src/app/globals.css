@@ -190,3 +190,25 @@
   height: 0;
   pointer-events: none;
 }
+
+/* compact rich input (설명·댓글, B6) — 위키 본문 스타일은 공유하되 최소높이·여백만 축소 */
+.tiptap-compact {
+  min-height: auto;
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+.tiptap-compact > * + * {
+  margin-top: 0.4em;
+}
+.tiptap-compact h1 {
+  font-size: 1.2rem;
+  margin-top: 0.8em;
+}
+.tiptap-compact h2 {
+  font-size: 1.1rem;
+  margin-top: 0.7em;
+}
+.tiptap-compact h3 {
+  font-size: 1rem;
+  margin-top: 0.6em;
+}

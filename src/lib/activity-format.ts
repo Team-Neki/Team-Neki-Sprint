@@ -2,6 +2,7 @@ import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import type { Status, Priority } from "@prisma/client";
 import { STATUS_META, PRIORITY_META } from "@/lib/constants";
+import { plainTextOf } from "@/lib/rich-content";
 
 /**
  * 업무 히스토리/최근 활동 공용 포맷터.
@@ -90,8 +91,10 @@ export function formatFieldValue(
       return lookups.projects.get(s) ?? "프로젝트";
     case "sprintId":
       return lookups.sprints.get(s) ?? "스프린트";
-    case "title":
     case "description":
+      // 설명은 Tiptap doc JSON(B6) — 순수 텍스트로 풀어 발췌.
+      return truncateText(plainTextOf(s));
+    case "title":
       return truncateText(s);
     default:
       return s;

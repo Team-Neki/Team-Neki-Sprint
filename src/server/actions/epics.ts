@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { epicSchema } from "@/lib/validators";
 import { logActivity, diffFields } from "@/server/activity";
+import { notifyNewMentions } from "@/server/notify";
 import { nextTeamNumber } from "@/server/keys";
 
 export async function createEpic(input: unknown) {
@@ -103,6 +104,17 @@ export async function updateEpicFields(id: string, input: unknown) {
       }),
     ),
   );
+
+  if (changes.some((c) => c.field === "description")) {
+    await notifyNewMentions({
+      actorId: user.id,
+      entityType: "epic",
+      entityId: id,
+      context: epic.title,
+      before: current.description,
+      after: epic.description,
+    });
+  }
 
   revalidateEpicPaths(id, epic.projectId);
   // 프로젝트 이동 시 이전 프로젝트 상세도 무효화.

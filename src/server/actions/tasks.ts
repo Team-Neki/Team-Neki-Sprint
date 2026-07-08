@@ -6,6 +6,8 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { taskSchema } from "@/lib/validators";
 import { logActivity, diffFields } from "@/server/activity";
+import { notifyNewMentions } from "@/server/notify";
+import { isValueEmpty } from "@/lib/rich-content";
 import { nextTeamNumber } from "@/server/keys";
 
 export async function createTask(input: unknown) {
@@ -170,6 +172,19 @@ export async function updateTaskFields(id: string, input: unknown) {
     ),
   );
 
+  // 설명(description) 변경 시 새로 추가된 '@' 멘션 → 알림.
+  const descChange = changes.find((c) => c.field === "description");
+  if (descChange) {
+    await notifyNewMentions({
+      actorId: user.id,
+      entityType: "task",
+      entityId: id,
+      context: task.title,
+      before: current.description,
+      after: task.description,
+    });
+  }
+
   revalidateTaskPaths(id, task.epicId);
   // 에픽 이동 시 이전 에픽 상세도 무효화.
   if (current.epicId && current.epicId !== task.epicId) {
@@ -193,17 +208,30 @@ export async function deleteTask(id: string) {
 
 export async function addComment(taskId: string, body: string) {
   const user = await requireUser();
-  const trimmed = body.trim();
-  if (!trimmed) return;
+  // body 는 Tiptap doc JSON 문자열(B6). 내용이 비면 무시.
+  if (isValueEmpty(body)) return;
+
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: { title: true },
+  });
 
   await prisma.comment.create({
-    data: { taskId, body: trimmed, authorId: user.id },
+    data: { taskId, body, authorId: user.id },
   });
   await logActivity({
     userId: user.id,
     entityType: "task",
     entityId: taskId,
     action: "commented",
+  });
+  // 댓글 본문의 '@' 멘션 → 수신자 알림(자기멘션 제외).
+  await notifyNewMentions({
+    actorId: user.id,
+    entityType: "task",
+    entityId: taskId,
+    context: task?.title ?? null,
+    after: body,
   });
   revalidatePath(`/tasks/${taskId}`);
 }

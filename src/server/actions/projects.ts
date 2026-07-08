@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { projectSchema } from "@/lib/validators";
 import { logActivity, diffFields } from "@/server/activity";
+import { notifyNewMentions } from "@/server/notify";
 
 export async function createProject(input: unknown) {
   const user = await requireUser();
@@ -94,6 +95,17 @@ export async function updateProjectFields(id: string, input: unknown) {
       }),
     ),
   );
+
+  if (changes.some((c) => c.field === "description")) {
+    await notifyNewMentions({
+      actorId: user.id,
+      entityType: "project",
+      entityId: id,
+      context: project.title,
+      before: current.description,
+      after: project.description,
+    });
+  }
 
   revalidateProjectPaths(id, project.sprintId);
   // 스프린트 이동 시 이전 스프린트도 무효화.

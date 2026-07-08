@@ -15,6 +15,7 @@ import { Card } from "@/components/ui/card";
 import { UserBadge } from "@/components/user-badge";
 import { ConfirmDelete } from "@/components/confirm-delete";
 import { CommentForm } from "@/components/tasks/comment-form";
+import { RichContent } from "@/components/rich-text/rich-editor";
 import { LinkedPages } from "@/components/wiki/linked-pages";
 import { BackButton } from "@/components/detail/back-button";
 import { HistoryPanel } from "@/components/detail/history-panel";
@@ -116,9 +117,7 @@ export default async function TaskDetail({
                         })}
                       </span>
                     </div>
-                    <p className="mt-0.5 text-sm whitespace-pre-wrap">
-                      {c.body}
-                    </p>
+                    <RichContent value={c.body} className="mt-0.5" />
                   </div>
                 </div>
               ))}

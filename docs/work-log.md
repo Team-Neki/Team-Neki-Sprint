@@ -4,6 +4,19 @@
 
 ---
 
+## 2026-07-08 — P4 B6 리치 입력(설명·댓글 #티켓/@멘션)
+
+[roadmap B6]. 설명·댓글의 plain textarea 를 Tiptap 리치 에디터로 교체해 위키와 동일한 `#` 티켓 링크·`@` 사람 멘션·마크다운 입력규칙을 얹었다. B5 멘션/알림 인프라 재사용.
+
+- **저장 포맷(스키마 변경 없음)**: 설명(`description`)·댓글(`body`) 기존 `String @db.Text` 컬럼에 **Tiptap doc JSON 을 문자열로** 저장. 레거시 plain text 값은 읽을 때 `parseDoc` 이 단락 doc 으로 감싸 하위호환(마이그레이션 불필요). 서버 액션엔 `JSON.parse(JSON.stringify(getJSON()))` 순수 클론으로 전달(gotchas §7 RSC 직렬화).
+- **공용 모듈**: `lib/rich-content.ts`(`parseDoc`/`docToPlainText`/`plainTextOf`/`isValueEmpty`/`mentionsInValue`), `components/rich-text/rich-editor.tsx`(`RichEditor` 편집 + `RichContent` 읽기전용, `wikiExtensions` 재사용, `.tiptap-compact` 로 최소높이·여백 축소), `server/notify.ts`(`notifyNewMentions` — before/after doc 의 멘션 차집합만 알림, 자기멘션 제외).
+- **적용**: `InlineDescription`(상세 인라인, blur 시 baseline 대비 실변경만 저장), `comment-form.tsx`(Cmd/Ctrl+Enter 제출·제출 후 clear·빈 내용 비활성), 댓글 표시 `{c.body}` → `<RichContent>`. 알림: `addComment`(댓글 멘션)·`updateTaskFields`/`updateEpicFields`/`updateProjectFields`(설명 멘션) → `notifyNewMentions`. 히스토리(`activity-format`)는 설명 JSON 을 `plainTextOf` 로 발췌해 표시(raw JSON 노출 방지).
+- **스코프**: 생성 다이얼로그의 설명 입력은 plain textarea 유지(빠른 생성 — 저장값은 폴백으로 상세에서 리치 편집 시 자동 JSON 승격). 댓글은 태스크 전용(Comment 모델이 taskId 만).
+
+검증: `next build` Compiled successfully, `eslint` clean. dev + DB 세션 주입 브라우저 실검증 — 설명/댓글 에디터 렌더(플레이스홀더 `#티켓, @사람`), 댓글 `@jiwon` 드롭다운·선택·제출(POST 200) → **댓글 doc JSON+personMention 저장, jiwon 알림 생성(entityType task, context 태스크명)**, 댓글 읽기뷰 `@김지원` 링크블루 칩 렌더·제출 후 clear, 설명 blur 저장(doc JSON, POST 200). 테스트 데이터 원복.
+
+---
+
 ## 2026-07-08 — P4 B5 프로필 · @멘션 · 알림 (+ 위키 저장 버그 수정)
 
 [스펙 p3-03](./specs/p3-03-social-mentions-notifications.md) 기준. 사용자 프로필 라우트 + Tiptap `@` 사람 멘션 + 멘션→앱 내부 알림(벨·목록·읽음).
