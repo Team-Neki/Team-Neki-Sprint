@@ -5,8 +5,14 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { wikiPageSchema, wikiFolderSchema } from "@/lib/validators";
-import { searchTasks, searchWikiPages, getWikiRevision } from "@/server/queries";
+import {
+  searchTasks,
+  searchWikiPages,
+  searchMembers,
+  getWikiRevision,
+} from "@/server/queries";
 import { logActivity } from "@/server/activity";
+import { extractMentionUserIds } from "@/lib/mentions";
 
 const EMPTY_DOC: Prisma.InputJsonValue = {
   type: "doc",
@@ -93,6 +99,24 @@ export async function updateWikiContent(
     entityId: id,
     action: "updated",
   });
+
+  // 본문에 '새로 추가된' 사람 멘션에 대해 수신자별 알림 생성(B5).
+  // 저장 전/후 doc 의 멘션 차집합만 → 재저장마다 중복 알림 방지. 자기멘션 제외.
+  const before = extractMentionUserIds(current.content);
+  const after = extractMentionUserIds(content);
+  const added = [...after].filter((uid) => !before.has(uid) && uid !== user.id);
+  if (added.length > 0) {
+    await prisma.notification.createMany({
+      data: added.map((uid) => ({
+        userId: uid,
+        actorId: user.id,
+        type: "mention",
+        entityType: "wiki",
+        entityId: id,
+        context: nextTitle,
+      })),
+    });
+  }
 
   revalidatePath("/wiki", "layout");
   revalidatePath(`/wiki/${id}`);
@@ -289,4 +313,10 @@ export async function searchTasksAction(query: string) {
 export async function searchWikiPagesAction(query: string) {
   await requireUser();
   return searchWikiPages(query);
+}
+
+/** '@' 사람 멘션 드롭다운(B5). */
+export async function searchMembersAction(query: string) {
+  await requireUser();
+  return searchMembers(query);
 }

@@ -41,7 +41,15 @@
 
 - DESIGN.md는 **Vercel near-white 라이트 테마**다(예전 프로젝트 CLAUDE.md의 "Linear 다크" 서술은 stale이라 이미 현행화함). 색은 하드코딩 말고 `globals.css` CSS 변수로. 상세는 [`design-system.md`](./design-system.md).
 
-## 7. 스키마 특이사항 (현행)
+## 7. 서버 액션(RSC) 직렬화 — Tiptap `getJSON()` 은 순수 JSON 으로 클론해서 넘긴다
+
+- **증상**: 위키 저장 시 서버에서 `Error: Cannot access toStringTag on the server. You cannot dot into a temporary client reference from a server component.` (스택은 `prisma.wikiPage.update` 의 content 직렬화 지점). `POST /wiki/... 500`, 클라이언트엔 "저장에 실패했습니다" 토스트.
+- **원인**: `editor.getJSON()` 반환 객체를 **서버 액션 인자로 그대로** 넘기면, RSC 경계 직렬화가 노드 내부를 **'temporary client reference'** 로 취급한다(순수 plain object 가 아님). 서버에서 Prisma 가 그 값의 `Symbol.toStringTag` 를 읽으려다 throw.
+- **해결**: 클라이언트에서 **`JSON.parse(JSON.stringify(editor.getJSON()))`** 로 순수 JSON 클론을 만들어 넘긴다(`editor.tsx` `save()`). 멘션 노드 등은 plain 데이터라 클론이 무손실.
+- **주의**: 이 버그는 **B9 위키 개편 때부터 잠복**(worktree 는 `next dev` 를 못 돌려 라이브 저장이 검증 안 됨 → build/tsc/lint 만으론 안 잡힘). 서버 액션에 리치 에디터 JSON·서드파티 객체를 넘길 땐 항상 plain 클론.
+- 곁다리: 같은 위키 에디터에서 `[tiptap warn]: Duplicate extension names ['link']` 는 **StarterKit v3 가 Link 를 기본 포함**해서 났다 → `StarterKit.configure({ link: false })` 로 끄고 커스텀 Link 만 등록(`extensions.ts`).
+
+## 8. 스키마 특이사항 (현행)
 
 - 이슈 key는 **팀 단위 연속 시퀀스**(`Team.seq` 원자 증가, `src/server/keys.ts` `nextTeamNumber`, 트랜잭션 필수). 표시는 `formatIssueKey(teamKey, number)`.
 - Task는 생성 시 Epic의 `teamId`를 상속·고정(에픽 이동에도 key 불변). 팀/번호는 update에서 strip.

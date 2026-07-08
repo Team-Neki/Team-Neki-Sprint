@@ -18,8 +18,8 @@
 - **B2 목록/여백**: (1) 태스크 클릭 영역이 컴포넌트보다 좁음, (5) 에픽 목록 열 정렬 어긋남, (6) 태스크 마감에 날짜 표시, (9) 목록 vs 상세 좌우 여백 불일치, **(T) 스프린트·프로젝트·에픽 목록을 태스크처럼 테이블뷰(컬럼)로 — 열 정렬/간격 정리**. → `sprints/page`, `projects/page`, `epics/page`(← B7 MD 컬럼과 겹치니 detail-overhaul 병합 후), `tasks/page`, `item-row`, `(app)/layout`. **팀→에픽/태스크 라우팅(완료)**.
 - **B3 상세 페이지 개편** (`DONE` 2026-07-08, `feat/detail-overhaul`): (2) '수정' 버튼 제거 → 전 필드 인라인 편집, (3) 상태를 우측 카드(보고자/스토리포인트/에픽)로 이동, (4) 보고자 옆 담당자 추가, (back) 뒤로가기 스택 동작. → `{tasks,epics,projects}/[id]`, `detail/inline-fields`·`back-button`(property-bar 삭제), `update*Fields` actions
 - **B4 타임라인** (`DONE` 2026-07-08): (7) 가로 스크롤 시 좌측 이름 컬럼(프로젝트 타이틀·에픽·태스크) 고정(sticky). → `epic-timeline.tsx` 단일. `sticky left-0` + 불투명 `bg-card` + `z-20`(바/그리드/today 마커 위 덮음) + `self-stretch`(행 높이 전체 커버). 헤더는 full-width화 후 거터 마스크(`z-30`)로 라벨 bleed 방지.
-- **B5 프로필/소셜 (= 원래 phase 3 S3)**: (5/8/12) 사용자 프로필 페이지 + 사용자 클릭 시 이동(프로필 라우트 부재로 현재 접속 시 오류), (6) `@` 멘션, (7) 멘션 알림, (8) 알림 목록. → 신규 `users/[id]`, `Notification` 스키마(additive), 에디터 `@`.
-- **B6 리치 입력 확장**: 설명(description)·댓글에서도 링크(`#`티켓)/멘션(`@`사람) 동작. 현재 plain textarea → Tiptap 에디터로 교체(위키 에디터 확장 재사용). B5의 멘션/링크 인프라 위에 얹음.
+- **B5 프로필/소셜 (= 원래 phase 3 S3)** (`DONE` 2026-07-08): (5/8/12) 사용자 프로필 페이지 + 프로필 라우트, (6) `@` 멘션, (7) 멘션 알림, (8) 알림 목록. → 신규 `users/[id]`(프로필: 이름·팀·이메일·연락처 + 담당 태스크/오너 에픽), additive `Notification`(+`User.phone`, 마이그레이션 `notifications_profile`), Tiptap `@` 사람 멘션(`person-mention.tsx`, `#` 티켓과 동일 패턴, 칩→프로필), 위키 저장 시 새 멘션→수신자 알림 생성(`updateWikiContent`, 자기멘션 제외), 토픽바 알림 벨(unread 배지+드롭다운)+`/notifications` 목록+읽음 처리. **부수: 위키 저장이 B9 이후 깨져 있던 것(RSC 직렬화)을 발견·수정** — [gotchas §7](./gotchas.md). **알려진 한계**: `(app)` 레이아웃의 벨은 소프트 내비게이션에선 갱신 안 됨(페이지 로드/`router.refresh` 시 갱신 — 실시간 폴링 없음).
+- **B6 리치 입력 확장** (B5 완료로 **언블록**): 설명(description)·댓글에서도 링크(`#`티켓)/멘션(`@`사람) 동작. 현재 plain textarea → Tiptap 에디터로 교체(위키 에디터 확장 `wikiExtensions` 재사용). B5의 멘션/링크 인프라 위에 얹음.
 - **B7-board 보드 순서 변경** (`DONE` 2026-07-08): 칸반에서 드래그앤드롭으로 컬럼 내 **순서 재정렬** + 크로스컬럼 이동(상태 변경). 생성 시 컬럼 하단 append, 자유 재정렬. → additive `Task.boardOrder Float?`(마이그레이션 `task_board_order`, nullable), `board/kanban.tsx`를 `@dnd-kit/sortable` 멀티컨테이너 패턴으로 재작성(낙관적+롤백), `reorderBoardTask(id,status,orderedIds)` 서버액션(대상 컬럼 재번호, status 변경 시 Activity 기록 — 구 `moveTask` 대체), `createTask` 하단 append(status별 max+1), `getBoardTasks` orderBy `boardOrder asc nulls last`. **알려진 한계**: 필터 활성 시 재정렬은 보이는 태스크만 재번호(숨은 태스크와 간섭 가능).
 
 - **B7 MD(맨데이) 트래킹** (`DONE` 2026-07-08): `estimatedMd`/`actualMd` 추가(Task에 additive 마이그레이션 `task_md`, 편집은 **태스크만**). Epic md = 하위 태스크 md 합, Project md = 하위 에픽 md 합(`queries.ts` groupBy/집계, 읽기전용 롤업). 상세·목록 `MdRollupText` 표시.
@@ -31,7 +31,7 @@
   - **사이드바 재설계**: 상단 '폴더/새페이지' 버튼(+우상단 폴더 버튼) **제거** → **각 페이지 우측 hover `+` 버튼 → 드롭다운(폴더 추가 / 새 페이지 추가)**. 루트는 '콘텐츠' 섹션(탭)에 동일 `+`. **사이드바 우클릭 컨텍스트 메뉴**로도 추가/이름변경/삭제 등.
   - → `wiki/page-tree`·`new-folder-button`·`new-page-button` 재작성, `editor.tsx` 뷰/편집 토글, wiki `[id]` 페이지, `queries.ts`(즐겨찾기·버전), `actions/wiki.ts`(별표 토글·복원). tables-refactor와 `queries.ts` 겹쳐 **그 병합 후** 착수.
 - **B10 위키 인라인 댓글(구글독스식)**: 본문에서 **텍스트 선택 → 코멘트 달기**, **답글(스레드)** 가능. Tiptap 코멘트 마크(하이라이트+앵커) + 위키 댓글 스키마(신규 — 현재 `Comment`는 태스크 전용이라 `WikiComment`/스레드 additive) + 코멘트 사이드바/팝오버. 규모 L, B9 이후.
-- **B5 사용자 페이지(검토 결과: 미구현)**: `/users/[id]` 프로필 라우트가 **아직 없음** → 클릭 시 오류/미이동. 구축 필요(프로필: id·이름·팀·이메일·연락처). B5 스트림에서 생성.
+- ~~**B5 사용자 페이지(미구현)**: `/users/[id]` 프로필 라우트 부재~~ → **B5에서 구현 완료**(`users/[id]`, 멘션 칩·알림 actor 에서 진입).
 
 **B1 완료(2026-07-08)**: 대시보드 상태→필터목록 링크 + 최근활동 티켓 key·이동.
 

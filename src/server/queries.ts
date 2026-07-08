@@ -554,6 +554,85 @@ export function searchWikiPages(query: string, limit = 8) {
   });
 }
 
+// ---------- 사람/프로필/알림 (B5) ----------
+
+/** '@' 멘션 드롭다운용 멤버 검색(이름/이메일). */
+export function searchMembers(query: string, limit = 8) {
+  const q = query.trim();
+  return prisma.user.findMany({
+    where: q
+      ? {
+          OR: [
+            { name: { contains: q, mode: "insensitive" } },
+            { email: { contains: q, mode: "insensitive" } },
+          ],
+        }
+      : undefined,
+    orderBy: { name: "asc" },
+    take: limit,
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      image: true,
+      team: { select: { key: true, name: true } },
+    },
+  });
+}
+
+/** 프로필 페이지: 기본 정보 + 담당 태스크(진행 중) + 오너 에픽. */
+export function getUserProfile(id: string) {
+  return prisma.user.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      image: true,
+      phone: true,
+      role: true,
+      team: { select: { id: true, key: true, name: true, color: true } },
+      assignedTasks: {
+        where: { status: { not: "DONE" } },
+        orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+        take: 20,
+        select: {
+          id: true,
+          number: true,
+          title: true,
+          status: true,
+          team: { select: { key: true } },
+        },
+      },
+      ownedEpics: {
+        orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+        take: 20,
+        select: {
+          id: true,
+          number: true,
+          title: true,
+          status: true,
+          team: { select: { key: true } },
+        },
+      },
+    },
+  });
+}
+
+/** 수신자 기준 최근 알림. actor 이름/아바타 포함. */
+export function getNotifications(userId: string, limit = 20) {
+  return prisma.notification.findMany({
+    where: { userId },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    include: { actor: miniUser },
+  });
+}
+
+export function getUnreadNotificationCount(userId: string) {
+  return prisma.notification.count({ where: { userId, read: false } });
+}
+
 export async function getDashboardData() {
   const [statusCounts, totalTasks, myTasks, recentActivityRaw, projects] =
     await Promise.all([

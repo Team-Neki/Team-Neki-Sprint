@@ -67,7 +67,11 @@ export function WikiEditor({
     if (!editor) return;
     setSaving(true);
     try {
-      await updateWikiContent(pageId, title, editor.getJSON());
+      // Tiptap getJSON() 결과를 순수 JSON 으로 클론해서 넘긴다. 원본을 그대로
+      // 서버 액션 인자로 주면 RSC 직렬화가 노드 내부를 'temporary client
+      // reference' 로 취급해 서버에서 toStringTag 접근 에러가 난다(#B5 발견).
+      const content = JSON.parse(JSON.stringify(editor.getJSON()));
+      await updateWikiContent(pageId, title, content);
       dirtyRef.current = false;
       setDirty(false);
       router.refresh();

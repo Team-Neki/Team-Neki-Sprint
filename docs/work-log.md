@@ -4,6 +4,22 @@
 
 ---
 
+## 2026-07-08 — P4 B5 프로필 · @멘션 · 알림 (+ 위키 저장 버그 수정)
+
+[스펙 p3-03](./specs/p3-03-social-mentions-notifications.md) 기준. 사용자 프로필 라우트 + Tiptap `@` 사람 멘션 + 멘션→앱 내부 알림(벨·목록·읽음).
+
+- **스키마(additive)**: `User.phone String?` + `Notification`(수신자 `userId`/행위자 `actorId`/`type`/`entityType`/`entityId`/`context`/`read`, `@@index([userId,read,createdAt])`). 마이그레이션 `notifications_profile`. seed 데모 4인에 phone 추가.
+- **프로필 라우트** `users/[id]`: 아바타·이름·팀·역할 + 이메일/연락처(mailto/tel) + 담당 태스크(진행중)·오너 에픽 목록. `getUserProfile` 쿼리.
+- **`@` 사람 멘션**: `person-mention.tsx`(`#` 티켓 멘션과 동일한 self-contained Tiptap suggestion 패턴, 트리거 `@`, `searchMembersAction` 검색 드롭다운, 인라인 `personMention` 칩 → `/users/<id>`). `extensions.ts` 에 한 줄 추가. 링크블루 위해 `globals.css @theme` 에 `--color-link` 매핑(`text-link`/`bg-link` 활성화).
+- **멘션→알림**: `updateWikiContent` 저장 시 저장 전/후 doc 의 personMention userId 차집합(`lib/mentions.ts extractMentionUserIds`)만 → 수신자별 `Notification` 생성(자기멘션 제외, 재저장 중복 방지). 알림 벨 `notification-bell.tsx`(토픽바, unread 배지+Popover 최근10, 클릭→대상 이동+읽음), `/notifications` 전체목록 `notification-list.tsx`, 액션 `markNotificationRead`/`markAllNotificationsRead`. 레이아웃에서 `getNotifications`+`getUnreadNotificationCount` 로드.
+- **부수 발견·수정 — 위키 저장이 B9 이후 깨져 있었음**: `updateWikiContent` 가 `editor.getJSON()` 을 서버 액션 인자로 그대로 넘겨 RSC 직렬화가 'temporary client reference' 로 취급 → 서버 `toStringTag` 접근 에러(POST 500, "저장 실패"). **`JSON.parse(JSON.stringify(getJSON()))` 순수 클론으로 수정**(editor.tsx). B9는 worktree 검증(dev 미구동)이라 라이브 저장을 못 잡았음. 겸사겸사 `Duplicate extension names ['link']` 경고도 `StarterKit.configure({ link: false })` 로 정리. 상세 [gotchas §7](./gotchas.md).
+
+검증: `next build` Compiled successfully, `eslint` clean. dev 서버 + DB 세션 주입으로 브라우저 실검증 — 프로필 렌더, `@jiwon` 드롭다운(김지원·팀), 멘션 칩 삽입·저장(DB `personMention`+수신자 id), **저장 수정 후 POST 200**(이전 500), 멘션→jiwon 알림 생성(DB). 알림 벨/목록은 **서버 렌더(curl) 그라운드트루스로 확인**(배지 unread "1", 목록 "언급했어요")—브라우저 화면 stale 은 mcp 소프트내비 캐시 아티팩트. 테스트 데이터(리비전·알림·세션) 원복.
+
+알려진 한계: `(app)` 레이아웃 벨은 소프트 내비게이션에서 갱신 안 됨(페이지 로드/`router.refresh` 시 갱신, 실시간 폴링 없음). 필터 무관.
+
+---
+
 ## 2026-07-08 — P4 B7-board 칸반 순서 재정렬(DnD)
 
 기존 칸반은 컬럼(상태) 간 이동만 가능하고 컬럼 안 순서는 `updatedAt desc` 고정이라 사용자가 우선순위대로 못 세우던 문제. 컬럼 내 재정렬 + 크로스컬럼 이동을 DnD로.

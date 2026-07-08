@@ -40,39 +40,43 @@ async function main() {
   const [jiwon, minseo, taehyung, dohyun] = await Promise.all([
     prisma.user.upsert({
       where: { email: "jiwon@example.com" },
-      update: { teamId: teamByKey.PM.id },
+      update: { teamId: teamByKey.PM.id, phone: "010-1000-0001" },
       create: {
         email: "jiwon@example.com",
         name: "김지원",
         role: "ADMIN",
         teamId: teamByKey.PM.id,
+        phone: "010-1000-0001",
       },
     }),
     prisma.user.upsert({
       where: { email: "minseo@example.com" },
-      update: { teamId: teamByKey.DESIGN.id },
+      update: { teamId: teamByKey.DESIGN.id, phone: "010-1000-0002" },
       create: {
         email: "minseo@example.com",
         name: "이민서",
         teamId: teamByKey.DESIGN.id,
+        phone: "010-1000-0002",
       },
     }),
     prisma.user.upsert({
       where: { email: "taehyung@example.com" },
-      update: { teamId: teamByKey.BACKEND.id },
+      update: { teamId: teamByKey.BACKEND.id, phone: "010-1000-0003" },
       create: {
         email: "taehyung@example.com",
         name: "구태형",
         teamId: teamByKey.BACKEND.id,
+        phone: "010-1000-0003",
       },
     }),
     prisma.user.upsert({
       where: { email: "dohyun@example.com" },
-      update: { teamId: teamByKey.FRONTEND.id },
+      update: { teamId: teamByKey.FRONTEND.id, phone: "010-1000-0004" },
       create: {
         email: "dohyun@example.com",
         name: "박도현",
         teamId: teamByKey.FRONTEND.id,
+        phone: "010-1000-0004",
       },
     }),
   ]);

@@ -3,8 +3,9 @@ import Placeholder from "@tiptap/extension-placeholder";
 import Link from "@tiptap/extension-link";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
-// '#' 티켓 멘션(#4). 사람 멘션 '@'(S3)도 같은 방식으로 여기 한 줄만 추가하면 된다.
+// '#' 티켓 멘션(#4) / '@' 사람 멘션(B5). 각각 자기완결 모듈, 여기 한 줄씩만 추가.
 import { TicketMention } from "@/components/wiki/ticket-mention";
+import { PersonMention } from "@/components/wiki/person-mention";
 
 /**
  * 위키 에디터/뷰가 공유하는 Tiptap 확장 세트. 뷰(읽기전용)와 에디터가 완전히
@@ -16,7 +17,9 @@ import { TicketMention } from "@/components/wiki/ticket-mention";
  */
 export function wikiExtensions(opts?: { placeholder?: string }) {
   return [
-    StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
+    // StarterKit v3 는 Link 를 기본 포함하므로 끈다(link: false) — 아래에서
+    // openOnClick/autolink 를 지정한 Link 를 따로 등록(중복 확장 경고 방지).
+    StarterKit.configure({ heading: { levels: [1, 2, 3] }, link: false }),
     ...(opts?.placeholder
       ? [Placeholder.configure({ placeholder: opts.placeholder })]
       : []),
@@ -24,5 +27,6 @@ export function wikiExtensions(opts?: { placeholder?: string }) {
     TaskList,
     TaskItem.configure({ nested: true }),
     TicketMention,
+    PersonMention,
   ];
 }

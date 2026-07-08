@@ -2,8 +2,14 @@ import Link from "next/link";
 import { Menu } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { signOut } from "@/auth";
+import {
+  getNotifications,
+  getUnreadNotificationCount,
+} from "@/server/queries";
 import { SidebarNav } from "@/components/app-shell/sidebar-nav";
 import { UserMenu } from "@/components/app-shell/user-menu";
+import { NotificationBell } from "@/components/app-shell/notification-bell";
+import { toNotifItem } from "@/components/app-shell/notification-shared";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
@@ -13,6 +19,12 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const user = await requireUser();
+
+  const [notifs, unread] = await Promise.all([
+    getNotifications(user.id, 10),
+    getUnreadNotificationCount(user.id),
+  ]);
+  const notifItems = notifs.map(toNotifItem);
 
   async function handleSignOut() {
     "use server";
@@ -55,6 +67,8 @@ export default async function AppLayout({
           </Sheet>
 
           <div className="flex-1" />
+
+          <NotificationBell items={notifItems} unread={unread} />
 
           <UserMenu
             name={user.name ?? user.email ?? "사용자"}
