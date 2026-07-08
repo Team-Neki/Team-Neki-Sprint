@@ -62,7 +62,7 @@ export default async function TasksPage({
       <TaskFilters members={members} teams={teams} />
 
       <Card className="overflow-hidden py-0">
-        <TasksTable tasks={tasks} />
+        <TasksTable tasks={tasks} edit={{ members, teams, epics: epicOptions }} />
       </Card>
     </div>
   );

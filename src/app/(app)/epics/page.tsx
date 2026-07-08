@@ -69,7 +69,7 @@ export default async function EpicsPage({
         </Card>
       ) : (
         <Card className="overflow-hidden py-0">
-          <EpicsTable epics={epics} />
+          <EpicsTable epics={epics} edit={{ members, teams, projects }} />
         </Card>
       )}
     </div>

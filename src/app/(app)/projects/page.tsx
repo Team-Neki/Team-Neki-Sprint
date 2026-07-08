@@ -44,7 +44,7 @@ export default async function ProjectsPage({
         <EmptyState members={members} sprints={sprints} />
       ) : (
         <Card className="overflow-hidden py-0">
-          <ProjectsTable projects={projects} />
+          <ProjectsTable projects={projects} edit={{ members, sprints }} />
         </Card>
       )}
     </div>

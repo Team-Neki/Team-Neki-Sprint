@@ -57,6 +57,12 @@
 - **DOM↔PM 위치 매핑**: 플로팅 '댓글' 버튼은 `window.getSelection()` 의 DOM Range 를 `editor.view.posAtDOM(node, offset)` 로 PM 위치(from/to)로 변환해 계산한다. 선택이 본문(`editor.view.dom`) 밖이면 무시(try/catch 가드).
 - **앵커 저장은 리비전 없이**: 댓글 마크만 바뀔 땐 일반 저장(`updateWikiContent`, 리비전·알림 생성) 대신 **`saveWikiCommentAnchors`(content 만 update)** 를 쓴다 — 코멘트 부착이 위키 버전 히스토리를 오염시키지 않게. last-write-wins라 동시 편집과 경합 가능(뷰 모드 부착이라 실제론 드묾).
 
+## 7c. 서버 컴포넌트 표에 onClick 을 직접 못 준다 (목록 행별 수정)
+
+- **맥락**: 목록 표(`tables/*`)는 서버 컴포넌트. 행 전체가 `TableRowLink`(client)라, 행 안의 수정 버튼 클릭이 행 이동으로 전파되지 않게 `stopPropagation` 이 필요하다.
+- **함정**: 서버 컴포넌트에서 `<TableCell onClick={…}>` 처럼 이벤트 핸들러를 넘기면 런타임 에러(`Event handlers cannot be passed to Client Component props`).
+- **해결**: onClick 을 다루는 얇은 **client 래퍼**(`tables/row-action-cell.tsx` `RowActionCell`)로 분리해 그 안에 편집 다이얼로그를 넣는다. 다이얼로그(client)에 데이터 props + `trigger`(React element)만 넘기는 건 RSC 경계에서 허용된다(이벤트 핸들러만 금지).
+
 ## 8. 스키마 특이사항 (현행)
 
 - 이슈 key는 **팀 단위 연속 시퀀스**(`Team.seq` 원자 증가, `src/server/keys.ts` `nextTeamNumber`, 트랜잭션 필수). 표시는 `formatIssueKey(teamKey, number)`.
