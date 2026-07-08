@@ -68,4 +68,11 @@
 - 이슈 key는 **팀 단위 연속 시퀀스**(`Team.seq` 원자 증가, `src/server/keys.ts` `nextTeamNumber`, 트랜잭션 필수). 표시는 `formatIssueKey(teamKey, number)`.
 - Task는 생성 시 Epic의 `teamId`를 상속·고정(에픽 이동에도 key 불변). 팀/번호는 update에서 strip.
 - 위키: `WikiPage`(parent 중첩) + `WikiFolder`(별개 그룹핑 타입), `WikiPageTaskLink`(티켓↔위키), `WikiRevision`(버전), `WikiFavorite`(별표), `WikiCommentThread`+`WikiComment`(B10 인라인 댓글, 앵커는 문서 content 의 `commentMark`), `WikiDraft`(편집 임시저장, 유저×페이지 1건·2주 만료). `Activity`(범용 변경 로그, entityType/entityId/meta).
-- **위키 soft-delete**: `WikiPage.deletedAt`(휴지통). 삭제는 서브트리 `deletedAt` 세팅(하드 아님), 복원/영구삭제는 `/wiki/trash`. **새 위키 페이지 조회를 추가하면 `where: { deletedAt: null }` 필터를 반드시 넣을 것**(안 넣으면 휴지통 문서가 목록/검색에 샌다). 영구삭제(`purgeWikiPage`)만 `prisma.wikiPage.delete`(cascade).
+- **위키 soft-delete**: `WikiPage.deletedAt`(휴지통). 삭제는 서브트리 `deletedAt` 세팅(하드 아님), 복원/영구삭제는 `/wiki/trash`. **새 위키 페이지 조회를 추가하면 `where: { deletedAt: null }` 필터를 반드시 넣을 것**(안 넣으면 휴지통 문서가 목록/검색에 샌다). 영구삭제(`purgeWikiPage`)만 `prisma.wikiPage.delete`(cascade). C7 전역 검색 `globalSearch`도 이 필터 적용됨.
+
+## 9. 서브에이전트 산출물에 NUL/비-UTF8 바이트 (병렬 worktree 검증 시)
+
+- **증상**: 서브에이전트가 편집한 `.ts` 파일을 `git diff --stat`이 `Bin 7002 -> 9361 bytes` + `0 insertions/deletions`로 표시(텍스트인데 **바이너리로 인식**). tsc/eslint는 통과해서 안 걸러진다.
+- **원인(실제 사례, A2)**: 에이전트가 sentinel 문자열로 **NUL 문자(`"\x00"`)** 를 코드에 박음(`const START = "\x00"`). NUL 1바이트만 있어도 git이 binary로 판정.
+- **탐지**: `python3 -c "print(open(f,'rb').read().count(b'\x00'))"` 또는 `git diff --stat`에 `Bin`이 뜨는지. 병렬 스트림 병합 전 **변경/신규 파일 NUL 스캔을 루틴화**(`file <f>`가 `data`로 나오면 의심).
+- **해결**: NUL을 안전한 문자열로 치환(예: `"__start__"` 등 실제 값과 충돌 안 하는 sentinel). 서브에이전트 프롬프트에 "정상 텍스트만 작성, NUL/비-UTF8 금지"를 명시.
