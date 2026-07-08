@@ -10,6 +10,11 @@ import { SidebarNav } from "@/components/app-shell/sidebar-nav";
 import { UserMenu } from "@/components/app-shell/user-menu";
 import { NotificationBell } from "@/components/app-shell/notification-bell";
 import { CommandPalette } from "@/components/app-shell/command-palette";
+import {
+  SidebarProvider,
+  DesktopSidebar,
+  SidebarToggle,
+} from "@/components/app-shell/sidebar-collapse";
 import { toNotifItem } from "@/components/app-shell/notification-shared";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -42,19 +47,19 @@ export default async function AppLayout({
   );
 
   return (
-    <div className="flex h-dvh overflow-hidden">
-      {/* Desktop sidebar */}
-      <aside className="bg-background hidden w-60 shrink-0 border-r md:flex md:flex-col">
-        {brand}
-        <div className="flex-1 overflow-y-auto">
+    <SidebarProvider>
+      <div className="flex h-dvh overflow-hidden">
+        {/* Desktop sidebar (접기 가능) */}
+        <DesktopSidebar brand={brand}>
           <SidebarNav />
-        </div>
-      </aside>
+        </DesktopSidebar>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="bg-background/80 sticky top-0 z-30 flex h-14 items-center gap-2 border-b px-4 backdrop-blur">
-          {/* Mobile menu */}
-          <Sheet>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <header className="bg-background/80 sticky top-0 z-30 flex h-14 items-center gap-2 border-b px-4 backdrop-blur">
+            {/* Desktop sidebar toggle */}
+            <SidebarToggle />
+            {/* Mobile menu */}
+            <Sheet>
             <SheetTrigger
               render={<Button variant="ghost" size="icon" className="md:hidden" />}
             >
@@ -84,7 +89,8 @@ export default async function AppLayout({
         <main className="flex-1 overflow-y-auto p-4 pb-12 sm:p-6 sm:pb-12">
           {children}
         </main>
+        </div>
       </div>
-    </div>
+    </SidebarProvider>
   );
 }
