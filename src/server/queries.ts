@@ -18,6 +18,12 @@ const miniTeam = {
   select: { id: true, key: true, name: true, color: true },
 } as const;
 
+// 이슈 행/상세에 배지로 붙는 라벨(C8). 이름순 정렬로 결정적 표시.
+const labelInclude = {
+  include: { label: { select: { id: true, name: true, color: true } } },
+  orderBy: { label: { name: "asc" } },
+} as const;
+
 // ---------- MD(맨데이) 롤업 (B7, 읽기전용 계산) ----------
 
 /** MD 롤업 값. estimated=예상 합, actual=실제 합. */
@@ -293,6 +299,7 @@ export function getBoardTasks(filter: BoardFilter = {}) {
       assignee: miniUser,
       team: miniTeam,
       epic: { select: { id: true, title: true } },
+      labels: labelInclude,
     },
   });
 }
@@ -302,6 +309,7 @@ export type TaskFilter = {
   assigneeId?: string;
   epicId?: string;
   teamId?: string;
+  labelId?: string;
   q?: string;
 };
 
@@ -312,6 +320,10 @@ export function getTasks(filter: TaskFilter = {}) {
       assigneeId: filter.assigneeId,
       epicId: filter.epicId,
       teamId: filter.teamId,
+      // 라벨 필터: 해당 라벨이 붙은 태스크만(m:n 조인 some).
+      labels: filter.labelId
+        ? { some: { labelId: filter.labelId } }
+        : undefined,
       title: filter.q
         ? { contains: filter.q, mode: "insensitive" }
         : undefined,
@@ -321,6 +333,7 @@ export function getTasks(filter: TaskFilter = {}) {
       assignee: miniUser,
       team: miniTeam,
       epic: { select: { id: true, title: true } },
+      labels: labelInclude,
     },
   });
 }
@@ -332,6 +345,7 @@ export function getTask(id: string) {
       assignee: miniUser,
       reporter: miniUser,
       team: miniTeam,
+      labels: labelInclude,
       epic: {
         select: {
           id: true,
@@ -350,6 +364,29 @@ export function getTask(id: string) {
         include: { page: { select: { id: true, title: true } } },
       },
     },
+  });
+}
+
+// ---------- Label (C8) ----------
+
+/** 라벨 전체 + 사용 카운트(태스크/에픽/프로젝트). 관리 페이지·배지 표시용. 이름순. */
+export function getLabels() {
+  return prisma.label.findMany({
+    orderBy: { name: "asc" },
+    select: {
+      id: true,
+      name: true,
+      color: true,
+      _count: { select: { tasks: true, epics: true, projects: true } },
+    },
+  });
+}
+
+/** 필터/할당 컨트롤용 경량 라벨 옵션(카운트 없음). 이름순. */
+export function getLabelOptions() {
+  return prisma.label.findMany({
+    orderBy: { name: "asc" },
+    select: { id: true, name: true, color: true },
   });
 }
 

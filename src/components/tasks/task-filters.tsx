@@ -16,12 +16,16 @@ import type { TeamOption } from "@/components/selects/option-select";
 
 const ALL = "__all__";
 
+export type LabelFilterOption = { id: string; name: string; color: string };
+
 export function TaskFilters({
   members,
   teams,
+  labels,
 }: {
   members: MiniUser[];
   teams: TeamOption[];
+  labels: LabelFilterOption[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -34,7 +38,7 @@ export function TaskFilters({
     router.replace(`${pathname}?${next.toString()}`);
   }
 
-  const hasFilters = ["status", "assignee", "team", "q"].some((k) =>
+  const hasFilters = ["status", "assignee", "team", "label", "q"].some((k) =>
     params.get(k),
   );
 
@@ -78,6 +82,24 @@ export function TaskFilters({
         renderOption={renderTeamKey}
         triggerClassName="w-40"
         leadingOption={{ value: ALL, label: "모든 팀", triggerLabel: "팀" }}
+      />
+
+      <OptionSelect<LabelFilterOption>
+        value={params.get("label") ?? ALL}
+        onValueChange={(v) => setParam("label", v)}
+        options={labels}
+        getValue={(l) => l.id}
+        renderOption={(l) => (
+          <span className="flex items-center gap-2">
+            <span
+              className="size-2 shrink-0 rounded-full"
+              style={{ backgroundColor: l.color }}
+            />
+            {l.name}
+          </span>
+        )}
+        triggerClassName="w-40"
+        leadingOption={{ value: ALL, label: "모든 라벨", triggerLabel: "라벨" }}
       />
 
       {hasFilters && (

@@ -11,6 +11,7 @@ import {
   ListTodo,
   CalendarRange,
   Users,
+  Tag,
   BookText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -28,7 +29,13 @@ const NAV = [
       { href: "/timeline", label: "타임라인", icon: CalendarRange },
     ],
   },
-  { group: "조직", items: [{ href: "/teams", label: "팀", icon: Users }] },
+  {
+    group: "조직",
+    items: [
+      { href: "/teams", label: "팀", icon: Users },
+      { href: "/labels", label: "라벨", icon: Tag },
+    ],
+  },
   { group: "문서", items: [{ href: "/wiki", label: "위키", icon: BookText }] },
 ];
 

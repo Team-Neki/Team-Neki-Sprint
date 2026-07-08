@@ -5,6 +5,7 @@ import {
   getEpicOptions,
   getTeamOptions,
   getMembers,
+  getLabelOptions,
 } from "@/server/queries";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -22,20 +23,23 @@ export default async function TasksPage({
     status?: string;
     assignee?: string;
     team?: string;
+    label?: string;
     q?: string;
   }>;
 }) {
   const sp = await searchParams;
-  const [tasks, epics, teams, members] = await Promise.all([
+  const [tasks, epics, teams, members, labels] = await Promise.all([
     getTasks({
       status: (sp.status as Status) || undefined,
       assigneeId: sp.assignee || undefined,
       teamId: sp.team || undefined,
+      labelId: sp.label || undefined,
       q: sp.q || undefined,
     }),
     getEpicOptions(),
     getTeamOptions(),
     getMembers(),
+    getLabelOptions(),
   ]);
 
   const epicOptions = epics.map((e) => ({
@@ -59,7 +63,7 @@ export default async function TasksPage({
         />
       </PageHeader>
 
-      <TaskFilters members={members} teams={teams} />
+      <TaskFilters members={members} teams={teams} labels={labels} />
 
       <Card className="overflow-hidden py-0">
         <TasksTable tasks={tasks} edit={{ members, teams, epics: epicOptions }} />
