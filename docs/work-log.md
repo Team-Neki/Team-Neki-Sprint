@@ -4,6 +4,17 @@
 
 ---
 
+## 2026-07-08 — 후속: 보드 컬럼별 추가 버튼 + 사이드바 우클릭 추가
+
+라이브 피드백 2건.
+
+- **보드 컬럼별 '추가하기' 버튼**: 칸반 각 컬럼 하단에 상태별 `+ {상태} 추가하기`(예: "+ 백로그 추가하기", "+ 할 일 추가하기") 버튼 추가. 클릭 시 **기존 `TaskDialog` 를 `defaultStatus={status}` 로 프리셋**해서 연다(팀 필수라 전용 폼 재사용이 안전 — 크로스팀 보드). 팀 필터(`?team=`) 활성 시 `defaultTeamId` 로 팀도 프리셋. → `board/page.tsx` 가 `createCtx`(members/teams/epics/defaultTeamId) 를 `KanbanBoard`→`Column` 으로 전달, 컬럼 droppable 하단 `mt-auto` 버튼. 드래그와 무관(버튼은 sortable 아님, pointer distance 6 활성화).
+- **사이드바 빈 공간 추가 = 우클릭**: 위키 좌측 트리 빈 공간 추가 메뉴를 좌클릭 드롭다운 → **우클릭 컨텍스트 메뉴**(ContextMenu)로 변경(트리 항목 우클릭 메뉴와 통일). → `page-tree.tsx`.
+
+검증: `tsc`·`eslint` clean, `next build` 성공. dev 브라우저 실검증 — 보드 5개 컬럼 하단 버튼 렌더, "+ 백로그 추가하기" 클릭 시 다이얼로그 상태=백로그 프리셋 확인; 사이드바 빈 공간 우클릭 시 "새 페이지/폴더 추가" 컨텍스트 메뉴. (dnd-kit 의 `DndDescribedBy` SSR 하이드레이션 경고는 선재 — 이번 변경과 무관.)
+
+---
+
 ## 2026-07-08 — P4 위키 편집/휴지통/사이드바 개선 8건 (`feat/wiki-editor-trash-drafts`)
 
 라이브 피드백 배치. 스키마 2건 additive(`wiki_drafts_and_trash`).

@@ -21,14 +21,28 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import type { Status, Priority } from "@prisma/client";
 import { STATUS_ORDER, STATUS_META, formatIssueKey } from "@/lib/constants";
 import { PriorityBadge } from "@/components/badges";
 import { UserBadge, type MiniUser } from "@/components/user-badge";
 import { Card } from "@/components/ui/card";
+import {
+  TaskDialog,
+  type TaskEpicOption,
+} from "@/components/forms/task-dialog";
+import type { TeamOption } from "@/components/forms/fields";
 import { reorderBoardTask } from "@/server/actions/tasks";
 import { cn } from "@/lib/utils";
+
+// 컬럼 하단 '추가하기' 버튼에 넘길 태스크 생성 폼 컨텍스트(멤버·팀·에픽·기본팀).
+export type BoardCreateCtx = {
+  members: MiniUser[];
+  teams: TeamOption[];
+  epics: TaskEpicOption[];
+  defaultTeamId?: string;
+};
 
 export type BoardTask = {
   id: string;
@@ -61,7 +75,13 @@ function sameColumns(a: Columns, b: Columns) {
   );
 }
 
-export function KanbanBoard({ tasks }: { tasks: BoardTask[] }) {
+export function KanbanBoard({
+  tasks,
+  createCtx,
+}: {
+  tasks: BoardTask[];
+  createCtx: BoardCreateCtx;
+}) {
   const router = useRouter();
   const byId = useMemo(
     () =>
@@ -195,6 +215,7 @@ export function KanbanBoard({ tasks }: { tasks: BoardTask[] }) {
             status={status}
             taskIds={columns[status]}
             byId={byId}
+            createCtx={createCtx}
           />
         ))}
       </div>
@@ -209,10 +230,12 @@ function Column({
   status,
   taskIds,
   byId,
+  createCtx,
 }: {
   status: Status;
   taskIds: string[];
   byId: Record<string, BoardTask>;
+  createCtx: BoardCreateCtx;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
   const meta = STATUS_META[status];
@@ -240,6 +263,22 @@ function Column({
               비어 있음
             </p>
           )}
+          {/* 컬럼 하단: 이 상태로 새 태스크 추가(생성 다이얼로그를 status 프리셋으로 연다). */}
+          <TaskDialog
+            members={createCtx.members}
+            teams={createCtx.teams}
+            epics={createCtx.epics}
+            defaultStatus={status}
+            defaultTeamId={createCtx.defaultTeamId}
+            trigger={
+              <button
+                type="button"
+                className="text-muted-foreground hover:bg-accent hover:text-foreground mt-auto flex items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs font-medium transition-colors"
+              >
+                <Plus className="size-3.5" /> {meta.label} 추가하기
+              </button>
+            }
+          />
         </div>
       </SortableContext>
     </div>

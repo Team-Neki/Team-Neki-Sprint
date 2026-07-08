@@ -63,7 +63,15 @@ export default async function BoardPage({
         <TeamFilter teams={teams} />
       </OwnerFilter>
 
-      <KanbanBoard tasks={tasks} />
+      <KanbanBoard
+        tasks={tasks}
+        createCtx={{
+          members,
+          teams,
+          epics: epicOptions,
+          defaultTeamId: sp.team || undefined,
+        }}
+      />
     </div>
   );
 }
