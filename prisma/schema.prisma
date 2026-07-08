@@ -40,6 +40,7 @@ model User {
   editedPages   WikiPage[] @relation("PageEditor")
   editedRevisions WikiRevision[] @relation("RevisionEditor")
   wikiFavorites WikiFavorite[]
+  wikiDrafts    WikiDraft[]
   activities    Activity[]
   // 알림(B5). 수신자/행위자 양방향.
   notifications     Notification[] @relation("NotifRecipient")
@@ -311,6 +312,8 @@ model WikiPage {
   author    User?      @relation("PageAuthor", fields: [authorId], references: [id])
   editorId  String?
   editor    User?      @relation("PageEditor", fields: [editorId], references: [id])
+  // soft-delete(휴지통). null=활성, 값=휴지통에 있는 시각. 목록/트리는 null 만 노출.
+  deletedAt DateTime?
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 
@@ -318,6 +321,27 @@ model WikiPage {
   taskLinks WikiPageTaskLink[]
   favorites WikiFavorite[]
   commentThreads WikiCommentThread[]
+  drafts    WikiDraft[]
+
+  @@index([deletedAt])
+}
+
+/**
+ * 편집 중 임시 저장본(B-editor). 유저×페이지당 1건(@@id). 에디터가 디바운스로
+ * 여기에 자동저장하고, 명시적 '저장' 시 WikiPage 로 커밋 후 삭제한다. '취소' 시도 삭제.
+ * 보관 2주 — updatedAt 이 14일 지난 draft 는 만료로 간주(로드 시 무시·정리).
+ */
+model WikiDraft {
+  pageId    String
+  page      WikiPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  content   Json
+  updatedAt DateTime @updatedAt
+
+  @@id([pageId, userId])
+  @@index([updatedAt])
 }
 
 // ---------- 위키 인라인 댓글(B10, 구글독스식) ----------

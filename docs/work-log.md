@@ -4,6 +4,23 @@
 
 ---
 
+## 2026-07-08 — P4 위키 편집/휴지통/사이드바 개선 8건 (`feat/wiki-editor-trash-drafts`)
+
+라이브 피드백 배치. 스키마 2건 additive(`wiki_drafts_and_trash`).
+
+- **(1) 저장/취소 버튼 + 임시저장 2주**: 에디터 자동저장을 **명시적 '저장/취소' 버튼**으로 전환. 편집 중 변경은 디바운스로 **`WikiDraft`(유저×페이지 1건)** 에 자동저장(페이지 본문/리비전 아님). 이탈 후 재진입 시 draft 를 불러와 **편집 모드로 바로 진입** + "임시 저장본을 불러왔습니다" 배너("원본으로" 되돌리기). '저장'=`updateWikiContent` 커밋(리비전 생성)+draft 삭제, '취소'=draft 폐기+뷰 복귀. 보관 2주 — `getWikiDraft` 가 `updatedAt` 14일 초과 draft 를 만료 처리(null). → `WikiDraft` 모델, `editor.tsx` 재작성, `saveWikiDraft`/`discardWikiDraft` 액션.
+- **(2) 댓글 여백 태그**: 인라인 댓글 앵커(commentMark) 위치를 본문 우측 여백에 **댓글 아이콘 태그**로 표시(드래그해 단 곳 식별). 앵커 span 의 `getBoundingClientRect` 로 top 계산(resize 재계산), 클릭 시 스레드 활성화. 해결된 스레드는 태그 생략. → `wiki-comments-view.tsx` `markTags`.
+- **(3) 사이드바 빈 공간 클릭 → 추가 드롭다운**: 트리 아래 여백(`min-h-24` 트리거)을 눌러 새 페이지/폴더 추가. → `page-tree.tsx`.
+- **(4) 편집 Cmd/Ctrl+Enter 저장**: 기존 Cmd+S 에 Cmd+Enter 저장 리스너 추가. → `editor.tsx`.
+- **(5) 상세에서 폴더 정보 제거**: 상세 헤더의 폴더 이동 select 삭제(`page-folder-select.tsx` 제거, `movePageToFolder` 는 잔존).
+- **(6) 즐겨찾기 좌측 상단 이동**: 우측 별도 패널 → **좌측 사이드바 '콘텐츠' 위**로. 별표 없으면 렌더 안 함. → `layout.tsx`(우측 aside 제거, 좌측 단일 컬럼 즐겨찾기→콘텐츠→휴지통), `favorites-panel.tsx`.
+- **(7) 삭제 → 휴지통(soft-delete)**: `WikiPage.deletedAt`. `deleteWikiPage` 가 하드 삭제 대신 서브트리(자신+후손) `deletedAt` 세팅. 목록/트리/상세/즐겨찾기 쿼리는 `deletedAt: null` 필터. 확인 문구도 "휴지통으로 이동…복원 가능"으로. → `restoreWikiPage`/`purgeWikiPage` 신규.
+- **(8) 휴지통 뷰**: 사이드바 '콘텐츠' 하위 **휴지통** 링크(항목 수 배지) → `/wiki/trash` 에서 삭제 문서 목록(삭제 루트만 노출) + 복원/영구삭제. → `trash-link.tsx`·`trash-list.tsx`·`wiki/trash/page.tsx`, `getTrashedWikiPages`.
+
+검증: `next build` Compiled successfully, `tsc`·`eslint` clean. dev + DB 세션 주입 **브라우저 실검증** — (1) 편집 중 이탈→재진입 시 draft 배너+편집모드 복원, '취소'로 원복, (2) 댓글 생성 시 우측 여백 태그 렌더, (3) 빈 공간 드롭다운, (5) 폴더 select 사라짐, (6) 별표→좌측 상단 즐겨찾기 노출, (7) 삭제→트리에서 제거+휴지통 배지, (8) 휴지통 목록→복원→트리 복귀·휴지통 비움. 콘솔 에러 0. 테스트 데이터(별표·스레드·세션) 원복. 스키마 변경이라 dev 서버 재시작.
+
+---
+
 ## 2026-07-08 — P4 B10 위키 인라인 댓글(구글독스식)
 
 [roadmap B10]. 위키 본문에서 텍스트를 선택해 그 범위에 댓글을 달고(구글독스식), 스레드로 답글·해결·삭제까지. Phase 4 백로그의 마지막 미수행 항목.

@@ -5,10 +5,10 @@ import type { JSONContent } from "@tiptap/react";
 import {
   getWikiPage,
   getWikiTree,
-  getWikiFolders,
   getWikiRevisions,
   isWikiPageFavorited,
   getWikiComments,
+  getWikiDraft,
 } from "@/server/queries";
 import { requireUser } from "@/lib/session";
 import { WikiDetail } from "@/components/wiki/wiki-detail";
@@ -67,14 +67,14 @@ export default async function WikiPageView({
 }) {
   const { id } = await params;
   const user = await requireUser();
-  const [page, tree, folders, revisions, favorited, threads] =
+  const [page, tree, revisions, favorited, threads, draftRow] =
     await Promise.all([
       getWikiPage(id),
       getWikiTree(),
-      getWikiFolders(),
       getWikiRevisions(id),
       isWikiPageFavorited(user.id, id),
       getWikiComments(id),
+      getWikiDraft(id, user.id),
     ]);
   if (!page) notFound();
 
@@ -89,8 +89,8 @@ export default async function WikiPageView({
   const descendantCount = countDescendants(tree, id);
   const deleteDescription =
     descendantCount > 0
-      ? `하위 ${descendantCount}개 페이지도 함께 삭제됩니다. 이 작업은 되돌릴 수 없습니다.`
-      : "이 작업은 되돌릴 수 없습니다.";
+      ? `하위 ${descendantCount}개 페이지도 함께 휴지통으로 이동합니다. 휴지통에서 복원할 수 있습니다.`
+      : "휴지통으로 이동합니다. 휴지통에서 복원할 수 있습니다.";
 
   const updatedLabel = `${formatDistanceToNow(page.updatedAt, {
     addSuffix: true,
@@ -105,13 +105,16 @@ export default async function WikiPageView({
         content={asDoc(page.content)}
         editor={page.editor}
         updatedLabel={updatedLabel}
-        folderId={page.folderId}
-        folders={folders}
         favorited={favorited}
         revisions={revisions}
         deleteDescription={deleteDescription}
         threads={threads}
         currentUserId={user.id}
+        draft={
+          draftRow
+            ? { title: draftRow.title, content: asDoc(draftRow.content) }
+            : null
+        }
       />
 
       <LinkedTickets pageId={page.id} tickets={linkedTickets} />

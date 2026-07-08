@@ -33,6 +33,19 @@
 - **B10 위키 인라인 댓글(구글독스식)** — `DONE`(2026-07-08, `feat/wiki-inline-comments`): 본문에서 **텍스트 선택 → 플로팅 '댓글' 버튼 → 코멘트**, **답글(스레드)**, **해결/재오픈·삭제**. Tiptap `commentMark`(앰버 하이라이트+threadId 앵커, 편집/뷰 공유 확장) + additive 스키마 `WikiCommentThread`(앵커 quote 스냅샷·resolved) + `WikiComment`(스레드 댓글) + 우측 코멘트 패널. 앵커는 문서 content 안의 마크에 저장(리비전 없이 `saveWikiCommentAnchors`로 반영), 스레드/댓글은 DB. 앵커 클릭 ↔ 패널 스레드 상호 하이라이트·스크롤. 해결 시 하이라이트 dim(재오픈 가능), 삭제 시 마크 strip. → `comment-mark.ts`·`comment-thread-card.tsx`·`wiki-comments-view.tsx` 신규, `extensions.ts`·`wiki-detail.tsx`·`wiki/[id]/page.tsx`·`queries.ts`(`getWikiComments`)·`actions/wiki-comments.ts`·`validators.ts`·`globals.css`. **알려진 한계**: 앵커 저장(`saveWikiCommentAnchors`)은 last-write-wins라 동시 편집 중 코멘트 부착 시 편집 내용과 경합 가능(뷰 모드에서만 부착하므로 실제 충돌은 드묾).
 - ~~**B5 사용자 페이지(미구현)**: `/users/[id]` 프로필 라우트 부재~~ → **B5에서 구현 완료**(`users/[id]`, 멘션 칩·알림 actor 에서 진입).
 
+### Phase 4 후속 — 위키 편집/휴지통/사이드바 개선 8건 — `DONE`(2026-07-08, `feat/wiki-editor-trash-drafts`)
+
+라이브 피드백 배치. 스키마 additive(`wiki_drafts_and_trash`: `WikiPage.deletedAt` + `WikiDraft`). 상세는 [work-log](./work-log.md), 함정은 [gotchas §8](./gotchas.md).
+
+1. **저장/취소 버튼 + 임시저장 2주**: 에디터 자동저장→명시적 버튼. 편집 변경은 `WikiDraft`(유저×페이지)에 디바운스 저장, 이탈 후 재진입 시 draft 복원(배너·'원본으로'). '저장'=커밋+draft삭제, '취소'=draft폐기. 14일 만료.
+2. **댓글 여백 태그**: 인라인 댓글 앵커를 본문 우측 여백 아이콘 태그로 표시(클릭→스레드).
+3. **사이드바 빈 공간 클릭 → 추가 드롭다운**.
+4. **편집 Cmd/Ctrl+Enter 저장**.
+5. **상세 폴더 select 제거**(`page-folder-select` 삭제).
+6. **즐겨찾기 좌측 상단 이동**(우측 패널 제거 → 좌측 '콘텐츠' 위).
+7. **삭제 → 휴지통(soft-delete)**: `deletedAt` 서브트리 이동, 쿼리 `deletedAt: null` 필터, `restore`/`purge`.
+8. **휴지통 뷰**: 사이드바 '콘텐츠' 하위 휴지통 링크(배지) → `/wiki/trash` 복원/영구삭제.
+
 **B1 완료(2026-07-08)**: 대시보드 상태→필터목록 링크 + 최근활동 티켓 key·이동.
 
 ### Phase 3 — 신규 8개 기능 (2026-07-08 요청, `WIP`)

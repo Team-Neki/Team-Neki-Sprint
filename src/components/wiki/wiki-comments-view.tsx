@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useEditor, EditorContent, type JSONContent } from "@tiptap/react";
 import { MessageSquarePlus, MessageSquare } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { wikiExtensions } from "@/components/wiki/extensions";
 import {
@@ -53,6 +54,10 @@ export function WikiCommentsView({
   const [draft, setDraft] = useState("");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // 본문 우측 여백에 뜨는 댓글 태그(앵커 위치 표시). {threadId, top(px)}.
+  const [markTags, setMarkTags] = useState<{ threadId: string; top: number }[]>(
+    [],
+  );
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -184,38 +189,80 @@ export function WikiCommentsView({
     }
   }
 
-  // 마크 span 에 is-active/is-resolved 클래스 동기화 + 활성 앵커↔카드 스크롤.
-  useEffect(() => {
-    if (!editor) return;
+  // 마크 span 에 is-active/is-resolved 클래스 동기화 + 우측 여백 태그 위치 계산.
+  const syncMarks = useCallback(() => {
+    if (!editor || !leftRef.current) return;
     const dom = editor.view.dom as HTMLElement;
+    const base = leftRef.current.getBoundingClientRect();
     const resolvedIds = new Set(
       threads.filter((t) => t.resolved).map((t) => t.id),
     );
     const marks = dom.querySelectorAll<HTMLElement>(".wiki-comment-mark");
+    const tags: { threadId: string; top: number }[] = [];
+    const seen = new Set<string>();
     marks.forEach((m) => {
       const id = m.getAttribute("data-comment-thread");
-      m.classList.toggle("is-resolved", !!id && resolvedIds.has(id));
+      const resolved = !!id && resolvedIds.has(id);
+      m.classList.toggle("is-resolved", resolved);
       m.classList.toggle("is-active", !!id && id === activeId);
+      // 스레드별 첫 앵커 위치에만 태그 하나(해결된 스레드는 태그 생략).
+      if (id && !resolved && !seen.has(id)) {
+        seen.add(id);
+        tags.push({ threadId: id, top: m.getBoundingClientRect().top - base.top });
+      }
     });
+    setMarkTags(tags);
+  }, [editor, threads, activeId]);
+
+  useEffect(() => {
+    syncMarks();
     if (activeId) {
+      const dom = editor?.view.dom as HTMLElement | undefined;
       dom
-        .querySelector(`.wiki-comment-mark[data-comment-thread="${activeId}"]`)
+        ?.querySelector(`.wiki-comment-mark[data-comment-thread="${activeId}"]`)
         ?.scrollIntoView({ block: "center", behavior: "smooth" });
       document
         .getElementById(`thread-card-${activeId}`)
         ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
     }
-  }, [editor, threads, activeId]);
+  }, [syncMarks, activeId, editor]);
+
+  // 창 크기 변경 시 태그 위치 재계산.
+  useEffect(() => {
+    window.addEventListener("resize", syncMarks);
+    return () => window.removeEventListener("resize", syncMarks);
+  }, [syncMarks]);
 
   return (
     <div className="mx-auto flex max-w-5xl gap-6">
       <div ref={leftRef} className="relative min-w-0 flex-1">
-        <h1 className="mb-4 text-2xl font-semibold break-words md:text-3xl">
-          {title.trim() || "제목 없음"}
-        </h1>
-        <div onClick={onDocClick}>
-          <EditorContent editor={editor} />
+        <div className="pr-9">
+          <h1 className="mb-4 text-2xl font-semibold break-words md:text-3xl">
+            {title.trim() || "제목 없음"}
+          </h1>
+          <div onClick={onDocClick}>
+            <EditorContent editor={editor} />
+          </div>
         </div>
+
+        {/* 우측 여백 댓글 태그 — 드래그해 댓글 단 위치를 표시. 클릭 시 스레드 활성화. */}
+        {markTags.map((t) => (
+          <button
+            key={t.threadId}
+            type="button"
+            onClick={() => setActiveId(t.threadId)}
+            style={{ top: t.top }}
+            className={cn(
+              "absolute right-0 flex size-6 -translate-y-0.5 items-center justify-center rounded-md border transition-colors",
+              activeId === t.threadId
+                ? "border-amber-400 bg-amber-400 text-white"
+                : "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100",
+            )}
+            aria-label="댓글 보기"
+          >
+            <MessageSquare className="size-3.5" />
+          </button>
+        ))}
 
         {/* 선택 시 플로팅 버튼/컴포저 */}
         {composer && (

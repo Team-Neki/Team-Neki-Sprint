@@ -118,9 +118,45 @@ export async function updateWikiContent(
     });
   }
 
+  // 저장(커밋)했으니 이 유저의 임시저장본은 정리(있으면).
+  await prisma.wikiDraft
+    .delete({ where: { pageId_userId: { pageId: id, userId: user.id } } })
+    .catch(() => {});
+
   revalidatePath("/wiki", "layout");
   revalidatePath(`/wiki/${id}`);
   return { id };
+}
+
+// ---------- 편집 임시저장본(draft) ----------
+
+/** 편집 중 임시저장본 upsert(유저×페이지 1건). 디바운스로 호출. content 는 순수 JSON 클론. */
+export async function saveWikiDraft(
+  pageId: string,
+  title: string,
+  content: unknown,
+) {
+  const user = await requireUser();
+  await prisma.wikiDraft.upsert({
+    where: { pageId_userId: { pageId, userId: user.id } },
+    update: { title, content: content as Prisma.InputJsonValue },
+    create: {
+      pageId,
+      userId: user.id,
+      title,
+      content: content as Prisma.InputJsonValue,
+    },
+  });
+  return { ok: true };
+}
+
+/** 임시저장본 폐기('취소' 또는 저장 완료 시). */
+export async function discardWikiDraft(pageId: string) {
+  const user = await requireUser();
+  await prisma.wikiDraft
+    .delete({ where: { pageId_userId: { pageId, userId: user.id } } })
+    .catch(() => {});
+  return { ok: true };
 }
 
 /** 페이지 제목만 변경(사이드바 이름 변경). 본문 리비전은 남기지 않는 경량 액션. */
@@ -141,7 +177,71 @@ export async function renameWikiPage(id: string, title: string) {
   revalidatePath(`/wiki/${id}`);
 }
 
+/** 페이지 id → 자신 + 모든 후손 페이지 id(BFS). soft-delete/복원 서브트리 계산용. */
+async function collectSubtreeIds(rootId: string): Promise<string[]> {
+  const all = await prisma.wikiPage.findMany({
+    select: { id: true, parentId: true },
+  });
+  const childrenOf = new Map<string, string[]>();
+  for (const p of all) {
+    if (!p.parentId) continue;
+    const list = childrenOf.get(p.parentId);
+    if (list) list.push(p.id);
+    else childrenOf.set(p.parentId, [p.id]);
+  }
+  const ids = [rootId];
+  const stack = [rootId];
+  while (stack.length) {
+    const cur = stack.pop() as string;
+    const kids = childrenOf.get(cur);
+    if (kids) {
+      ids.push(...kids);
+      stack.push(...kids);
+    }
+  }
+  return ids;
+}
+
+/**
+ * soft-delete: 페이지를 휴지통으로 이동. 하위(재귀) 페이지도 함께 이동한다.
+ * 하드 삭제가 아니므로 복원 가능(restoreWikiPage). 휴지통 목록/영구삭제는 /wiki/trash.
+ */
 export async function deleteWikiPage(id: string) {
+  const user = await requireUser();
+  const ids = await collectSubtreeIds(id);
+  await prisma.wikiPage.updateMany({
+    where: { id: { in: ids } },
+    data: { deletedAt: new Date() },
+  });
+  await logActivity({
+    userId: user.id,
+    entityType: "wiki",
+    entityId: id,
+    action: "trashed",
+  });
+  revalidatePath("/wiki", "layout");
+}
+
+/** 휴지통에서 복원: 페이지 + 함께 삭제됐던 후손(deletedAt != null) 복구. */
+export async function restoreWikiPage(id: string) {
+  const user = await requireUser();
+  const ids = await collectSubtreeIds(id);
+  await prisma.wikiPage.updateMany({
+    where: { id: { in: ids }, deletedAt: { not: null } },
+    data: { deletedAt: null },
+  });
+  await logActivity({
+    userId: user.id,
+    entityType: "wiki",
+    entityId: id,
+    action: "restored",
+  });
+  revalidatePath("/wiki", "layout");
+  revalidatePath(`/wiki/${id}`);
+}
+
+/** 휴지통에서 영구 삭제(하드). 하위 페이지·리비전·댓글 등 cascade 로 함께 삭제. */
+export async function purgeWikiPage(id: string) {
   const user = await requireUser();
   await prisma.wikiPage.delete({ where: { id } });
   await logActivity({

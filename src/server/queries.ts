@@ -404,6 +404,7 @@ export function getTimelineEpics() {
 /** Full page tree (small dataset for a 20-person team). */
 export function getWikiTree() {
   return prisma.wikiPage.findMany({
+    where: { deletedAt: null },
     orderBy: [{ position: "asc" }, { createdAt: "asc" }],
     select: {
       id: true,
@@ -414,6 +415,36 @@ export function getWikiTree() {
       updatedAt: true,
     },
   });
+}
+
+/** 휴지통(soft-delete)된 페이지 목록. 최근 삭제순. parentId 로 '삭제 루트'를 화면에서 판별. */
+export function getTrashedWikiPages() {
+  return prisma.wikiPage.findMany({
+    where: { deletedAt: { not: null } },
+    orderBy: { deletedAt: "desc" },
+    select: {
+      id: true,
+      title: true,
+      parentId: true,
+      deletedAt: true,
+      editor: miniUser,
+    },
+  });
+}
+
+/**
+ * 현재 유저의 편집 임시저장본(있으면). 2주(14일) 지난 draft 는 만료로 간주해 null 반환.
+ * 페이지 본문보다 최신일 때만 의미가 있으므로 updatedAt 을 함께 돌려준다.
+ */
+export async function getWikiDraft(pageId: string, userId: string) {
+  const draft = await prisma.wikiDraft.findUnique({
+    where: { pageId_userId: { pageId, userId } },
+    select: { title: true, content: true, updatedAt: true },
+  });
+  if (!draft) return null;
+  const TWO_WEEKS = 14 * 24 * 60 * 60 * 1000;
+  if (Date.now() - draft.updatedAt.getTime() > TWO_WEEKS) return null;
+  return draft;
 }
 
 /** 문서 폴더(사이드바 그룹핑). 페이지와 별개 타입. */
@@ -455,7 +486,7 @@ export function getWikiRevision(id: string) {
 /** 현재 유저가 별표한 페이지 목록(최신 별표 순). 즐겨찾기 패널용. */
 export function getWikiFavorites(userId: string) {
   return prisma.wikiFavorite.findMany({
-    where: { userId },
+    where: { userId, page: { deletedAt: null } },
     orderBy: { createdAt: "desc" },
     select: {
       createdAt: true,
@@ -474,8 +505,9 @@ export async function isWikiPageFavorited(userId: string, pageId: string) {
 }
 
 export function getWikiPage(id: string) {
-  return prisma.wikiPage.findUnique({
-    where: { id },
+  return prisma.wikiPage.findFirst({
+    // 휴지통에 있는 페이지는 상세로 열지 않는다(목록/트리에서 이미 숨김).
+    where: { id, deletedAt: null },
     include: {
       author: miniUser,
       editor: miniUser,
@@ -564,7 +596,10 @@ export async function searchTasks(query: string, limit = 8) {
 export function searchWikiPages(query: string, limit = 8) {
   const q = query.trim();
   return prisma.wikiPage.findMany({
-    where: q ? { title: { contains: q, mode: "insensitive" } } : undefined,
+    where: {
+      deletedAt: null,
+      ...(q ? { title: { contains: q, mode: "insensitive" } } : {}),
+    },
     orderBy: { updatedAt: "desc" },
     take: limit,
     select: { id: true, title: true },

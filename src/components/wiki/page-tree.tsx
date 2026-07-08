@@ -229,6 +229,27 @@ export function PageTree({
           ))}
         </ul>
       )}
+
+      {/* 빈 공간 클릭 → 추가 드롭다운. 목록 아래 여백을 넉넉히 눌러 새 페이지/폴더 추가. */}
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <button
+              type="button"
+              className="mt-1 block min-h-24 w-full cursor-pointer rounded-md text-left"
+              aria-label="여기에 추가"
+            />
+          }
+        />
+        <DropdownMenuContent align="start" className="w-40">
+          <DropdownMenuItem onClick={() => addPage({})}>
+            <FilePlus className="size-4" /> 새 페이지 추가
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => addFolder(null)}>
+            <FolderPlus className="size-4" /> 폴더 추가
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </Ctx.Provider>
   );
 }
@@ -461,8 +482,8 @@ function PageItem({
   const descendantCount = countPageDescendants(maps, page.id);
   const deleteDescription =
     descendantCount > 0
-      ? `하위 ${descendantCount}개 페이지도 함께 삭제됩니다. 이 작업은 되돌릴 수 없습니다.`
-      : "이 작업은 되돌릴 수 없습니다.";
+      ? `하위 ${descendantCount}개 페이지도 함께 휴지통으로 이동합니다. 휴지통에서 복원할 수 있습니다.`
+      : "휴지통으로 이동합니다. 휴지통에서 복원할 수 있습니다.";
 
   function submitRename() {
     const next = title.trim();

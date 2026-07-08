@@ -19,6 +19,7 @@ import {
   Link as LinkIcon,
   Undo,
   Redo,
+  RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { JSONContent } from "@tiptap/react";
@@ -31,27 +32,39 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { updateWikiContent } from "@/server/actions/wiki";
+import {
+  updateWikiContent,
+  saveWikiDraft,
+  discardWikiDraft,
+} from "@/server/actions/wiki";
 
 export function WikiEditor({
   pageId,
   initialTitle,
   initialContent,
+  draft,
+  onExit,
 }: {
   pageId: string;
   initialTitle: string;
   initialContent: JSONContent;
+  /** 서버에서 불러온 임시저장본(있으면 이 내용으로 편집을 시작). */
+  draft?: { title: string; content: JSONContent } | null;
+  /** 저장/취소로 편집을 마칠 때 호출(뷰 모드로 복귀). */
+  onExit?: () => void;
 }) {
   const router = useRouter();
-  const [title, setTitle] = useState(initialTitle);
+  const startedFromDraft = !!draft;
+  const [title, setTitle] = useState(draft?.title ?? initialTitle);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [usingDraft, setUsingDraft] = useState(startedFromDraft);
   const dirtyRef = useRef(false);
 
   const editor = useEditor({
     immediatelyRender: false,
     extensions: wikiExtensions({ placeholder: "내용을 입력하세요…" }),
-    content: initialContent,
+    content: draft?.content ?? initialContent,
     editorProps: {
       attributes: { class: "tiptap focus:outline-none" },
     },
@@ -63,48 +76,93 @@ export function WikiEditor({
     setDirty(true);
   }, []);
 
-  const save = useCallback(async () => {
-    if (!editor) return;
+  // getJSON() 은 순수 JSON 으로 클론해 서버 액션에 넘긴다(RSC 직렬화, gotchas §7).
+  const cloneContent = useCallback(() => {
+    if (!editor) return null;
+    return JSON.parse(JSON.stringify(editor.getJSON()));
+  }, [editor]);
+
+  // 명시적 저장(커밋): WikiPage 로 반영(리비전 생성) + 임시저장본 정리 → 뷰로 복귀.
+  const commit = useCallback(async () => {
+    const content = cloneContent();
+    if (!content) return;
     setSaving(true);
     try {
-      // Tiptap getJSON() 결과를 순수 JSON 으로 클론해서 넘긴다. 원본을 그대로
-      // 서버 액션 인자로 주면 RSC 직렬화가 노드 내부를 'temporary client
-      // reference' 로 취급해 서버에서 toStringTag 접근 에러가 난다(#B5 발견).
-      const content = JSON.parse(JSON.stringify(editor.getJSON()));
       await updateWikiContent(pageId, title, content);
       dirtyRef.current = false;
       setDirty(false);
       router.refresh();
+      onExit?.();
     } catch {
       toast.error("저장에 실패했습니다");
     } finally {
       setSaving(false);
     }
-  }, [editor, pageId, title, router]);
+  }, [cloneContent, pageId, title, router, onExit]);
 
-  // Debounced autosave.
+  // 취소: 임시저장본 폐기 + 편집 종료(마지막 커밋본으로 되돌아감).
+  const cancel = useCallback(async () => {
+    try {
+      await discardWikiDraft(pageId);
+    } catch {
+      /* 무시 — 어차피 편집 종료 */
+    }
+    dirtyRef.current = false;
+    setDirty(false);
+    router.refresh();
+    onExit?.();
+  }, [pageId, router, onExit]);
+
+  // 임시저장본 무시하고 원본으로 되돌리기.
+  const revertToOriginal = useCallback(async () => {
+    if (!editor) return;
+    editor.commands.setContent(initialContent);
+    setTitle(initialTitle);
+    setUsingDraft(false);
+    dirtyRef.current = false;
+    setDirty(false);
+    try {
+      await discardWikiDraft(pageId);
+    } catch {
+      /* 무시 */
+    }
+  }, [editor, initialContent, initialTitle, pageId]);
+
+  // 디바운스 임시저장(draft). 페이지 본문이 아니라 WikiDraft 로만 저장한다.
   useEffect(() => {
     if (!dirty) return;
-    const timer = setTimeout(() => {
-      if (dirtyRef.current) save();
-    }, 1500);
+    const timer = setTimeout(async () => {
+      if (!dirtyRef.current) return;
+      const content = cloneContent();
+      if (!content) return;
+      try {
+        await saveWikiDraft(pageId, title, content);
+        dirtyRef.current = false;
+        setDirty(false);
+        setUsingDraft(true);
+      } catch {
+        /* draft 저장 실패는 조용히 무시(다음 편집에서 재시도) */
+      }
+    }, 1200);
     return () => clearTimeout(timer);
-  }, [dirty, title, save]);
+  }, [dirty, title, pageId, cloneContent]);
 
-  // Save on Cmd/Ctrl+S.
+  // Cmd/Ctrl+S, Cmd/Ctrl+Enter 로 저장(커밋).
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod) return;
+      const k = e.key.toLowerCase();
+      if (k === "s" || k === "enter") {
         e.preventDefault();
-        save();
+        commit();
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [save]);
+  }, [commit]);
 
-  // dirty 상태(디바운스 자동저장 대기)에서 탭 닫기/새로고침 시 편집 유실 경고.
-  // dirtyRef를 읽으므로 재등록 없이 항상 최신 dirty 상태를 반영한다.
+  // 디바운스 임시저장 반영 전 이탈 시 편집 유실 경고(draft 로 대부분 보호되지만 안전장치).
   useEffect(() => {
     function onBeforeUnload(e: BeforeUnloadEvent) {
       if (!dirtyRef.current) return;
@@ -115,8 +173,29 @@ export function WikiEditor({
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, []);
 
+  const status = saving
+    ? "저장 중…"
+    : dirty
+      ? "임시저장 대기"
+      : usingDraft
+        ? "임시저장됨"
+        : "";
+
   return (
     <div className="mx-auto max-w-3xl">
+      {usingDraft && (
+        <div className="mb-2 flex items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-800">
+          <span>임시 저장본을 불러왔습니다. 계속 편집하거나 원본으로 되돌릴 수 있어요.</span>
+          <button
+            type="button"
+            onClick={revertToOriginal}
+            className="flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 font-medium hover:bg-amber-100"
+          >
+            <RotateCcw className="size-3.5" /> 원본으로
+          </button>
+        </div>
+      )}
+
       <div className="mb-2 flex items-center justify-between gap-2">
         <Input
           value={title}
@@ -127,9 +206,17 @@ export function WikiEditor({
           placeholder="제목 없음"
           className="border-none px-0 text-2xl font-semibold shadow-none focus-visible:ring-0 md:text-3xl"
         />
-        <span className="text-muted-foreground shrink-0 text-xs">
-          {saving ? "저장 중…" : dirty ? "저장 대기" : "저장됨"}
-        </span>
+        <div className="flex shrink-0 items-center gap-2">
+          {status && (
+            <span className="text-muted-foreground text-xs">{status}</span>
+          )}
+          <Button variant="ghost" size="sm" onClick={cancel} disabled={saving}>
+            취소
+          </Button>
+          <Button size="sm" onClick={commit} disabled={saving}>
+            저장
+          </Button>
+        </div>
       </div>
 
       {editor && <Toolbar editor={editor} />}

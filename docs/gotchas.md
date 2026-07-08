@@ -61,4 +61,5 @@
 
 - 이슈 key는 **팀 단위 연속 시퀀스**(`Team.seq` 원자 증가, `src/server/keys.ts` `nextTeamNumber`, 트랜잭션 필수). 표시는 `formatIssueKey(teamKey, number)`.
 - Task는 생성 시 Epic의 `teamId`를 상속·고정(에픽 이동에도 key 불변). 팀/번호는 update에서 strip.
-- 위키: `WikiPage`(parent 중첩) + `WikiFolder`(별개 그룹핑 타입), `WikiPageTaskLink`(티켓↔위키), `WikiRevision`(버전), `WikiFavorite`(별표), `WikiCommentThread`+`WikiComment`(B10 인라인 댓글, 앵커는 문서 content 의 `commentMark`). `Activity`(범용 변경 로그, entityType/entityId/meta).
+- 위키: `WikiPage`(parent 중첩) + `WikiFolder`(별개 그룹핑 타입), `WikiPageTaskLink`(티켓↔위키), `WikiRevision`(버전), `WikiFavorite`(별표), `WikiCommentThread`+`WikiComment`(B10 인라인 댓글, 앵커는 문서 content 의 `commentMark`), `WikiDraft`(편집 임시저장, 유저×페이지 1건·2주 만료). `Activity`(범용 변경 로그, entityType/entityId/meta).
+- **위키 soft-delete**: `WikiPage.deletedAt`(휴지통). 삭제는 서브트리 `deletedAt` 세팅(하드 아님), 복원/영구삭제는 `/wiki/trash`. **새 위키 페이지 조회를 추가하면 `where: { deletedAt: null }` 필터를 반드시 넣을 것**(안 넣으면 휴지통 문서가 목록/검색에 샌다). 영구삭제(`purgeWikiPage`)만 `prisma.wikiPage.delete`(cascade).
