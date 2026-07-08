@@ -90,6 +90,18 @@ export const taskSchema = z.object({
   actualMd: optionalMd,
 });
 
+// 라벨(C8). name 은 필수(고유), color 는 옵션 hex(#RRGGBB) — 미지정 시 DB 기본값 사용.
+// gotchas §3: 옵션 필드는 .optional() 이 아니라 .nullish() 로(폼이 null 을 보냄).
+export const labelSchema = z.object({
+  name: z.string().trim().min(1, "이름을 입력하세요").max(50),
+  color: z
+    .string()
+    .trim()
+    .regex(/^#[0-9a-fA-F]{6}$/, "색상은 #RRGGBB 형식이어야 합니다")
+    .nullish()
+    .transform((v) => (v ? v : null)),
+});
+
 export const wikiPageSchema = z.object({
   title: z.string().trim().min(1, "제목을 입력하세요").max(200),
   parentId: optionalId,
@@ -113,5 +125,6 @@ export type TeamInput = z.infer<typeof teamSchema>;
 export type ProjectInput = z.infer<typeof projectSchema>;
 export type EpicInput = z.infer<typeof epicSchema>;
 export type TaskInput = z.infer<typeof taskSchema>;
+export type LabelInput = z.infer<typeof labelSchema>;
 export type WikiPageInput = z.infer<typeof wikiPageSchema>;
 export type WikiFolderInput = z.infer<typeof wikiFolderSchema>;

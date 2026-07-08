@@ -7,6 +7,7 @@ import {
   getEpicOptions,
   getMembers,
   getEntityActivity,
+  getLabelOptions,
 } from "@/server/queries";
 import { deleteTask } from "@/server/actions/tasks";
 import { formatIssueKey } from "@/lib/constants";
@@ -20,6 +21,7 @@ import { LinkedPages } from "@/components/wiki/linked-pages";
 import { BackButton } from "@/components/detail/back-button";
 import { HistoryPanel } from "@/components/detail/history-panel";
 import { EpicField } from "@/components/detail/epic-field";
+import { TaskLabels } from "@/components/detail/task-labels";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   MetaRow,
@@ -40,11 +42,12 @@ export default async function TaskDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [task, epics, members, activities] = await Promise.all([
+  const [task, epics, members, activities, labelOptions] = await Promise.all([
     getTask(id),
     getEpicOptions(),
     getMembers(),
     getEntityActivity("task", id),
+    getLabelOptions(),
   ]);
   if (!task) notFound();
 
@@ -230,6 +233,13 @@ export default async function TaskDetail({
                 {task.team?.key}
               </span>
             </span>
+          </MetaRow>
+          <MetaRow label="라벨" align="start">
+            <TaskLabels
+              taskId={task.id}
+              labels={task.labels.map((l) => l.label)}
+              allLabels={labelOptions}
+            />
           </MetaRow>
         </Card>
 

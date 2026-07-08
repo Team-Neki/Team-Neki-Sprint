@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/table";
 import { TableRowLink } from "@/components/ui/table-row-link";
 import { Button } from "@/components/ui/button";
-import { StatusBadge, PriorityBadge } from "@/components/badges";
+import { StatusBadge, PriorityBadge, LabelBadge } from "@/components/badges";
 import { UserBadge, type MiniUser } from "@/components/user-badge";
 import {
   TaskDialog,
@@ -39,6 +39,7 @@ export type TaskTableRow = {
   teamId: string;
   assignee: MiniUser | null;
   epic?: { title: string } | null;
+  labels?: { label: { id: string; name: string; color: string } }[];
   description?: string | null;
   assigneeId?: string | null;
   epicId?: string | null;
@@ -97,7 +98,18 @@ export function TasksTable({
           tasks.map((t) => (
             <TableRowLink key={t.id} href={`/tasks/${t.id}`}>
               <KeyCell teamKey={t.team?.key} number={t.number} />
-              <TableCell className="font-medium">{t.title}</TableCell>
+              <TableCell className="font-medium">
+                <span className="flex flex-wrap items-center gap-1.5">
+                  <span>{t.title}</span>
+                  {t.labels?.map((l) => (
+                    <LabelBadge
+                      key={l.label.id}
+                      name={l.label.name}
+                      color={l.label.color}
+                    />
+                  ))}
+                </span>
+              </TableCell>
               {!hideEpic && (
                 <TableCell className="text-muted-foreground truncate text-xs">
                   {t.epic?.title ?? "—"}
