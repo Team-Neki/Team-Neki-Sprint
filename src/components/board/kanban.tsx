@@ -273,7 +273,7 @@ function Column({
             trigger={
               <button
                 type="button"
-                className="text-muted-foreground hover:bg-accent hover:text-foreground mt-auto flex items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs font-medium transition-colors"
+                className="text-muted-foreground hover:bg-accent hover:text-foreground flex items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs font-medium transition-colors"
               >
                 <Plus className="size-3.5" /> {meta.label} 추가하기
               </button>
