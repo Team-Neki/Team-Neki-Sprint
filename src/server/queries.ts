@@ -606,6 +606,156 @@ export function searchWikiPages(query: string, limit = 8) {
   });
 }
 
+// ---------- 전역 검색 / 커맨드 팔레트 (C7) ----------
+
+/** 커맨드 팔레트에 노출하는 최소 항목. plain-serializable(서버 액션 반환용). */
+export type GlobalSearchItem = {
+  id: string;
+  /** 표시용 주 텍스트(제목/이름). */
+  title: string;
+  /** 이슈 key(TEAM-n) — 태스크·에픽만. */
+  key?: string;
+  /** 클릭 시 이동할 상세 경로. */
+  href: string;
+  /** 보조 텍스트(이메일 등). */
+  subtitle?: string;
+};
+
+/** 엔티티 그룹별 검색 결과. 각 그룹은 상위 몇 개로 캡. */
+export type GlobalSearchResult = {
+  tasks: GlobalSearchItem[];
+  epics: GlobalSearchItem[];
+  projects: GlobalSearchItem[];
+  wiki: GlobalSearchItem[];
+  users: GlobalSearchItem[];
+};
+
+/**
+ * 전역 검색(C7). 태스크·에픽·프로젝트·위키·사용자를 가로질러 대소문자 무시
+ * contains 로 조회하고, 각 그룹을 상위 CAP 개로 캡한 plain 결과를 반환한다.
+ * - 태스크·에픽: 제목 + (숫자/‘TEAM-n’/‘TEAM’ 형태면) key 매칭. searchTasks 규칙 재사용.
+ * - 위키: 제목만. 주의: soft-delete(gotchas §8) — deletedAt: null 필수(휴지통 유출 방지).
+ * - 사용자: 이름/이메일.
+ */
+export async function globalSearch(query: string): Promise<GlobalSearchResult> {
+  const empty: GlobalSearchResult = {
+    tasks: [],
+    epics: [],
+    projects: [],
+    wiki: [],
+    users: [],
+  };
+  const q = query.trim();
+  if (!q) return empty;
+
+  const CAP = 5;
+  const insensitive = { contains: q, mode: "insensitive" as const };
+
+  // 'TEAM-123' / 'TEAM' / '123' 형태를 이슈 key 매칭으로 해석(searchTasks 와 동일 규칙).
+  const dashMatch = q.match(/^([A-Za-z0-9]+)-(\d+)$/);
+  const keyOr = (): (
+    | import("@prisma/client").Prisma.TaskWhereInput
+    | import("@prisma/client").Prisma.EpicWhereInput
+  )[] => {
+    if (dashMatch) {
+      return [
+        {
+          team: { key: { equals: dashMatch[1], mode: "insensitive" } },
+          number: Number(dashMatch[2]),
+        },
+      ];
+    }
+    if (/^\d+$/.test(q)) return [{ number: Number(q) }];
+    if (/^[A-Za-z]+$/.test(q)) {
+      return [{ team: { key: { contains: q, mode: "insensitive" } } }];
+    }
+    return [];
+  };
+
+  const taskOr: import("@prisma/client").Prisma.TaskWhereInput[] = [
+    { title: insensitive },
+    ...(keyOr() as import("@prisma/client").Prisma.TaskWhereInput[]),
+  ];
+  const epicOr: import("@prisma/client").Prisma.EpicWhereInput[] = [
+    { title: insensitive },
+    ...(keyOr() as import("@prisma/client").Prisma.EpicWhereInput[]),
+  ];
+
+  const [tasks, epics, projects, wiki, users] = await Promise.all([
+    prisma.task.findMany({
+      where: { OR: taskOr },
+      orderBy: { updatedAt: "desc" },
+      take: CAP,
+      select: {
+        id: true,
+        number: true,
+        title: true,
+        team: { select: { key: true } },
+      },
+    }),
+    prisma.epic.findMany({
+      where: { OR: epicOr },
+      orderBy: { updatedAt: "desc" },
+      take: CAP,
+      select: {
+        id: true,
+        number: true,
+        title: true,
+        team: { select: { key: true } },
+      },
+    }),
+    prisma.project.findMany({
+      where: { title: insensitive },
+      orderBy: { updatedAt: "desc" },
+      take: CAP,
+      select: { id: true, title: true },
+    }),
+    prisma.wikiPage.findMany({
+      where: { deletedAt: null, title: insensitive },
+      orderBy: { updatedAt: "desc" },
+      take: CAP,
+      select: { id: true, title: true },
+    }),
+    prisma.user.findMany({
+      where: { OR: [{ name: insensitive }, { email: insensitive }] },
+      orderBy: { name: "asc" },
+      take: CAP,
+      select: { id: true, name: true, email: true },
+    }),
+  ]);
+
+  return {
+    tasks: tasks.map((t) => ({
+      id: t.id,
+      title: t.title,
+      key: formatIssueKey(t.team.key, t.number),
+      href: `/tasks/${t.id}`,
+    })),
+    epics: epics.map((e) => ({
+      id: e.id,
+      title: e.title,
+      key: formatIssueKey(e.team.key, e.number),
+      href: `/epics/${e.id}`,
+    })),
+    projects: projects.map((p) => ({
+      id: p.id,
+      title: p.title,
+      href: `/projects/${p.id}`,
+    })),
+    wiki: wiki.map((w) => ({
+      id: w.id,
+      title: w.title,
+      href: `/wiki/${w.id}`,
+    })),
+    users: users.map((u) => ({
+      id: u.id,
+      title: u.name ?? u.email ?? "이름 없음",
+      subtitle: u.email ?? undefined,
+      href: `/users/${u.id}`,
+    })),
+  };
+}
+
 // ---------- 사람/프로필/알림 (B5) ----------
 
 /** '@' 멘션 드롭다운용 멤버 검색(이름/이메일). */

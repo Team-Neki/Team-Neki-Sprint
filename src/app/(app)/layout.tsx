@@ -9,6 +9,7 @@ import {
 import { SidebarNav } from "@/components/app-shell/sidebar-nav";
 import { UserMenu } from "@/components/app-shell/user-menu";
 import { NotificationBell } from "@/components/app-shell/notification-bell";
+import { CommandPalette } from "@/components/app-shell/command-palette";
 import { toNotifItem } from "@/components/app-shell/notification-shared";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -67,6 +68,8 @@ export default async function AppLayout({
           </Sheet>
 
           <div className="flex-1" />
+
+          <CommandPalette />
 
           <NotificationBell items={notifItems} unread={unread} />
 
