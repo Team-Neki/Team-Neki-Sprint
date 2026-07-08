@@ -17,7 +17,7 @@
 - **B1 대시보드**: (10) 최근 활동에 티켓 key 표기 + 이동, (11) 상태 카운트(백로그/할일/진행중/리뷰/완료) 클릭 → 필터된 태스크 목록. → `dashboard/page.tsx`
 - **B2 목록/여백**: (1) 태스크 클릭 영역이 컴포넌트보다 좁음, (5) 에픽 목록 열 정렬 어긋남, (6) 태스크 마감에 날짜 표시, (9) 목록 vs 상세 좌우 여백 불일치, **(T) 스프린트·프로젝트·에픽 목록을 태스크처럼 테이블뷰(컬럼)로 — 열 정렬/간격 정리**. → `sprints/page`, `projects/page`, `epics/page`(← B7 MD 컬럼과 겹치니 detail-overhaul 병합 후), `tasks/page`, `item-row`, `(app)/layout`. **팀→에픽/태스크 라우팅(완료)**.
 - **B3 상세 페이지 개편** (`DONE` 2026-07-08, `feat/detail-overhaul`): (2) '수정' 버튼 제거 → 전 필드 인라인 편집, (3) 상태를 우측 카드(보고자/스토리포인트/에픽)로 이동, (4) 보고자 옆 담당자 추가, (back) 뒤로가기 스택 동작. → `{tasks,epics,projects}/[id]`, `detail/inline-fields`·`back-button`(property-bar 삭제), `update*Fields` actions
-- **B4 타임라인**: (7) 가로 스크롤 시 좌측 에픽 목록 고정(sticky). → `epic-timeline.tsx`
+- **B4 타임라인** (`DONE` 2026-07-08): (7) 가로 스크롤 시 좌측 이름 컬럼(프로젝트 타이틀·에픽·태스크) 고정(sticky). → `epic-timeline.tsx` 단일. `sticky left-0` + 불투명 `bg-card` + `z-20`(바/그리드/today 마커 위 덮음) + `self-stretch`(행 높이 전체 커버). 헤더는 full-width화 후 거터 마스크(`z-30`)로 라벨 bleed 방지.
 - **B5 프로필/소셜 (= 원래 phase 3 S3)**: (5/8/12) 사용자 프로필 페이지 + 사용자 클릭 시 이동(프로필 라우트 부재로 현재 접속 시 오류), (6) `@` 멘션, (7) 멘션 알림, (8) 알림 목록. → 신규 `users/[id]`, `Notification` 스키마(additive), 에디터 `@`.
 - **B6 리치 입력 확장**: 설명(description)·댓글에서도 링크(`#`티켓)/멘션(`@`사람) 동작. 현재 plain textarea → Tiptap 에디터로 교체(위키 에디터 확장 재사용). B5의 멘션/링크 인프라 위에 얹음.
 - **B7-board 보드 순서 변경**: 칸반에서 드래그앤드롭으로 **순서 재정렬**(현재는 상태 변경만). 생성 시 컬럼 하단 append, 자유 재정렬. → Task에 순서 필드(additive, 예: `boardOrder Float?`) + `board/kanban.tsx`(@dnd-kit sortable) + 재정렬 서버액션. 스키마 스트림.

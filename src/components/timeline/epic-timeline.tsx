@@ -166,16 +166,23 @@ export function EpicTimeline({
   return (
     <div className="overflow-x-auto">
       <div className="relative" style={{ width: NAME_W + rulerWidth }}>
-        {/* Day header — week-start labels (bold), day cells act as ticks below */}
+        {/* Day header — week-start labels (bold), day cells act as ticks below.
+            Full width (incl. name gutter) so a sticky mask can keep labels from
+            bleeding under the frozen name column during horizontal scroll. */}
         <div
           className="text-muted-foreground relative mb-2 h-5 border-b text-[11px]"
-          style={{ marginLeft: NAME_W, width: rulerWidth }}
+          style={{ width: NAME_W + rulerWidth }}
         >
+          {/* sticky gutter mask over the frozen name column */}
+          <div
+            className="bg-card sticky left-0 z-30 h-full border-b"
+            style={{ width: NAME_W }}
+          />
           {labels.map(({ index, date }) => (
             <span
               key={index}
               className="absolute bottom-0.5 whitespace-nowrap font-semibold"
-              style={{ left: index * dayWidth + 2 }}
+              style={{ left: NAME_W + index * dayWidth + 2 }}
             >
               {format(date, "M/d", { locale: ko })}
             </span>
@@ -222,7 +229,10 @@ export function EpicTimeline({
           <div className="flex flex-col gap-4">
             {groups.map((g, gi) => (
               <div key={gi} className="flex flex-col gap-1">
-                <p className="text-muted-foreground ml-1 text-xs font-medium">
+                <p
+                  className="bg-card text-muted-foreground sticky left-0 z-20 w-64 shrink-0 truncate pl-1 text-xs font-medium"
+                  title={g.title}
+                >
                   {g.title}
                 </p>
                 {g.epics.map((epic) => {
@@ -233,7 +243,7 @@ export function EpicTimeline({
                     <div key={epic.id} className="flex flex-col">
                       {/* Epic row */}
                       <div className="flex items-center">
-                        <div className="flex w-64 shrink-0 items-center gap-1 pr-3">
+                        <div className="bg-card sticky left-0 z-20 flex w-64 shrink-0 items-center gap-1 self-stretch pr-3">
                           <button
                             type="button"
                             onClick={() => toggle(epic.id)}
@@ -295,7 +305,7 @@ export function EpicTimeline({
                           const tr = taskRange(t);
                           return (
                             <div key={t.id} className="flex items-center">
-                              <div className="flex w-64 shrink-0 items-center gap-1.5 py-0.5 pr-3 pl-7">
+                              <div className="bg-card sticky left-0 z-20 flex w-64 shrink-0 items-center gap-1.5 self-stretch py-0.5 pr-3 pl-7">
                                 <Link
                                   href={`/tasks/${t.id}`}
                                   className="text-muted-foreground min-w-0 flex-1 truncate text-xs hover:underline"

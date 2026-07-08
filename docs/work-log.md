@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-07-08 — P4 B4 타임라인 좌측 컬럼 sticky
+
+가로 스크롤 시 좌측 이름 컬럼이 눈금과 함께 떠내려가 어느 바가 어느 에픽/태스크인지 잃던 문제. `epic-timeline.tsx` 단일 파일 수정(스키마·데이터 무관).
+
+- **이름 컬럼 고정**: 프로젝트 타이틀 `<p>`·에픽 이름 `div`·태스크 이름 `div`에 `sticky left-0 z-20` + 불투명 `bg-card`. 스크롤 시 이름 박스가 바 위로 올라와야 하므로 z-20으로 바(z auto)·그리드 오버레이(z auto)·today 마커(z-10)를 모두 덮음. 프로젝트 타이틀은 `w-64`(=NAME_W 256px)로 폭 제한해 거터만 마스크.
+- **행 높이 전체 커버**: 행이 `flex items-center`라 이름 박스 높이가 콘텐츠 높이(<행 높이)로 잡혀 스크롤 시 바가 위아래로 삐져나옴 → 이름 박스에 `self-stretch` 추가해 행 전체 높이를 불투명 배경으로 덮음.
+- **헤더 마스크**: 헤더를 `marginLeft:NAME_W`(눈금만) → **full-width**(`NAME_W+rulerWidth`)로 바꾸고 라벨 위치를 `NAME_W + index*dayWidth` 기준으로 이동. 좌측 거터에 `sticky left-0 z-30 bg-card` 마스크 블록을 둬 주간 라벨('2/1' 등)이 고정 이름 컬럼 아래로 새지 않게 함.
+
+검증: `next build` Compiled successfully, `eslint` clean. dev 서버 + DB 세션 주입(Google SSO 우회)으로 브라우저 확인 — scrollLeft 최대 스크롤 상태에서 프로젝트/에픽/**펼친 태스크 하위행**까지 좌측 고정·흰 배경 클린, 그리드 음영은 256px 거터 우측(눈금 영역)에만, 헤더 코너 마스크 정상.
+
+---
+
 ## 2026-07-08 — P4 상세 페이지 개편(B3 인라인 편집 + B7 MD + B8 히스토리)
 
 [스펙](./specs/p4-detail-overhaul.md) 기준으로 프로젝트/에픽/태스크 상세를 인라인 편집 중심으로 재구성. `feat/detail-overhaul` 단독 스트림(상세·액션·쿼리 광범위 공유 → 내부 순차).
