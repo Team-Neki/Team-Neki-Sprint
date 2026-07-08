@@ -230,26 +230,21 @@ export function PageTree({
         </ul>
       )}
 
-      {/* 빈 공간 클릭 → 추가 드롭다운. 목록 아래 여백을 넉넉히 눌러 새 페이지/폴더 추가. */}
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <button
-              type="button"
-              className="mt-1 block min-h-24 w-full cursor-pointer rounded-md text-left"
-              aria-label="여기에 추가"
-            />
-          }
+      {/* 빈 공간 우클릭 → 추가 컨텍스트 메뉴. 목록 아래 여백을 우클릭해 새 페이지/폴더 추가. */}
+      <ContextMenu>
+        <ContextMenuTrigger
+          aria-label="여기에 추가"
+          className="mt-1 block min-h-24 w-full rounded-md"
         />
-        <DropdownMenuContent align="start" className="w-40">
-          <DropdownMenuItem onClick={() => addPage({})}>
+        <ContextMenuContent>
+          <ContextMenuItem onClick={() => addPage({})}>
             <FilePlus className="size-4" /> 새 페이지 추가
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => addFolder(null)}>
+          </ContextMenuItem>
+          <ContextMenuItem onClick={() => addFolder(null)}>
             <FolderPlus className="size-4" /> 폴더 추가
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
     </Ctx.Provider>
   );
 }
