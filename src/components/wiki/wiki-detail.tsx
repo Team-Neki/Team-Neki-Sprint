@@ -22,6 +22,7 @@ export function WikiDetail({
   content,
   editor,
   updatedLabel,
+  updatedAt,
   favorited,
   revisions,
   deleteDescription,
@@ -34,6 +35,7 @@ export function WikiDetail({
   content: JSONContent;
   editor: MiniUser | null;
   updatedLabel: string;
+  updatedAt: string;
   favorited: boolean;
   revisions: RevisionListItem[];
   deleteDescription: string;
@@ -92,6 +94,7 @@ export function WikiDetail({
           content={content}
           threads={threads}
           currentUserId={currentUserId}
+          updatedAt={updatedAt}
         />
       )}
     </div>

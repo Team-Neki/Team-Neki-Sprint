@@ -126,13 +126,38 @@ export async function deleteWikiCommentThread(threadId: string) {
  * 댓글 앵커(commentMark)만 반영하기 위한 content 저장. 리비전·알림 없이 본문 JSON 만
  * 갱신한다(일반 편집 저장 updateWikiContent 와 구분 — 앵커 추가로 리비전이 쌓이지 않게).
  * content 는 클라이언트에서 순수 JSON 으로 클론해 넘긴다(RSC 직렬화, gotchas §7).
+ *
+ * 낙관적 동시성(A3): 앵커 저장은 content 를 통째로 덮어쓰는 last-write-wins 라, 클라이언트가
+ * 본문을 로드한 뒤 댓글을 다는 사이 다른 사용자가 본문을 저장하면 그 편집이 조용히 되돌아간다.
+ * 이를 막기 위해 클라이언트가 마지막으로 관측한 updatedAt(ISO 문자열, RSC 경계 직렬화)을 받아
+ * 현재 값과 대조한다. 다르면(중간에 저장 발생) 덮어쓰지 않고 conflict 를 돌려주고, 같으면 저장 후
+ * 새 updatedAt 을 돌려줘 클라이언트가 기준선을 갱신하도록 한다.
  */
-export async function saveWikiCommentAnchors(pageId: string, content: unknown) {
+export async function saveWikiCommentAnchors(
+  pageId: string,
+  content: unknown,
+  expectedUpdatedAt: string,
+): Promise<
+  { ok: true; updatedAt: string } | { ok: false; conflict: true }
+> {
   await requireUser();
-  await prisma.wikiPage.update({
+
+  const current = await prisma.wikiPage.findUnique({
+    where: { id: pageId },
+    select: { updatedAt: true },
+  });
+  if (!current) throw new Error("페이지를 찾을 수 없습니다");
+
+  // 기준선 불일치 = 그 사이 누군가 본문을 저장함 → 덮어쓰기 거부(그 편집 보존).
+  if (current.updatedAt.getTime() !== new Date(expectedUpdatedAt).getTime()) {
+    return { ok: false, conflict: true };
+  }
+
+  const updated = await prisma.wikiPage.update({
     where: { id: pageId },
     data: { content: content as Prisma.InputJsonValue },
+    select: { updatedAt: true },
   });
   revalidatePath(`/wiki/${pageId}`);
-  return { ok: true };
+  return { ok: true, updatedAt: updated.updatedAt.toISOString() };
 }
