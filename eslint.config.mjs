@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Parallel worktree copies (see docs/gotchas.md §2).
+    ".worktrees/**",
   ]),
 ]);
 
