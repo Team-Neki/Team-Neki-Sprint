@@ -49,10 +49,10 @@ export function WikiDetail({
   return (
     <div>
       {/* 상단 툴바: 스크롤을 내려도 '수정' 버튼이 보이도록 sticky 고정(main 스크롤 기준).
-          main 의 top 패딩(p-4/p-6)만큼 음수 마진으로 끌어올리고 같은 값을 내부 패딩으로
-          되돌려, 헤더 배경이 상단 여백까지 덮어 그 틈으로 본문이 비치지 않게 한다. */}
-      <div className="bg-background sticky top-0 z-20 -mt-4 mb-4 border-b pt-4 sm:-mt-6 sm:pt-6">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-2 pb-2">
+          불투명 배경으로 본문이 헤더 뒤로 비치지 않게 한다(main 스크롤 컨테이너의 top
+          패딩 위 band 은 콘텐츠가 아니라 컨테이너 여백이라 별도 보정 불필요). */}
+      <div className="bg-background sticky top-0 z-20 mb-4 border-b">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-2 py-2">
           <div className="text-muted-foreground flex min-w-0 items-center gap-2 text-xs">
             {editor && <UserBadge user={editor} size="xs" />}
             <span className="shrink-0">{updatedLabel}</span>
