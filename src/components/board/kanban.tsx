@@ -273,7 +273,12 @@ function Column({
             trigger={
               <button
                 type="button"
-                className="text-muted-foreground hover:bg-accent hover:text-foreground flex items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs font-medium transition-colors"
+                className={cn(
+                  // 카드와 같은 형태(rounded-md·p-3)지만 채움색을 빼고 dashed 보더 +
+                  // 살짝 흐린 카드 느낌(bg-card/50). hover 시 실선 보더·불투명 카드·shadow 로 떠오름.
+                  "flex w-full items-center gap-1.5 rounded-md border border-dashed border-border bg-card/50 p-3 text-left text-xs font-medium text-muted-foreground transition-all",
+                  "hover:border-solid hover:bg-card hover:text-foreground hover:shadow-sm",
+                )}
               >
                 <Plus className="size-3.5" /> {meta.label} 추가하기
               </button>
