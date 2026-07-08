@@ -33,7 +33,7 @@ export default async function WikiLayout({
   return (
     <div className="flex gap-6">
       <aside className="hidden w-64 shrink-0 md:block">
-        <div className="sticky top-20 space-y-4">
+        <div className="sticky top-0 space-y-4">
           {/* 즐겨찾기 → 콘텐츠 → 휴지통 (좌측 사이드바 단일 컬럼) */}
           <FavoritesPanel favorites={favoriteItems} />
           <PageTree pages={pages} folders={folders} favoriteIds={favoriteIds} />
