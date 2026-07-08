@@ -23,8 +23,15 @@ export async function createTask(input: unknown) {
       if (epic) teamId = epic.teamId;
     }
     const number = await nextTeamNumber(tx, teamId);
+    // 보드에서 새 태스크는 해당 status 컬럼 하단에 append (B7-board).
+    const status = data.status ?? "TODO";
+    const agg = await tx.task.aggregate({
+      where: { status },
+      _max: { boardOrder: true },
+    });
+    const boardOrder = (agg._max.boardOrder ?? 0) + 1;
     return tx.task.create({
-      data: { ...data, teamId, number, reporterId: user.id },
+      data: { ...data, teamId, number, reporterId: user.id, boardOrder },
     });
   });
 
@@ -64,17 +71,44 @@ export async function updateTask(id: string, input: unknown) {
   return { id };
 }
 
-/** Lightweight status change used by the Kanban board drag-and-drop. */
-export async function moveTask(id: string, status: Status) {
+/**
+ * 칸반 보드 드래그앤드롭(B7-board): 상태 변경 + 컬럼 내 순서 재정렬을 함께 처리.
+ * `orderedIds` 는 드롭 대상 컬럼(status)의 새 순서 전체 — 해당 컬럼을 index 기준
+ * 재번호(boardOrder=i)한다. 옮겨온 태스크만 status 를 갱신하고, 상태가 실제로
+ * 바뀐 경우에만 Activity(status_changed)를 기록한다. 컬럼은 작아 전체 재번호가 저렴.
+ */
+export async function reorderBoardTask(
+  id: string,
+  status: Status,
+  orderedIds: string[],
+) {
   const user = await requireUser();
-  await prisma.task.update({ where: { id }, data: { status } });
-  await logActivity({
-    userId: user.id,
-    entityType: "task",
-    entityId: id,
-    action: "status_changed",
-    meta: { status },
+
+  const current = await prisma.task.findUnique({
+    where: { id },
+    select: { status: true },
   });
+  if (!current) return;
+
+  await prisma.$transaction(
+    orderedIds.map((tid, i) =>
+      prisma.task.update({
+        where: { id: tid },
+        data: tid === id ? { status, boardOrder: i } : { boardOrder: i },
+      }),
+    ),
+  );
+
+  if (current.status !== status) {
+    await logActivity({
+      userId: user.id,
+      entityType: "task",
+      entityId: id,
+      action: "status_changed",
+      meta: { status },
+    });
+  }
+
   revalidatePath("/board");
   revalidatePath("/tasks");
 }

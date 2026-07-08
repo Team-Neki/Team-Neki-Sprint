@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-07-08 — P4 B7-board 칸반 순서 재정렬(DnD)
+
+기존 칸반은 컬럼(상태) 간 이동만 가능하고 컬럼 안 순서는 `updatedAt desc` 고정이라 사용자가 우선순위대로 못 세우던 문제. 컬럼 내 재정렬 + 크로스컬럼 이동을 DnD로.
+
+- **스키마(additive)**: `Task.boardOrder Float?`(마이그레이션 `task_board_order`, nullable 1컬럼, 리셋 아님). null=미정렬 → 컬럼 하단(nulls last).
+- **kanban.tsx 재작성**: 기존 `useDraggable`/`useDroppable`(상태 변경만) → `@dnd-kit/sortable` **멀티컨테이너 패턴**. 로컬 상태를 `Record<Status,string[]>`(컬럼별 id 배열)로 관리, `onDragOver`가 다른 컬럼으로 넘어오면 즉시 이동(라이브 프리뷰), `onDragEnd`가 같은 컬럼은 `arrayMove`로 확정. 낙관적 업데이트 + 드래그 시작 스냅샷(`useRef`)으로 실패/취소 롤백. 서버 재동기화는 `id:status` 시퀀스 서명으로 순서 변화까지 감지(‘adjust state during render’ 패턴 유지).
+- **서버액션 `reorderBoardTask(id, status, orderedIds)`**: 대상 컬럼 전체를 index 기준 재번호(`boardOrder=i`, 컬럼 작아 저렴), 옮겨온 태스크만 `status` 갱신, 상태가 실제 바뀐 경우에만 Activity(`status_changed`) 기록(B8 연동). 구 `moveTask`(kanban 유일 호출처) 대체·삭제.
+- **createTask 하단 append**: 생성 시 해당 status 컬럼 `max(boardOrder)+1` 부여. `getBoardTasks` orderBy `updatedAt desc` → `[{boardOrder: asc, nulls: last}, {createdAt: asc}]`.
+- **알려진 한계**: 담당자/팀 필터 활성 상태에서 재정렬하면 보이는 태스크만 재번호되어 숨은 태스크의 boardOrder와 간섭 가능(엣지, 후속 개선 여지).
+
+검증: `next build` Compiled successfully, `eslint` clean. dev 서버 + DB 세션 주입 + **합성 pointer 이벤트**(pointerdown→move들→up)로 DnD 실제 구동: (1) TODO 컬럼 내 재정렬 → DB `boardOrder` 0/1 persist 확인, (2) 크로스컬럼(TODO→IN_REVIEW 빈 컬럼) → status=IN_REVIEW + boardOrder=0 + `status_changed` Activity 기록 확인. 테스트로 바꾼 데모 데이터는 원복. 스키마 변경이라 dev 서버 재시작 필요.
+
+---
+
 ## 2026-07-08 — P4 B4 타임라인 좌측 컬럼 sticky
 
 가로 스크롤 시 좌측 이름 컬럼이 눈금과 함께 떠내려가 어느 바가 어느 에픽/태스크인지 잃던 문제. `epic-timeline.tsx` 단일 파일 수정(스키마·데이터 무관).

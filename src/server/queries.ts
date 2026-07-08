@@ -284,7 +284,11 @@ export function getBoardTasks(filter: BoardFilter = {}) {
       assigneeId: filter.assigneeId,
       teamId: filter.teamId,
     },
-    orderBy: { updatedAt: "desc" },
+    // 칸반 컬럼 내 순서(B7-board). 재정렬로 부여한 boardOrder 우선, 미정렬(null)은 하단.
+    orderBy: [
+      { boardOrder: { sort: "asc", nulls: "last" } },
+      { createdAt: "asc" },
+    ],
     include: {
       assignee: miniUser,
       team: miniTeam,

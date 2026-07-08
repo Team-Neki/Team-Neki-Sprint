@@ -186,6 +186,8 @@ model Task {
   // 맨데이(MD) 트래킹(B7). 태스크에만 저장하고, Epic/Project는 하위 합으로 계산(읽기전용).
   estimatedMd Float?
   actualMd    Float?
+  // 칸반 컬럼 내 순서(B7-board). null=미정렬 → 컬럼 하단(nulls last). 재정렬 시 컬럼 재번호.
+  boardOrder  Float?
   assigneeId  String?
   assignee    User?     @relation("TaskAssignee", fields: [assigneeId], references: [id])
   reporterId  String?
