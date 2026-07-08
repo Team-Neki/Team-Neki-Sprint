@@ -105,6 +105,7 @@ export default async function WikiPageView({
         content={asDoc(page.content)}
         editor={page.editor}
         updatedLabel={updatedLabel}
+        updatedAt={page.updatedAt.toISOString()}
         favorited={favorited}
         revisions={revisions}
         deleteDescription={deleteDescription}

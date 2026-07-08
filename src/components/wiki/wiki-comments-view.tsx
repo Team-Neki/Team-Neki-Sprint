@@ -40,15 +40,24 @@ export function WikiCommentsView({
   content,
   threads,
   currentUserId,
+  updatedAt,
 }: {
   pageId: string;
   title: string;
   content: JSONContent;
   threads: ThreadItem[];
   currentUserId: string;
+  updatedAt: string;
 }) {
   const router = useRouter();
   const leftRef = useRef<HTMLDivElement>(null);
+  // 낙관적 동시성 기준선(A3): 클라이언트가 마지막으로 관측한 페이지 updatedAt(ISO).
+  // 앵커 저장 성공 시 서버가 돌려준 새 updatedAt 로 갱신하고, 서버 재검증으로 prop 이
+  // 바뀌면(다른 사용자 편집 등) 그 값을 새 기준선으로 채택한다.
+  const baselineRef = useRef(updatedAt);
+  useEffect(() => {
+    baselineRef.current = updatedAt;
+  }, [updatedAt]);
   const [composer, setComposer] = useState<Composer | null>(null);
   const [composing, setComposing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -126,6 +135,22 @@ export function WikiCommentsView({
     setDraft("");
   }
 
+  // 앵커 content 저장 + 낙관적 동시성 충돌 처리. 저장 성공 시 기준선을 갱신하고 true,
+  // 충돌(중간에 다른 사용자가 본문 저장)이면 사용자에게 알리고 새로고침 후 false 를 돌려준다.
+  const persistAnchors = useCallback(
+    async (json: unknown) => {
+      const res = await saveWikiCommentAnchors(pageId, json, baselineRef.current);
+      if (!res.ok) {
+        toast.error("다른 사용자가 페이지를 수정했습니다. 새로고침 후 다시 시도해주세요.");
+        router.refresh();
+        return false;
+      }
+      baselineRef.current = res.updatedAt;
+      return true;
+    },
+    [pageId, router],
+  );
+
   // 댓글 생성: 스레드 생성 → 그 threadId 로 선택 범위에 마크 → content 저장.
   async function createThread() {
     if (!editor || !composer) return;
@@ -147,8 +172,9 @@ export function WikiCommentsView({
         .run();
       const json = JSON.parse(JSON.stringify(editor.getJSON()));
       editor.setEditable(false);
-      await saveWikiCommentAnchors(pageId, json);
+      const ok = await persistAnchors(json);
       closeComposer();
+      if (!ok) return; // 충돌 시 persistAnchors 가 이미 새로고침
       setActiveId(threadId);
       router.refresh();
     } catch {
@@ -167,7 +193,8 @@ export function WikiCommentsView({
         editor.chain().unsetCommentThread(threadId).run();
         const json = JSON.parse(JSON.stringify(editor.getJSON()));
         editor.setEditable(false);
-        await saveWikiCommentAnchors(pageId, json);
+        const ok = await persistAnchors(json);
+        if (!ok) return; // 충돌 시 스레드 삭제도 보류(persistAnchors 가 새로고침)
         await deleteWikiCommentThread(threadId);
         if (activeId === threadId) setActiveId(null);
         router.refresh();
@@ -175,7 +202,7 @@ export function WikiCommentsView({
         toast.error("삭제에 실패했습니다");
       }
     },
-    [editor, pageId, activeId, router],
+    [editor, activeId, router, persistAnchors],
   );
 
   // 앵커 마크 클릭 → 스레드 활성화(이벤트 위임).
