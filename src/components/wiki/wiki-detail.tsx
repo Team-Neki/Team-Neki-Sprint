@@ -49,9 +49,10 @@ export function WikiDetail({
   return (
     <div>
       {/* 상단 툴바: 스크롤을 내려도 '수정' 버튼이 보이도록 sticky 고정(main 스크롤 기준).
-          불투명 배경으로 본문이 헤더 뒤로 비치지 않게 한다(main 스크롤 컨테이너의 top
-          패딩 위 band 은 콘텐츠가 아니라 컨테이너 여백이라 별도 보정 불필요). */}
-      <div className="bg-background sticky top-0 z-20 mb-4 border-b">
+          main(overflow-auto)의 top 패딩 영역엔 스크롤된 본문이 비쳐 보이는데, sticky 헤더는
+          그 아래(top:0)에 고정돼 헤더 위 패딩 band 으로 본문이 노출된다. 헤더와 함께 움직이는
+          ::before 로 그 band(=main top 패딩 높이 pt-4/pt-6)을 불투명 배경으로 덮어 가린다. */}
+      <div className="bg-background sticky top-0 z-20 mb-4 border-b before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-4 before:bg-background before:content-[''] sm:before:h-6">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-2 py-2">
           <div className="text-muted-foreground flex min-w-0 items-center gap-2 text-xs">
             {editor && <UserBadge user={editor} size="xs" />}
