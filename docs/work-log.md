@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-07-08 — P4 B10 위키 인라인 댓글(구글독스식)
+
+[roadmap B10]. 위키 본문에서 텍스트를 선택해 그 범위에 댓글을 달고(구글독스식), 스레드로 답글·해결·삭제까지. Phase 4 백로그의 마지막 미수행 항목.
+
+- **스키마(additive, 마이그레이션 `wiki_inline_comments`)**: `WikiCommentThread`(pageId·`quote`=앵커 텍스트 스냅샷·`resolved`, page 삭제 시 cascade) + `WikiComment`(threadId·authorId·body, cascade). 기존 `Comment`는 태스크 전용이라 위키용 신설. `WikiPage.commentThreads`·`User.wikiComments` 역참조 추가. 리셋 아님.
+- **앵커 = Tiptap 마크**: `comment-mark.ts`의 `CommentMark`(Mark, attr `threadId`) — 선택 범위에 `<span data-comment-thread class="wiki-comment-mark">` 하이라이트. `wikiExtensions()`에 추가해 **편집(WikiEditor)·뷰(WikiCommentsView)가 동일 스키마 공유**(마크가 문서 content JSON 에 저장되므로 양쪽이 같은 확장으로 파싱해야 안 어긋남). 커맨드 `setCommentThread(id)`(선택에 마크)·`unsetCommentThread(id)`(문서 순회하며 그 threadId 마크만 제거 — 다른 스레드 보존).
+- **뷰 컴포넌트** `wiki-comments-view.tsx`: 읽기전용 Tiptap + 우측 코멘트 패널. `mouseup` 시 선택이 본문 안이면 `posAtDOM`으로 DOM 선택→PM 위치 매핑해 플로팅 '댓글' 버튼 표시. 생성 흐름 = `createWikiCommentThread`(스레드+첫 댓글, threadId 반환) → **잠깐 `setEditable(true)`로 켜서** `setTextSelection`+`setCommentThread` 마크 적용 → `getJSON` 순수 클론 → `saveWikiCommentAnchors`(content 만 저장, 리비전·알림 없이) → `router.refresh`. 앵커 span 클릭 ↔ 패널 카드 상호 `is-active`/스크롤, 해결 스레드 마크는 `is-resolved`(dim) 클래스로 동기화(effect가 `threads`/`activeId` 변화마다 DOM 재적용).
+- **스레드 카드** `comment-thread-card.tsx`: 인용문 + 댓글 목록 + 답글 입력(Cmd/Ctrl+Enter) + 해결/재오픈·삭제. 답글 삭제는 본인·첫 댓글 제외. 서버액션 `wiki-comments.ts`(create/reply/resolve/deleteComment/deleteThread/saveAnchors). 삭제는 뷰에서 마크 strip 후 `saveWikiCommentAnchors`+`deleteWikiCommentThread`.
+- **조회** `getWikiComments(pageId)`: 미해결 먼저·최신순, 댓글 시간순+author. `wiki/[id]/page.tsx`가 로드해 `WikiDetail`→뷰로 전달(`currentUserId` 포함). 뷰 모드는 기존 `WikiView`→`WikiCommentsView` 교체(편집 모드 WikiEditor 유지, 마크 공유로 하이라이트 렌더·보존).
+
+검증: `next build` Compiled successfully, `tsc --noEmit`·`eslint` clean. 데이터층 스모크(스레드+첫 댓글 생성→답글→`getWikiComments` shape→resolve→cascade delete) 통과. dev + DB 세션 주입 **브라우저 실검증**: 텍스트 선택→플로팅 '댓글'→작성 시 앰버 하이라이트 부착·패널 스레드 생성, 답글 추가, **전체 리로드 후 앵커·댓글 persist**(마크가 content 에 저장됨 확인), 앵커 클릭 활성화, 해결→하이라이트 dim+해결됨 섹션 이동, 삭제→마크 strip+스레드 제거, 콘솔 에러 0. 테스트 세션·스레드 원복. 스키마 변경이라 dev 서버 재시작 필요.
+
+---
+
 ## 2026-07-08 — P4 B6 리치 입력(설명·댓글 #티켓/@멘션)
 
 [roadmap B6]. 설명·댓글의 plain textarea 를 Tiptap 리치 에디터로 교체해 위키와 동일한 `#` 티켓 링크·`@` 사람 멘션·마크다운 입력규칙을 얹었다. B5 멘션/알림 인프라 재사용.

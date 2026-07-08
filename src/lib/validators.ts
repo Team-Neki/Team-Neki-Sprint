@@ -101,6 +101,13 @@ export const wikiFolderSchema = z.object({
   parentId: optionalId,
 });
 
+// 위키 인라인 댓글 본문(B10). 평문(멘션 없이) — 짧은 코멘트/답글.
+export const wikiCommentBodySchema = z
+  .string()
+  .trim()
+  .min(1, "댓글을 입력하세요")
+  .max(2000);
+
 export type SprintInput = z.infer<typeof sprintSchema>;
 export type TeamInput = z.infer<typeof teamSchema>;
 export type ProjectInput = z.infer<typeof projectSchema>;

@@ -49,8 +49,16 @@
 - **주의**: 이 버그는 **B9 위키 개편 때부터 잠복**(worktree 는 `next dev` 를 못 돌려 라이브 저장이 검증 안 됨 → build/tsc/lint 만으론 안 잡힘). 서버 액션에 리치 에디터 JSON·서드파티 객체를 넘길 땐 항상 plain 클론.
 - 곁다리: 같은 위키 에디터에서 `[tiptap warn]: Duplicate extension names ['link']` 는 **StarterKit v3 가 Link 를 기본 포함**해서 났다 → `StarterKit.configure({ link: false })` 로 끄고 커스텀 Link 만 등록(`extensions.ts`).
 
+## 7b. 읽기전용 Tiptap 에 마크 적용 — 잠깐 `setEditable(true)` (B10 인라인 댓글)
+
+- **맥락**: 위키 뷰(`WikiCommentsView`)는 `editable: false` 로 본문을 렌더하는데, 인라인 댓글 앵커(`commentMark`)는 **뷰 모드에서** 선택 범위에 씌워야 한다.
+- **함정**: `editable: false` 상태에서 `editor.chain().setMark(...)` 는 커맨드 가드에 막혀 트랜잭션이 반영 안 될 수 있다.
+- **해결**: 마크 적용 순간만 `editor.setEditable(true)` → `chain().setTextSelection({from,to}).setCommentThread(id).run()` → `getJSON()`(순수 클론, §7) → `editor.setEditable(false)`. 삭제(마크 strip)도 동일 패턴.
+- **DOM↔PM 위치 매핑**: 플로팅 '댓글' 버튼은 `window.getSelection()` 의 DOM Range 를 `editor.view.posAtDOM(node, offset)` 로 PM 위치(from/to)로 변환해 계산한다. 선택이 본문(`editor.view.dom`) 밖이면 무시(try/catch 가드).
+- **앵커 저장은 리비전 없이**: 댓글 마크만 바뀔 땐 일반 저장(`updateWikiContent`, 리비전·알림 생성) 대신 **`saveWikiCommentAnchors`(content 만 update)** 를 쓴다 — 코멘트 부착이 위키 버전 히스토리를 오염시키지 않게. last-write-wins라 동시 편집과 경합 가능(뷰 모드 부착이라 실제론 드묾).
+
 ## 8. 스키마 특이사항 (현행)
 
 - 이슈 key는 **팀 단위 연속 시퀀스**(`Team.seq` 원자 증가, `src/server/keys.ts` `nextTeamNumber`, 트랜잭션 필수). 표시는 `formatIssueKey(teamKey, number)`.
 - Task는 생성 시 Epic의 `teamId`를 상속·고정(에픽 이동에도 key 불변). 팀/번호는 update에서 strip.
-- 위키: `WikiPage`(parent 중첩) + `WikiFolder`(별개 그룹핑 타입), `WikiPageTaskLink`(티켓↔위키), `WikiRevision`(버전). `Activity`(범용 변경 로그, entityType/entityId/meta).
+- 위키: `WikiPage`(parent 중첩) + `WikiFolder`(별개 그룹핑 타입), `WikiPageTaskLink`(티켓↔위키), `WikiRevision`(버전), `WikiFavorite`(별표), `WikiCommentThread`+`WikiComment`(B10 인라인 댓글, 앵커는 문서 content 의 `commentMark`). `Activity`(범용 변경 로그, entityType/entityId/meta).

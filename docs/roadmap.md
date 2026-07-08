@@ -30,7 +30,7 @@
   - **즐겨찾기(신규, additive 스키마)**: 유저별 별표 → `WikiFavorite { userId, pageId }` 조인. 위키 **우측에 즐겨찾기한 페이지 목록** 노출.
   - **사이드바 재설계**: 상단 '폴더/새페이지' 버튼(+우상단 폴더 버튼) **제거** → **각 페이지 우측 hover `+` 버튼 → 드롭다운(폴더 추가 / 새 페이지 추가)**. 루트는 '콘텐츠' 섹션(탭)에 동일 `+`. **사이드바 우클릭 컨텍스트 메뉴**로도 추가/이름변경/삭제 등.
   - → `wiki/page-tree`·`new-folder-button`·`new-page-button` 재작성, `editor.tsx` 뷰/편집 토글, wiki `[id]` 페이지, `queries.ts`(즐겨찾기·버전), `actions/wiki.ts`(별표 토글·복원). tables-refactor와 `queries.ts` 겹쳐 **그 병합 후** 착수.
-- **B10 위키 인라인 댓글(구글독스식)**: 본문에서 **텍스트 선택 → 코멘트 달기**, **답글(스레드)** 가능. Tiptap 코멘트 마크(하이라이트+앵커) + 위키 댓글 스키마(신규 — 현재 `Comment`는 태스크 전용이라 `WikiComment`/스레드 additive) + 코멘트 사이드바/팝오버. 규모 L, B9 이후.
+- **B10 위키 인라인 댓글(구글독스식)** — `DONE`(2026-07-08, `feat/wiki-inline-comments`): 본문에서 **텍스트 선택 → 플로팅 '댓글' 버튼 → 코멘트**, **답글(스레드)**, **해결/재오픈·삭제**. Tiptap `commentMark`(앰버 하이라이트+threadId 앵커, 편집/뷰 공유 확장) + additive 스키마 `WikiCommentThread`(앵커 quote 스냅샷·resolved) + `WikiComment`(스레드 댓글) + 우측 코멘트 패널. 앵커는 문서 content 안의 마크에 저장(리비전 없이 `saveWikiCommentAnchors`로 반영), 스레드/댓글은 DB. 앵커 클릭 ↔ 패널 스레드 상호 하이라이트·스크롤. 해결 시 하이라이트 dim(재오픈 가능), 삭제 시 마크 strip. → `comment-mark.ts`·`comment-thread-card.tsx`·`wiki-comments-view.tsx` 신규, `extensions.ts`·`wiki-detail.tsx`·`wiki/[id]/page.tsx`·`queries.ts`(`getWikiComments`)·`actions/wiki-comments.ts`·`validators.ts`·`globals.css`. **알려진 한계**: 앵커 저장(`saveWikiCommentAnchors`)은 last-write-wins라 동시 편집 중 코멘트 부착 시 편집 내용과 경합 가능(뷰 모드에서만 부착하므로 실제 충돌은 드묾).
 - ~~**B5 사용자 페이지(미구현)**: `/users/[id]` 프로필 라우트 부재~~ → **B5에서 구현 완료**(`users/[id]`, 멘션 칩·알림 actor 에서 진입).
 
 **B1 완료(2026-07-08)**: 대시보드 상태→필터목록 링크 + 최근활동 티켓 key·이동.

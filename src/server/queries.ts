@@ -503,6 +503,23 @@ export function getWikiPage(id: string) {
 }
 
 /**
+ * 위키 인라인 댓글 스레드 조회(B10). 페이지의 모든 스레드 + 각 스레드의 댓글을
+ * 시간순으로. 미해결(resolved=false)을 먼저, 그 안에서 최신 스레드 우선.
+ */
+export function getWikiComments(pageId: string) {
+  return prisma.wikiCommentThread.findMany({
+    where: { pageId },
+    orderBy: [{ resolved: "asc" }, { createdAt: "desc" }],
+    include: {
+      comments: {
+        orderBy: { createdAt: "asc" },
+        include: { author: miniUser },
+      },
+    },
+  });
+}
+
+/**
  * 티켓 검색(#3/#4). key(TEAM-n)나 제목으로 조회. formatIssueKey 기준의 key는
  * team.key + '-' + number 이므로, 'BACKEND-2' / 'BACKEND' / '2' / 제목 조각을 받는다.
  */

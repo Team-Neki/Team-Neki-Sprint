@@ -35,6 +35,7 @@ model User {
   assignedTasks Task[]     @relation("TaskAssignee")
   createdTasks  Task[]     @relation("TaskReporter")
   comments      Comment[]
+  wikiComments  WikiComment[]
   authoredPages WikiPage[] @relation("PageAuthor")
   editedPages   WikiPage[] @relation("PageEditor")
   editedRevisions WikiRevision[] @relation("RevisionEditor")
@@ -316,6 +317,40 @@ model WikiPage {
   revisions WikiRevision[]
   taskLinks WikiPageTaskLink[]
   favorites WikiFavorite[]
+  commentThreads WikiCommentThread[]
+}
+
+// ---------- 위키 인라인 댓글(B10, 구글독스식) ----------
+
+/**
+ * 본문 텍스트 범위에 앵커된 댓글 스레드. 앵커 자체는 Tiptap 문서 content 의
+ * commentMark(data-comment-thread=<id>)로 저장되고, 여기엔 스레드 메타(선택
+ * 텍스트 스냅샷 quote · 해결 여부)와 댓글들을 담는다. 페이지 삭제 시 함께 삭제.
+ */
+model WikiCommentThread {
+  id        String        @id @default(cuid())
+  pageId    String
+  page      WikiPage      @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  quote     String        @db.Text // 앵커된 텍스트 스냅샷(사이드바 표시용, 본문 변경돼도 맥락 유지)
+  resolved  Boolean       @default(false)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  comments  WikiComment[]
+
+  @@index([pageId, resolved])
+}
+
+model WikiComment {
+  id        String            @id @default(cuid())
+  threadId  String
+  thread    WikiCommentThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User              @relation(fields: [authorId], references: [id])
+  body      String            @db.Text
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@index([threadId, createdAt])
 }
 
 model WikiRevision {

@@ -6,7 +6,8 @@ import type { JSONContent } from "@tiptap/react";
 import { Button } from "@/components/ui/button";
 import { UserBadge, type MiniUser } from "@/components/user-badge";
 import { WikiEditor } from "@/components/wiki/editor";
-import { WikiView } from "@/components/wiki/wiki-view";
+import { WikiCommentsView } from "@/components/wiki/wiki-comments-view";
+import type { ThreadItem } from "@/components/wiki/comment-thread-card";
 import { WikiPageMenu } from "@/components/wiki/wiki-page-menu";
 import {
   PageFolderSelect,
@@ -30,6 +31,8 @@ export function WikiDetail({
   favorited,
   revisions,
   deleteDescription,
+  threads,
+  currentUserId,
 }: {
   pageId: string;
   title: string;
@@ -41,6 +44,8 @@ export function WikiDetail({
   favorited: boolean;
   revisions: RevisionListItem[];
   deleteDescription: string;
+  threads: ThreadItem[];
+  currentUserId: string;
 }) {
   const [mode, setMode] = useState<"view" | "edit">("view");
 
@@ -89,7 +94,13 @@ export function WikiDetail({
           initialContent={content}
         />
       ) : (
-        <WikiView title={title} content={content} />
+        <WikiCommentsView
+          pageId={pageId}
+          title={title}
+          content={content}
+          threads={threads}
+          currentUserId={currentUserId}
+        />
       )}
     </div>
   );

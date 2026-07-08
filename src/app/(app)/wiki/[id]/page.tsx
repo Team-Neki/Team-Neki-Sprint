@@ -8,6 +8,7 @@ import {
   getWikiFolders,
   getWikiRevisions,
   isWikiPageFavorited,
+  getWikiComments,
 } from "@/server/queries";
 import { requireUser } from "@/lib/session";
 import { WikiDetail } from "@/components/wiki/wiki-detail";
@@ -66,13 +67,15 @@ export default async function WikiPageView({
 }) {
   const { id } = await params;
   const user = await requireUser();
-  const [page, tree, folders, revisions, favorited] = await Promise.all([
-    getWikiPage(id),
-    getWikiTree(),
-    getWikiFolders(),
-    getWikiRevisions(id),
-    isWikiPageFavorited(user.id, id),
-  ]);
+  const [page, tree, folders, revisions, favorited, threads] =
+    await Promise.all([
+      getWikiPage(id),
+      getWikiTree(),
+      getWikiFolders(),
+      getWikiRevisions(id),
+      isWikiPageFavorited(user.id, id),
+      getWikiComments(id),
+    ]);
   if (!page) notFound();
 
   const linkedTickets = page.taskLinks.map((l) => ({
@@ -107,6 +110,8 @@ export default async function WikiPageView({
         favorited={favorited}
         revisions={revisions}
         deleteDescription={deleteDescription}
+        threads={threads}
+        currentUserId={user.id}
       />
 
       <LinkedTickets pageId={page.id} tickets={linkedTickets} />

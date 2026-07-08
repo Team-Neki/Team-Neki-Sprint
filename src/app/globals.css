@@ -191,6 +191,28 @@
   pointer-events: none;
 }
 
+/* 인라인 댓글 앵커 하이라이트(B10). 앰버 배경 + 언더라인. 활성 스레드는 진하게. */
+.tiptap .wiki-comment-mark {
+  background: #fef3c7; /* amber-100 */
+  border-bottom: 2px solid #f59e0b; /* amber-500 */
+  border-radius: 2px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.tiptap .wiki-comment-mark:hover {
+  background: #fde68a; /* amber-200 */
+}
+/* 활성(패널에서 선택된) 스레드의 앵커 강조 — 뷰 컴포넌트가 해당 span 에 is-active 토글 */
+.tiptap .wiki-comment-mark.is-active {
+  background: #fbbf24; /* amber-400 */
+  border-bottom-color: #b45309; /* amber-700 */
+}
+/* 해결된 스레드의 앵커 — 하이라이트 없이 옅은 점선만(맥락은 유지, 시선은 뺀다) */
+.tiptap .wiki-comment-mark.is-resolved {
+  background: transparent;
+  border-bottom: 1px dashed var(--border);
+}
+
 /* compact rich input (설명·댓글, B6) — 위키 본문 스타일은 공유하되 최소높이·여백만 축소 */
 .tiptap-compact {
   min-height: auto;

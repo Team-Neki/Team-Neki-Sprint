@@ -6,6 +6,8 @@ import TaskItem from "@tiptap/extension-task-item";
 // '#' 티켓 멘션(#4) / '@' 사람 멘션(B5). 각각 자기완결 모듈, 여기 한 줄씩만 추가.
 import { TicketMention } from "@/components/wiki/ticket-mention";
 import { PersonMention } from "@/components/wiki/person-mention";
+// 인라인 댓글 앵커(B10). 편집/뷰가 동일 스키마로 파싱해야 하므로 여기서 공유한다.
+import { CommentMark } from "@/components/wiki/comment-mark";
 
 /**
  * 위키 에디터/뷰가 공유하는 Tiptap 확장 세트. 뷰(읽기전용)와 에디터가 완전히
@@ -28,5 +30,6 @@ export function wikiExtensions(opts?: { placeholder?: string }) {
     TaskItem.configure({ nested: true }),
     TicketMention,
     PersonMention,
+    CommentMark,
   ];
 }
