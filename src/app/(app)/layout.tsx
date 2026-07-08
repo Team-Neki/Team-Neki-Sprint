@@ -81,7 +81,9 @@ export default async function AppLayout({
           />
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto p-4 pb-12 sm:p-6 sm:pb-12">
+          {children}
+        </main>
       </div>
     </div>
   );
