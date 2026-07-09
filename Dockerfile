@@ -50,5 +50,6 @@ COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 USER nextjs
 EXPOSE 3000
 
-# Default: run the app. Migrations are applied by a separate Job (see k8s/migrate-job.yaml).
+# Default: run the app. Pending Prisma migrations are applied by the deployment's
+# initContainer (see the gitops repo overlays/prod/sprint-deployment.yaml).
 CMD ["node", "server.js"]
