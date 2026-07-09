@@ -132,7 +132,7 @@ export function ProjectDialog({
               noneLabel="없음"
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="grid gap-2">
               <Label>상태</Label>
               <StatusSelect value={status} onChange={setStatus} />
@@ -146,7 +146,7 @@ export function ProjectDialog({
             <Label>담당자</Label>
             <MemberSelect value={ownerId} onChange={setOwnerId} members={members} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="grid gap-2">
               <Label>시작일</Label>
               <Input

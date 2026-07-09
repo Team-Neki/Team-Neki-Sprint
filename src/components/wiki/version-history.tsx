@@ -124,7 +124,7 @@ export function VersionHistory({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid min-h-0 flex-1 grid-cols-[15rem_1fr] gap-3">
+        <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[10rem_1fr] gap-3 sm:grid-cols-[15rem_1fr] sm:grid-rows-1">
           {/* 좌측: 리비전 목록 */}
           <div className="min-h-0 rounded-lg border border-border bg-muted/30">
             {revisions.length === 0 ? (

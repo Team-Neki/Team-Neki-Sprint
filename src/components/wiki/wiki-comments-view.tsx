@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { useRouter } from "next/navigation";
 import { useEditor, EditorContent, type JSONContent } from "@tiptap/react";
 import { MessageSquarePlus } from "lucide-react";
@@ -29,6 +35,23 @@ type Composer = {
 const GUTTER = 296; // w-72(288) 카드 + 여유
 const CARD_GAP = 8; // 세로로 겹칠 때 카드 간 최소 간격
 
+// 우측 마진노트(거터) 레이아웃은 md 이상에서만. 모바일은 거터 폭이 안 나와 본문이
+// 뭉개지므로, 댓글을 본문 아래 일반 흐름으로 스택한다. useSyncExternalStore 로
+// 하이드레이션 안전하게 뷰포트를 읽는다(SSR/초기엔 데스크톱 가정 → 마운트 후 보정).
+const WIDE_QUERY = "(min-width: 768px)";
+function subscribeWide(cb: () => void) {
+  const mq = window.matchMedia(WIDE_QUERY);
+  mq.addEventListener("change", cb);
+  return () => mq.removeEventListener("change", cb);
+}
+function useIsWide() {
+  return useSyncExternalStore(
+    subscribeWide,
+    () => window.matchMedia(WIDE_QUERY).matches,
+    () => true,
+  );
+}
+
 /**
  * B10 위키 읽기 뷰 + 구글독스식 인라인 댓글. 본문을 읽기전용 Tiptap 으로 렌더하되,
  * 텍스트를 선택하면 플로팅 '댓글' 버튼이 뜨고, 달면 선택 범위에 commentMark(앵커)를
@@ -54,6 +77,7 @@ export function WikiCommentsView({
   updatedAt: string;
 }) {
   const router = useRouter();
+  const isWide = useIsWide();
   const rootRef = useRef<HTMLDivElement>(null);
   // 낙관적 동시성 기준선(A3): 클라이언트가 마지막으로 관측한 페이지 updatedAt(ISO).
   const baselineRef = useRef(updatedAt);
@@ -271,7 +295,8 @@ export function WikiCommentsView({
         ?.querySelector(`.wiki-comment-mark[data-comment-thread="${activeId}"]`)
         ?.scrollIntoView({ block: "center", behavior: "smooth" });
     }
-  }, [layout, activeId, editor]);
+    // isWide 가 바뀌면(브레이크포인트 교차) 거터/카드 배치가 달라지므로 재계산.
+  }, [layout, activeId, editor, isWide]);
 
   // 창 크기 변경 시 위치 재계산.
   useEffect(() => {
@@ -283,8 +308,9 @@ export function WikiCommentsView({
 
   return (
     <div ref={rootRef} className="relative mx-auto max-w-5xl">
-      {/* 본문: 우측 댓글 거터만큼 비워 카드와 겹치지 않게 */}
-      <div style={{ paddingRight: hasComments ? GUTTER : undefined }}>
+      {/* 본문: 데스크톱은 우측 댓글 거터만큼 비워 카드와 겹치지 않게. 모바일은 거터 폭이
+          안 나오므로 전체폭 사용(댓글은 본문 아래로 스택). */}
+      <div style={{ paddingRight: hasComments && isWide ? GUTTER : undefined }}>
         <h1 className="mb-4 text-2xl font-semibold break-words md:text-3xl">
           {title.trim() || "제목 없음"}
         </h1>
@@ -293,32 +319,54 @@ export function WikiCommentsView({
         </div>
       </div>
 
-      {/* 우측 거터: 각 스레드 카드를 앵커 세로위치에 절대배치(sticky 아님). */}
-      {threads.map((t) => {
-        const top = cardTops[t.id];
-        return (
-          <div
-            key={t.id}
-            id={`thread-card-${t.id}`}
-            ref={(el) => {
-              cardRefs.current[t.id] = el;
-            }}
-            style={{
-              top: top ?? 0,
-              visibility: top == null ? "hidden" : "visible",
-            }}
-            className="absolute right-0 w-72"
-          >
-            <CommentThreadCard
-              thread={t}
-              currentUserId={currentUserId}
-              active={activeId === t.id}
-              onActivate={() => setActiveId(t.id)}
-              onDeleteThread={deleteThread}
-            />
-          </div>
-        );
-      })}
+      {/* 데스크톱(md+): 각 스레드 카드를 앵커 세로위치에 우측 거터로 절대배치(sticky 아님). */}
+      {isWide &&
+        threads.map((t) => {
+          const top = cardTops[t.id];
+          return (
+            <div
+              key={t.id}
+              id={`thread-card-${t.id}`}
+              ref={(el) => {
+                cardRefs.current[t.id] = el;
+              }}
+              style={{
+                top: top ?? 0,
+                visibility: top == null ? "hidden" : "visible",
+              }}
+              className="absolute right-0 w-72"
+            >
+              <CommentThreadCard
+                thread={t}
+                currentUserId={currentUserId}
+                active={activeId === t.id}
+                onActivate={() => setActiveId(t.id)}
+                onDeleteThread={deleteThread}
+              />
+            </div>
+          );
+        })}
+
+      {/* 모바일(<md): 마진노트 대신 본문 아래 일반 흐름으로 댓글 스택. 앵커 클릭 시
+          해당 카드로 스크롤(id 유지). */}
+      {!isWide && hasComments && (
+        <div className="mt-8 space-y-3 border-t pt-6">
+          <h2 className="text-muted-foreground text-sm font-medium">
+            댓글 {threads.length}
+          </h2>
+          {threads.map((t) => (
+            <div key={t.id} id={`thread-card-${t.id}`}>
+              <CommentThreadCard
+                thread={t}
+                currentUserId={currentUserId}
+                active={activeId === t.id}
+                onActivate={() => setActiveId(t.id)}
+                onDeleteThread={deleteThread}
+              />
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* 선택 시 플로팅 버튼/컴포저 */}
       {composer && (

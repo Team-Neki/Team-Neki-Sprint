@@ -115,3 +115,10 @@
 - **`Button` 프리미티브(ui/button.tsx)는 focus-visible ring 내장** — `Button` 사용처는 포커스 링을 따로 안 줘도 됨. 커스텀 `outline-none` 요소만 `focus-visible:ring*` 대체 표시를 확인.
 - **실제 갭(2026-07-09 전수 점검)**: 앱 셸 모바일 메뉴(`layout.tsx`, `<Menu/>` 아이콘만)·위키 에디터 툴바 13개(`editor.tsx` `Btn` — 굵게/기울임/제목/목록/실행취소 등)가 이름 없이 남아 있었음 → `aria-label` 추가(툴바는 `title`+`aria-pressed`도). 나머지(⋯메뉴·닫기·색상칩·연결해제 등)는 이미 `aria-label`/`title` 보유.
 - **calendar nav**: react-day-picker 기본 nav 버튼은 라이브러리가 aria-label 을 제공(Chevron 아이콘만 커스텀) → 별도 처리 불필요.
+
+## 15. 반응형 — 마진노트/고정폭 레이아웃은 모바일에서 붕괴 (특히 위키)
+
+- **위키 인라인 댓글(구글독스식)**: 댓글이 있으면 본문에 `padding-right: 296px` 를 강제하고 카드를 `absolute right-0 w-72` 로 배치한다(§ wiki-comments-view). 데스크톱 마진노트엔 맞지만 **모바일(~320px)에선 본문이 ~24px 로 뭉개진다.** → `useSyncExternalStore` 로 `(min-width:768px)` 를 감지해 **md+ 만 거터/절대배치, 모바일은 전체폭 본문 + 댓글을 본문 아래 일반 흐름으로 스택**.
+- **위키 좌측 사이드바(`hidden md:block`)**: 모바일에서 페이지 트리가 통째로 사라져 문서 탐색 불가였음 → 모바일 전용 Sheet 드로어(`wiki-nav-sheet.tsx`)로 접근 제공(앱 셸 모바일 메뉴 패턴 재사용).
+- **react-hooks 규칙이 아주 엄격**: 이 레포 eslint 는 `react-hooks/set-state-in-effect`(effect 에서 setState 금지) **뿐 아니라** `react-hooks/refs`(**render 중 `ref.current` 접근 금지**)도 켜져 있다. "경로 변경 시 시트 닫기" 같은 prop→state 동기화는 effect 도, ref 로 이전값 비교도 막힌다 → **이전 값을 `useState` 로 들고 render 중 조건부 `setState`**(React 공식 "adjusting state when a prop changes")로 해결. 뷰포트 등 외부 소스 구독은 `useSyncExternalStore` 가 lint-safe + 하이드레이션 안전.
+- **고정폭 그리드 점검**: `grid-cols-[15rem_1fr]`·`grid grid-cols-2`(반응형 없음)는 좁은 폭(다이얼로그·모바일)에서 협소/붕괴 → `grid-cols-1 ... sm:grid-cols-*` 로 스택. 테이블은 ui/table 이 이미 `overflow-x-auto` 래핑, 보드는 `overflow-x-auto`, 다이얼로그는 `max-w-[calc(100%-2rem)] sm:max-w-*` 라 대체로 안전.

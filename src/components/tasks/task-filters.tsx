@@ -44,13 +44,13 @@ export function TaskFilters({
 
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2">
-      <div className="relative">
+      <div className="relative w-full sm:w-52">
         <Search className="text-muted-foreground absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
         <Input
           defaultValue={params.get("q") ?? ""}
           onChange={(e) => setParam("q", e.target.value)}
           placeholder="제목 검색"
-          className="w-52 pl-8"
+          className="w-full pl-8"
         />
       </div>
 

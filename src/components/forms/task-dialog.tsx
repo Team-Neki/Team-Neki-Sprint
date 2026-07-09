@@ -171,7 +171,7 @@ export function TaskDialog({
               rows={3}
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="grid gap-2">
               <Label>상위 에픽</Label>
               <GenericSelect
@@ -198,7 +198,7 @@ export function TaskDialog({
               )}
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="grid gap-2">
               <Label>상태</Label>
               <StatusSelect value={status} onChange={setStatus} />
@@ -208,7 +208,7 @@ export function TaskDialog({
               <PrioritySelect value={priority} onChange={setPriority} />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="grid gap-2">
               <Label>담당자</Label>
               <MemberSelect
@@ -228,7 +228,7 @@ export function TaskDialog({
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="grid gap-2">
               <Label>예상 MD</Label>
               <Input
@@ -252,7 +252,7 @@ export function TaskDialog({
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="grid gap-2">
               <Label>시작일</Label>
               <Input

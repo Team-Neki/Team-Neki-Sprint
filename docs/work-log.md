@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-07-09 — 반응형 개선(특히 위키)
+
+기존 앱 셸·테이블(overflow-x)·보드(가로 스크롤)·상세(lg:grid-cols-3)·대시보드/팀(반응형 그리드)·다이얼로그(`max-w-[calc(100%-2rem)] sm:max-w-sm`)는 이미 반응형이라, 남은 갭만 보강. 스키마 변경 0건.
+
+- **위키 사이드바 모바일 접근(핵심 갭)**: 좌측 사이드바(즐겨찾기·페이지 트리·휴지통)가 `hidden md:block` 이라 **모바일에선 문서 탐색·페이지 전환이 아예 불가**했음. 신규 `wiki-nav-sheet.tsx`(client) — 모바일 전용 "문서 트리" 버튼이 좌측 Sheet 드로어로 같은 nav 를 연다(앱 셸 모바일 메뉴 패턴과 통일). 경로 변경 시 자동 닫힘은 effect/ref 금지(react-hooks 규칙) 때문에 **이전 경로를 state 로 둔 derive-during-render** 로 처리. `wiki/layout.tsx` 가 nav 를 변수로 추출해 데스크톱 aside + 모바일 드로어가 공유.
+- **위키 인라인 댓글 뷰 모바일 붕괴 수정**: `wiki-comments-view.tsx` 가 댓글 있으면 본문에 `padding-right: 296px` 를 강제하고 카드를 `absolute right-0 w-72`(288px)로 배치 → 모바일(~320px)에선 **본문이 ~24px 로 뭉개짐**. `useSyncExternalStore`(하이드레이션 안전, setState-in-effect 회피)로 `(min-width:768px)` 감지 → **md+ 는 기존 마진노트, 모바일은 거터 제거·전체폭 본문 + 댓글을 본문 아래 일반 흐름으로 스택**. 브레이크포인트 교차 시 layout 재계산.
+- **위키 버전 기록 다이얼로그**: 좌우 분할 `grid-cols-[15rem_1fr]`(모바일에서 미리보기 ~60px)를 `grid-cols-1 grid-rows-[10rem_1fr] sm:grid-cols-[15rem_1fr] sm:grid-rows-1` 로 — 모바일은 목록 위/미리보기 아래 상하 스택.
+- **폼 다이얼로그 2열 그리드**: sprint/project/epic/task 폼의 `grid grid-cols-2 gap-3`(반응형 없음, 좁은 폰에서 날짜/셀렉트 협소) → `grid-cols-1 gap-3 sm:grid-cols-2`.
+- **태스크 필터 검색창**: `w-52` 고정 → `w-full sm:w-52`(모바일 전체폭, 셀렉트는 아래로 wrap).
+
+검증: `tsc`·`eslint` clean, `vitest` 89/89, `next build` 성공.
+
+---
+
 ## 2026-07-09 — 백로그 D3(데이터 캐시)·D9(a11y 점검) 마무리
 
 [roadmap-v2 그룹 D](./roadmap-v2.md)의 남은 실행 가능 항목 2건. 스키마 변경 0건.
