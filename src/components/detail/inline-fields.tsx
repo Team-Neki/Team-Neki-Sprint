@@ -94,10 +94,13 @@ export function InlineTitle({
   type,
   id,
   value,
+  className,
 }: {
   type: DetailEntity;
   id: string;
   value: string;
+  /** 셀 등 좁은 곳에서 쓰기 위한 스타일 override(기본은 상세용 큰 제목). */
+  className?: string;
 }) {
   const { pending, save } = useFieldSave(type, id);
   const [text, setText] = useState(value);
@@ -133,7 +136,10 @@ export function InlineTitle({
       }}
       disabled={pending}
       aria-label="제목"
-      className="focus:bg-accent/50 -mx-1.5 w-full rounded-md px-1.5 py-0.5 text-2xl font-semibold tracking-tight outline-none disabled:opacity-60"
+      className={cn(
+        "focus:bg-accent/50 -mx-1.5 w-full rounded-md px-1.5 py-0.5 text-2xl font-semibold tracking-tight outline-none disabled:opacity-60",
+        className,
+      )}
     />
   );
 }

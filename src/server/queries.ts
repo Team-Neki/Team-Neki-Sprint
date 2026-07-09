@@ -173,6 +173,7 @@ export async function getProjects(filter: ProjectFilter = {}) {
     include: {
       owner: miniUser,
       sprint: { select: { id: true, name: true, status: true } },
+      labels: labelInclude,
       _count: { select: { epics: true } },
     },
   });
@@ -242,8 +243,25 @@ export async function getEpics(filter: EpicFilter = {}) {
       _count: { select: { tasks: true } },
     },
   });
-  const md = await mdByEpic(epics.map((e) => e.id));
-  return epics.map((e) => ({ ...e, md: md.get(e.id) ?? ZERO_MD }));
+  const ids = epics.map((e) => e.id);
+  // MD 롤업 + 스토리포인트 롤업(하위 태스크 storyPoints 합). Epic엔 자체 SP 필드가
+  // 없어 목록의 StoryPoint 컬럼은 하위 합(읽기전용)으로 표시한다.
+  const [md, spGroups] = await Promise.all([
+    mdByEpic(ids),
+    prisma.task.groupBy({
+      by: ["epicId"],
+      where: { epicId: { in: ids } },
+      _sum: { storyPoints: true },
+    }),
+  ]);
+  const spByEpic = new Map(
+    spGroups.map((g) => [g.epicId, g._sum.storyPoints ?? 0]),
+  );
+  return epics.map((e) => ({
+    ...e,
+    md: md.get(e.id) ?? ZERO_MD,
+    storyPoints: spByEpic.get(e.id) ?? 0,
+  }));
 }
 
 export async function getEpic(id: string) {

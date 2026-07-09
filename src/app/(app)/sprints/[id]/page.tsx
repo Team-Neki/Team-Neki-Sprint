@@ -99,7 +99,6 @@ export default async function SprintDetail({
       <Card className="overflow-hidden py-0">
         <ProjectsTable
           projects={sprint.projects}
-          hideSprint
           emptyMessage="연결된 프로젝트가 없습니다."
         />
       </Card>

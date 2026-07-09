@@ -103,7 +103,6 @@ export default async function EpicDetail({
         <Card className="mb-6 overflow-hidden py-0">
           <TasksTable
             tasks={epic.tasks}
-            hideEpic
             emptyMessage="연결된 태스크가 없습니다."
           />
         </Card>

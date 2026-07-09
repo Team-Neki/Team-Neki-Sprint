@@ -99,7 +99,6 @@ export default async function ProjectDetail({
         <Card className="mb-6 overflow-hidden py-0">
           <EpicsTable
             epics={project.epics}
-            hideProject
             emptyMessage="연결된 에픽이 없습니다."
           />
         </Card>
