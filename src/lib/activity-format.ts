@@ -122,6 +122,15 @@ export function activityDescription(
     const to = STATUS_META[m.status as Status]?.label ?? String(m.status);
     return `상태를 ${to} 로 변경`;
   }
+  if (action === "dependency_added" || action === "dependency_removed") {
+    const verb = action === "dependency_added" ? "추가" : "제거";
+    // role=blocking → 내가 막는 항목, blockedBy → 나를 막는(차단) 항목.
+    const rel = m.role === "blocking" ? "차단하는 항목" : "차단 항목";
+    const label = m.key
+      ? `${String(m.key)} ${truncateText(String(m.title ?? ""), 30)}`
+      : "태스크";
+    return `${rel} ${label} ${verb}`;
+  }
   switch (action) {
     case "created":
       return "생성";

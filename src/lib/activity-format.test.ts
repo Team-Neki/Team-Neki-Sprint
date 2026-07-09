@@ -122,6 +122,29 @@ describe("activityDescription", () => {
     expect(activityDescription("mystery", {}, lookups)).toBe("mystery");
   });
 
+  it("dependency_added: role 에 따라 차단/차단하는 항목 문장", () => {
+    expect(
+      activityDescription(
+        "dependency_added",
+        { role: "blockedBy", key: "DESIGN-2", title: "히어로 배너" },
+        lookups,
+      ),
+    ).toBe("차단 항목 DESIGN-2 히어로 배너 추가");
+    expect(
+      activityDescription(
+        "dependency_removed",
+        { role: "blocking", key: "PM-5", title: "랜딩 기획" },
+        lookups,
+      ),
+    ).toBe("차단하는 항목 PM-5 랜딩 기획 제거");
+  });
+
+  it("dependency: key 없으면 '태스크' 폴백", () => {
+    expect(activityDescription("dependency_added", {}, lookups)).toBe(
+      "차단 항목 태스크 추가",
+    );
+  });
+
   it("field_changed 인데 field 없으면 액션 fallback 로 처리", () => {
     // field 가 문자열이 아니면 field_changed 분기를 타지 않고 switch 로 → default(원문).
     expect(activityDescription("field_changed", {}, lookups)).toBe("field_changed");

@@ -8,6 +8,8 @@ import { taskSchema, taskCommentBodySchema } from "@/lib/validators";
 import { logActivity, diffFields } from "@/server/activity";
 import { notifyNewMentions } from "@/server/notify";
 import { isValueEmpty } from "@/lib/rich-content";
+import { wouldCreateCycle } from "@/lib/task-deps";
+import { formatIssueKey } from "@/lib/constants";
 import { nextTeamNumber } from "@/server/keys";
 import { assertCanManage } from "@/lib/authz";
 import { bumpTags, CACHE_TAGS } from "@/lib/cache";
@@ -296,4 +298,137 @@ export async function addComment(taskId: string, body: string) {
     after: parsed,
   });
   revalidatePath(`/tasks/${taskId}`);
+}
+
+// ---------- 의존성(blocks / blockedBy) ----------
+
+/**
+ * 의존성 엣지 추가: blocker 가 blocked 를 막는다(blocked 는 blocker 완료 전 진행 불가).
+ * 자기참조·순환은 거부(lib/task-deps wouldCreateCycle). 중복은 멱등(upsert no-op).
+ * UI 는 방향에 따라 인자 순서를 맞춰 호출한다(차단하는 항목 추가=현재가 blocked,
+ * 차단되는 항목 추가=현재가 blocker).
+ */
+// 의존성 활동 로그용 태스크 표시 정보(key + 제목).
+const depTaskSelect = {
+  id: true,
+  number: true,
+  title: true,
+  team: { select: { key: true } },
+} as const;
+
+type DepTaskInfo = {
+  id: string;
+  number: number;
+  title: string;
+  team: { key: string } | null;
+};
+
+/**
+ * 의존성 add/remove 를 양쪽 태스크 히스토리에 기록. blocked 쪽엔 'blockedBy'(차단 항목),
+ * blocker 쪽엔 'blocking'(차단하는 항목)로 남겨 각 상세에서 상대 방향으로 읽힌다.
+ * meta 에 상대 태스크의 key·title 을 박아 activity-format 이 lookup 없이 렌더한다.
+ */
+async function logDependencyChange(
+  userId: string,
+  action: "dependency_added" | "dependency_removed",
+  blocker: DepTaskInfo,
+  blocked: DepTaskInfo,
+) {
+  await Promise.all([
+    logActivity({
+      userId,
+      entityType: "task",
+      entityId: blocked.id,
+      action,
+      meta: {
+        role: "blockedBy",
+        key: formatIssueKey(blocker.team?.key, blocker.number),
+        title: blocker.title,
+      },
+    }),
+    logActivity({
+      userId,
+      entityType: "task",
+      entityId: blocker.id,
+      action,
+      meta: {
+        role: "blocking",
+        key: formatIssueKey(blocked.team?.key, blocked.number),
+        title: blocked.title,
+      },
+    }),
+  ]);
+}
+
+function revalidateDepPaths(blockerId: string, blockedId: string) {
+  revalidatePath(`/tasks/${blockerId}`);
+  revalidatePath(`/tasks/${blockedId}`);
+  revalidatePath("/tasks");
+  revalidatePath("/board");
+  bumpTags(CACHE_TAGS.tasks);
+}
+
+export async function addTaskDependency(blockerId: string, blockedId: string) {
+  const user = await requireUser();
+  if (!blockerId || !blockedId) throw new Error("태스크를 선택하세요");
+  if (blockerId === blockedId)
+    throw new Error("자기 자신에는 의존성을 걸 수 없습니다");
+
+  const tasks = await prisma.task.findMany({
+    where: { id: { in: [blockerId, blockedId] } },
+    select: depTaskSelect,
+  });
+  const blocker = tasks.find((t) => t.id === blockerId);
+  const blocked = tasks.find((t) => t.id === blockedId);
+  if (!blocker || !blocked) throw new Error("태스크를 찾을 수 없습니다");
+
+  // 순환 방지: 현재 전체 엣지를 로드해 검사(그래프가 작아 저렴).
+  const edges = await prisma.taskDependency.findMany({
+    select: { blockerId: true, blockedId: true },
+  });
+  if (wouldCreateCycle(edges, blockerId, blockedId)) {
+    throw new Error("순환 의존성은 만들 수 없습니다");
+  }
+
+  await prisma.taskDependency.upsert({
+    where: { blockerId_blockedId: { blockerId, blockedId } },
+    create: { blockerId, blockedId },
+    update: {},
+  });
+
+  await logDependencyChange(user.id, "dependency_added", blocker, blocked);
+  revalidateDepPaths(blockerId, blockedId);
+  return { blockerId, blockedId };
+}
+
+/** 의존성 엣지 제거. 대상이 없어도 예외 없이 통과(멱등). */
+export async function removeTaskDependency(
+  blockerId: string,
+  blockedId: string,
+) {
+  const user = await requireUser();
+  const { count } = await prisma.taskDependency.deleteMany({
+    where: { blockerId, blockedId },
+  });
+
+  // 실제로 지워졌을 때만 활동 기록(태스크가 이미 삭제됐으면 조용히 건너뜀).
+  if (count > 0) {
+    const tasks = await prisma.task.findMany({
+      where: { id: { in: [blockerId, blockedId] } },
+      select: depTaskSelect,
+    });
+    const blocker = tasks.find((t) => t.id === blockerId);
+    const blocked = tasks.find((t) => t.id === blockedId);
+    if (blocker && blocked) {
+      await logDependencyChange(
+        user.id,
+        "dependency_removed",
+        blocker,
+        blocked,
+      );
+    }
+  }
+
+  revalidateDepPaths(blockerId, blockedId);
+  return { blockerId, blockedId };
 }

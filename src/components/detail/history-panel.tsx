@@ -114,6 +114,26 @@ function Sentence({
     );
   }
 
+  if (
+    activity.action === "dependency_added" ||
+    activity.action === "dependency_removed"
+  ) {
+    const verb =
+      activity.action === "dependency_added" ? "추가했습니다" : "제거했습니다";
+    // role=blocking → 내가 막는 항목, blockedBy → 나를 막는(차단) 항목.
+    const rel = meta.role === "blocking" ? "차단하는 항목" : "차단 항목";
+    const label =
+      typeof meta.key === "string"
+        ? `${meta.key} ${String(meta.title ?? "")}`.trim()
+        : "태스크";
+    return (
+      <>
+        {actorEl}님이 {rel}{" "}
+        <span className="text-foreground font-medium">{label}</span> {verb}
+      </>
+    );
+  }
+
   switch (activity.action) {
     case "created":
       return <>{actorEl}님이 만들었습니다</>;

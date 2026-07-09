@@ -64,3 +64,28 @@ export function isValueEmpty(value: string | null | undefined): boolean {
 export function mentionsInValue(value: string | null | undefined): Set<string> {
   return extractMentionUserIds(parseDoc(value));
 }
+
+/**
+ * 검색어(query) 주변을 잘라낸 발췌(전역 검색 본문 매칭 표시용). 대소문자 무시로
+ * 첫 매칭을 찾아 앞뒤 radius 글자만큼 창을 잡고, 잘린 쪽에 말줄임(…)을 붙인다.
+ * 매칭이 없으면 앞부분(radius*2)을 반환. 공백은 단일화한다.
+ */
+export function searchExcerpt(
+  text: string | null | undefined,
+  query: string,
+  radius = 40,
+): string {
+  const clean = (text ?? "").replace(/\s+/g, " ").trim();
+  if (!clean) return "";
+  const q = query.trim();
+  const idx = q ? clean.toLowerCase().indexOf(q.toLowerCase()) : -1;
+  if (idx < 0) {
+    const head = clean.slice(0, radius * 2);
+    return head.length < clean.length ? `${head}…` : head;
+  }
+  const start = Math.max(0, idx - radius);
+  const end = Math.min(clean.length, idx + q.length + radius);
+  const prefix = start > 0 ? "…" : "";
+  const suffix = end < clean.length ? "…" : "";
+  return `${prefix}${clean.slice(start, end)}${suffix}`;
+}

@@ -229,8 +229,28 @@ model Task {
   comments  Comment[]
   labels    LabelsOnTasks[]
   wikiLinks WikiPageTaskLink[]
+  // 의존성(blocks/blockedBy). blocking=내가 blocker 인 엣지(내가 막는 태스크들),
+  // blockedBy=내가 blocked 인 엣지(나를 막는 태스크들). 관계 해석은 TaskDependency 참조.
+  blocking  TaskDependency[] @relation("BlockerTask")
+  blockedBy TaskDependency[] @relation("BlockedTask")
 
   @@unique([teamId, number])
+}
+
+/**
+ * 태스크 의존성 엣지. blocker 가 완료돼야 blocked 를 진행할 수 있다
+ * (blocked 는 blocker 에 의존/차단됨). 방향 있는 그래프이며, 추가 시 순환을 막는다
+ * (server/actions/tasks.ts + lib/task-deps.ts wouldCreateCycle). 태스크 삭제 시 cascade.
+ */
+model TaskDependency {
+  blockerId String
+  blocker   Task     @relation("BlockerTask", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockedId String
+  blocked   Task     @relation("BlockedTask", fields: [blockedId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([blockerId, blockedId])
+  @@index([blockedId])
 }
 
 model Comment {
@@ -301,6 +321,9 @@ model WikiPage {
   id        String     @id @default(cuid())
   title     String
   content   Json       @default("{}") // Tiptap JSON document
+  // 본문(content)의 순수 텍스트 사본. 전역 검색(globalSearch)의 본문 매칭용.
+  // 저장 시 docToPlainText(content) 로 채운다(제목은 별도 검색). null=미백필.
+  searchText String?
   parentId  String?
   parent    WikiPage?  @relation("PageTree", fields: [parentId], references: [id], onDelete: Cascade)
   children  WikiPage[] @relation("PageTree")

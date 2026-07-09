@@ -13,6 +13,8 @@ import {
 } from "@/server/queries";
 import { logActivity } from "@/server/activity";
 import { extractMentionUserIds } from "@/lib/mentions";
+import { docToPlainText } from "@/lib/rich-content";
+import type { JSONContent } from "@tiptap/core";
 import { assertCanManage } from "@/lib/authz";
 import { bumpTags, CACHE_TAGS } from "@/lib/cache";
 
@@ -36,6 +38,7 @@ export async function createWikiPage(input: unknown) {
       parentId: data.parentId,
       folderId: data.folderId,
       content: EMPTY_DOC,
+      searchText: "",
       position: siblingCount,
       authorId: user.id,
       editorId: user.id,
@@ -92,6 +95,8 @@ export async function updateWikiContent(
     data: {
       title: nextTitle,
       content: content as Prisma.InputJsonValue,
+      // 전역 검색 본문 매칭용 순수 텍스트 사본(gotchas §16 참조).
+      searchText: docToPlainText(content as JSONContent),
       editorId: user.id,
     },
   });
@@ -407,6 +412,8 @@ export async function restoreWikiRevision(revisionId: string) {
     data: {
       title: rev.title,
       content: rev.content as Prisma.InputJsonValue,
+      // 되돌린 본문으로 검색 텍스트도 함께 갱신.
+      searchText: docToPlainText(rev.content as JSONContent),
       editorId: user.id,
     },
   });

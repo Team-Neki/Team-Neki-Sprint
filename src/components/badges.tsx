@@ -1,7 +1,26 @@
-import { X } from "lucide-react";
+import { X, Ban } from "lucide-react";
 import type { Status, Priority, SprintStatus } from "@prisma/client";
 import { cn } from "@/lib/utils";
 import { STATUS_META, PRIORITY_META, SPRINT_STATUS_META } from "@/lib/constants";
+
+/**
+ * '차단됨' 배지. 미완료(DONE 아님) blocker 가 하나라도 있는 태스크에 표시.
+ * 상태/우선순위 태그처럼 in-product 데이터 신호라 destructive 틴트 허용(DESIGN 예외).
+ */
+export function BlockedBadge({ className }: { className?: string }) {
+  return (
+    <span
+      className={cn(
+        "bg-destructive/10 text-destructive inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium",
+        className,
+      )}
+      title="미완료 선행 태스크(blocker)가 있습니다"
+    >
+      <Ban className="size-3" />
+      차단됨
+    </span>
+  );
+}
 
 export function StatusBadge({
   status,

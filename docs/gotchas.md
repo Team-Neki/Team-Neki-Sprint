@@ -122,3 +122,29 @@
 - **위키 좌측 사이드바(`hidden md:block`)**: 모바일에서 페이지 트리가 통째로 사라져 문서 탐색 불가였음 → 모바일 전용 Sheet 드로어(`wiki-nav-sheet.tsx`)로 접근 제공(앱 셸 모바일 메뉴 패턴 재사용).
 - **react-hooks 규칙이 아주 엄격**: 이 레포 eslint 는 `react-hooks/set-state-in-effect`(effect 에서 setState 금지) **뿐 아니라** `react-hooks/refs`(**render 중 `ref.current` 접근 금지**)도 켜져 있다. "경로 변경 시 시트 닫기" 같은 prop→state 동기화는 effect 도, ref 로 이전값 비교도 막힌다 → **이전 값을 `useState` 로 들고 render 중 조건부 `setState`**(React 공식 "adjusting state when a prop changes")로 해결. 뷰포트 등 외부 소스 구독은 `useSyncExternalStore` 가 lint-safe + 하이드레이션 안전.
 - **고정폭 그리드 점검**: `grid-cols-[15rem_1fr]`·`grid grid-cols-2`(반응형 없음)는 좁은 폭(다이얼로그·모바일)에서 협소/붕괴 → `grid-cols-1 ... sm:grid-cols-*` 로 스택. 테이블은 ui/table 이 이미 `overflow-x-auto` 래핑, 보드는 `overflow-x-auto`, 다이얼로그는 `max-w-[calc(100%-2rem)] sm:max-w-*` 라 대체로 안전.
+
+## 16. 위키 본문검색 — `WikiPage.searchText` denormalized 사본 (C7 확장)
+
+- **배경(2026-07-09)**: 전역 검색(⌘K `globalSearch`)의 위키가 제목만 매칭했다(C7 알려진 한계). 본문은 Tiptap 리치 JSON(`content Json`)이라 SQL `contains` 로 바로 못 뒤진다 → **순수 텍스트 사본 `searchText String?`** 를 추가해 저장 시 `docToPlainText(content)` 로 채우고, `globalSearch` 가 `OR: [{ title }, { searchText }]` 로 조회한다. 제목 미매칭·본문 매칭이면 결과 `subtitle` 에 `searchExcerpt` 발췌를 표시.
+- **쓰기 경로 3곳 동기화 필수**: 본문을 바꾸는 액션마다 `searchText` 도 갱신해야 스테일이 안 남는다 — `createWikiPage`(빈 `""`), `updateWikiContent`, `restoreWikiRevision`. **`renameWikiPage` 는 제목만 바꾸므로 본문 사본 갱신 불필요**(제목은 별도 매칭). 새 본문 변경 경로를 추가하면 여기도 채운다.
+- **백필**: 기존 페이지는 `searchText=null` 이므로 `npx tsx prisma/backfill-wiki-search.ts`(미백필만 대상, idempotent) 1회 실행. **주의: 이 스크립트는 tsx 가 `@/` alias 를 못 풀어 `docToPlainText` 로직을 인라인 복제**한다 → `rich-content.ts` 의 `docToPlainText` 를 바꾸면 백필 스크립트도 함께 맞춘다.
+- **인덱스 없음(의도)**: `contains`(ILIKE `%q%`)는 btree 로 못 타지만, 위키 규모가 작아(20인 팀) 순차 스캔으로 충분 → GIN pg_trgm 확장 미도입. 트래픽·문서 수 커지면 그때 FTS(tsvector) 로 승급.
+
+## 17. 라우트 에러/로딩 바운더리 · 태스크 의존성 순환 방지
+
+- **에러/로딩 바운더리 배치**: `(app)/error.tsx`(client, `error`+`reset` props)·`(app)/loading.tsx`(Skeleton)는 **(app) 그룹 하위 전 세그먼트가 상속**한다 — 개별 페이지마다 만들 필요 없음. 앱 셸 레이아웃은 유지되고 본문만 폴백/스켈레톤으로 교체. 특정 화면에 더 맞는 스켈레톤이 필요할 때만 그 세그먼트에 `loading.tsx` 추가.
+  - **`global-error.tsx` 는 루트 레이아웃 자체가 throw 할 때만** 발동 → 레이아웃이 없으므로 **자체 `<html>/<body>` 를 렌더**해야 하고, 전역 CSS 로딩을 보장 못 해 **인라인 스타일**로만 최소 폴백을 짠다(라이트 테마 하드코딩). 일반 페이지 오류는 `(app)/error.tsx` 가 잡으므로 global-error 는 극단 상황 안전망.
+  - **검증 주의**: 에러 바운더리는 **런타임 throw 시에만** 보이므로 build/tsc/lint 로는 발동 확인 불가 — 실제 오류를 유발(또는 임시 `throw`)해 폴백/`reset()` 재시도를 브라우저에서 확인. `global-error` 는 **프로덕션 빌드에서만** 활성(dev 는 에러 오버레이가 뜸).
+- **태스크 의존성 방향·순환**: `TaskDependency` 는 `blocker→blocked` **방향 엣지**(blocked 가 blocker 에 의존). Task 릴레이션 이름이 헷갈리기 쉽다 — `Task.blocking`=내가 blocker 인 엣지(**내가 막는** 태스크들, `dep.blocked` 로 상대 조회), `Task.blockedBy`=내가 blocked 인 엣지(**나를 막는** 태스크들, `dep.blocker` 로 상대 조회).
+  - **순환은 DB 제약으로 못 막는다** → 엣지 추가 전 **전체 엣지를 로드해 `lib/task-deps.wouldCreateCycle`**(dependsOn 방향 도달성 검사)로 판정하고 거부(자기참조 포함). 그래프가 작아 전량 로드가 저렴. 이 순수 헬퍼는 유닛 테스트로 커버(`task-deps.test.ts`).
+  - **UI 인자 순서**: `task-dependencies.tsx` 의 '차단됨'(blockers) 추가는 현재 태스크가 blocked → `addTaskDependency(pickedId, taskId)`, '차단함'(blocking) 추가는 현재가 blocker → `addTaskDependency(taskId, pickedId)`. 순서를 바꾸면 방향이 뒤집힌다.
+
+## 18. 위키 리치 렌더링(표·코드 강조·mermaid)
+
+- **확장은 한 곳(`wikiExtensions()`)에서만** 추가한다 → 에디터(`editor.tsx`)와 읽기전용 뷰(`wiki-view.tsx`·`wiki-comments-view.tsx`) 가 같은 배열을 쓰므로 편집·뷰가 자동으로 동일 스키마. 표(`TableKit`)·구문강조 코드블록(`CodeBlockLowlight`+lowlight)·mermaid(`MermaidBlock`)를 여기 한 줄씩만 등록.
+- **StarterKit 기본 CodeBlock 을 끄고**(`codeBlock: false`) `CodeBlockLowlight` 로 대체한다(중복 확장 경고 방지, Link 를 끄는 것과 동일 패턴, [gotchas §7]). 강조 색은 `globals.css` 의 `.tiptap pre code .hljs-*` 라이트 팔레트.
+- **mermaid 는 지연 로드(atom NodeView)**: `mermaid-block.tsx` 가 소스를 `attrs.code` 문자열로 저장하고, NodeView 의 effect 에서 `await import("mermaid")` 로 **동적 import**(번들 크지만 mermaid 블록 있는 페이지에서만 로드) 후 `mermaid.render(uniqueId, code)` SVG 를 주입한다. **렌더마다 고유 id 필수**(mermaid 가 그 id 로 임시 노드를 body 에 붙였다 지움 — 재사용 시 충돌). `securityLevel: "strict"`(다이어그램 내 스크립트/HTML 차단).
+  - **setState 는 effect 본문 금지**([gotchas §15] `react-hooks/set-state-in-effect`): 빈 코드 처리·에러 표시 setState 를 모두 **async 콜백 안**에서 호출. 취소 플래그(`cancelled`)로 언마운트 후 setState 방지.
+  - editor.isEditable 로 편집(코드 textarea 토글 + 실시간 미리보기) vs 뷰(다이어그램만) 분기. 읽기전용 뷰는 editable=false 라 자동으로 다이어그램만.
+- **검색(searchText, §16) 커버리지**: `docToPlainText` 는 node.content 를 재귀하므로 **표 셀·코드블록 텍스트는 검색됨**. **mermaid 소스는 atom(attrs.code)라 검색 안 됨**(다이어그램은 프로즈 아님 — 의도).
+- **검증 주의**: build/tsc/lint 로는 컴파일·번들만 확인됨. mermaid 실렌더·표 리사이즈·강조는 **브라우저에서** 확인해야 한다(로그인 게이트 — SSO 세션 필요). mermaid 문법 오류는 NodeView 가 `.wiki-mermaid-error` 로 표시.

@@ -2,6 +2,66 @@
 
 세션 단위로 무엇을·왜 바꿨는지 기록한다. 최신 항목이 위.
 
+## 최근 세션 요약
+
+한눈에 보는 최근 작업·상태. 상세는 아래 각 세션 참조. 백로그 항목별 상태는 [roadmap-v2 상태 현황](./roadmap-v2.md#상태-현황요약).
+
+| 날짜 | 세션 | 상태 |
+|---|---|---|
+| 2026-07-09 | 위키 리치 렌더링(표·코드 구문강조·mermaid, D13) | `DONE`\* |
+| 2026-07-09 | 에러/로딩 바운더리(D12) + 태스크 의존성(D11) | `DONE` |
+| 2026-07-09 | 위키 본문 전문검색(D10) + 백로그 문서 현행화 | `DONE` |
+| 2026-07-09 | 반응형 개선(특히 위키) | `DONE` |
+| 2026-07-09 | 백로그 D3(캐시)·D9(a11y) 마무리 | `DONE` |
+| 2026-07-09 | 목록 개편(인라인 편집+슬라이드 상세)·프로필 메뉴 | `DONE` |
+| 2026-07-09 | 전체 감사 개선 P1~P4(그룹 D) | `DONE` |
+| ~2026-07-08 | Phase 1~4 + 로드맵 v2 8건 (이하 15개 세션) | `DONE` |
+
+\* 코드·빌드·테스트 검증 완료. 실렌더(mermaid/표/강조)는 로그인 게이트라 브라우저 확인 필요.
+
+---
+
+## 2026-07-09 — 위키 리치 렌더링(표·코드 구문강조·mermaid)
+
+위키 상세에서 표·코드블록(구문강조)·mermaid 다이어그램 렌더링 추가. 확장을 `wikiExtensions()` 한 곳에 등록해 에디터·읽기전용 뷰(WikiView·WikiCommentsView)가 자동 공유.
+
+- **의존성 추가(main 직접 설치)**: `@tiptap/extension-table`(TableKit)·`@tiptap/extension-code-block-lowlight`·`lowlight`·`mermaid`.
+- **표**: `TableKit.configure({ table: { resizable: true } })`. 툴바에 표 버튼(Popover 메뉴 — 삽입 3×3, 행/열 추가·삭제, 헤더 토글, 표 삭제). CSS 는 hairline 보더 + header row 인셋 배경(surface ladder 정합) + `.tableWrapper` 가로스크롤.
+- **코드 구문강조**: StarterKit 기본 CodeBlock 을 끄고(`codeBlock: false`) `CodeBlockLowlight`(lowlight `common` 언어셋)로 대체 — Link 를 끄는 것과 같은 중복확장 회피 패턴([gotchas §7]). `globals.css` 에 `.hljs-*` 라이트 팔레트 추가.
+- **mermaid**: 커스텀 atom 노드 `MermaidBlock`(`mermaid-block.tsx`) + ReactNodeView. 소스를 `attrs.code` 에 저장, NodeView effect 에서 `mermaid` **동적 import**(무거운 번들 → mermaid 블록 있는 페이지에서만 로드, 별도 청크)해 `mermaid.render(고유id, code)` SVG 주입. `securityLevel:"strict"`. editor.isEditable 로 편집(코드 textarea+실시간 미리보기) vs 뷰(다이어그램만) 분기. 툴바에 '다이어그램' 버튼(기본 flowchart 삽입). 문법 오류는 `.wiki-mermaid-error` 로 표시.
+  - **함정**: 렌더마다 고유 id 필요(mermaid 임시노드 충돌 방지), setState 는 effect 본문 금지라 async 콜백 안에서만([gotchas §15]). 상세 [gotchas §18].
+- **검색 커버리지**: `docToPlainText` 재귀라 **표 셀·코드블록 텍스트는 검색됨**(§16). mermaid 소스는 atom 이라 미검색(의도).
+- **검증**: `tsc`·`eslint` clean, `vitest` **107/107**, `next build` 성공(mermaid 지연청크 분리 확인). **실렌더(표 리사이즈·강조·mermaid 다이어그램)는 로그인 게이트라 브라우저 확인 필요** — 코드/번들만 검증됨.
+
+---
+
+## 2026-07-09 — 에러/로딩 바운더리 + 태스크 의존성(blocks/blockedBy)
+
+전역 개선 아이디어 중 사용자가 고른 2건. 견고성(에러/로딩) + 제품 기능(의존성).
+
+- **라우트 에러/로딩 바운더리(견고성 갭)**: 앱 전체에 `error.tsx`·`loading.tsx` 가 0개였음 — 서버 액션/쿼리가 throw 하면 Next 기본 에러 화면, force-dynamic 이라 느린 로드 시 빈 화면. 신규 `(app)/error.tsx`(client, `reset()` 재시도 버튼 + `error.digest` 표기, 앱 셸 유지·본문만 교체) + `(app)/loading.tsx`(Skeleton 스켈레톤, `aria-busy`) + 루트 `global-error.tsx`(루트 레이아웃 자체 오류용 안전망 — 자체 `<html>/<body>`+인라인 스타일, CSS 로딩 보장 못 하므로). 콘솔/외부로그는 프로젝트 관례(console 0건) 지켜 미도입, 리포팅 훅 위치만 주석으로 표시.
+- **태스크 의존성(blocks/blockedBy)**: 스키마·UI 전무였음(PM 툴 핵심 기능). `TaskDependency`(blocker→blocked 방향 엣지, `@@id([blockerId,blockedId])`, 태스크 삭제 시 cascade, `@@index([blockedId])`) additive 추가(마이그레이션 `20260709080738_task_dependency`). 서버 액션 `addTaskDependency`/`removeTaskDependency`(tasks.ts): 존재 확인·자기참조 거부·**순환 방지**(전체 엣지 로드 후 `wouldCreateCycle`)·멱등 upsert/deleteMany. 순환 판정은 순수 헬퍼 `lib/task-deps.ts`(dependsOn 방향 그래프 도달성 DFS)로 분리 → 유닛 8건. `getTask` 에 `blockedBy`(나를 막는 blocker)·`blocking`(내가 막는 blocked) include. UI `detail/task-dependencies.tsx`(client, `LinkSearchPopover`+`searchTasksAction` 재사용, 두 방향 리스트, 미완료 blocker 수 '차단됨' 배지) → 태스크 상세 사이드바 카드. 인터셉트 상세(@detail)도 같은 `[id]/page` 재사용이라 자동 반영.
+- **활동 로그 미기록(의도)**: 의존성 add/remove 는 관계 변경이라 `linkTaskToPage` 등 기존 링크 액션과 동일하게 Activity 미기록(activity-format 무변경).
+- **검증(E2E)**: 실 DB 에서 A→B 생성 → B.blockedBy 에 blocker(#2, IN_PROGRESS) 정확 표시, B→A 역방향은 `wouldCreateCycle`=true 로 차단 확인. 순환 방지 유닛 8건(자기참조·직접/전이 역방향·다이아몬드·팬아웃) green.
+- **후속(같은 세션) 완료**: (1) **보드/목록 '차단됨' 배지** — `getBoardTasks`/`getTasks` 가 `blockedBy` 상태만 로드해 `blocked`(미완료 blocker 존재) 계산 후 반환(`blockedBy` 는 strip), `BlockedBadge`(badges.tsx, Ban 아이콘·destructive 틴트) 를 칸반 카드·태스크 표 제목 옆에 노출. 캐시 무효화는 의존성 액션이 이미 `bumpTags(tasks)` 하므로 자동. (2) **의존성 Activity 기록** — `add/removeTaskDependency` 가 양쪽 태스크에 `dependency_added`/`dependency_removed` 로그(meta: 상대 key·title·role), `activity-format.activityDescription` + `history-panel` 에 렌더 케이스 추가. remove 는 실제 삭제(count>0) 시에만 기록. 유닛 2건 추가 → **107 green**. 배지 계산 실 DB 검증(blocker IN_PROGRESS → blocked=true).
+
+검증: `tsc`·`eslint` clean, `vitest` **105/105**(task-deps 8건 추가). 상세 함정은 [gotchas §17].
+
+---
+
+## 2026-07-09 — 위키 본문 전문검색(D10) + 백로그 문서 현행화
+
+전역 개선 착수 전 코드 감사에서 드러난 것: 코드베이스가 매우 건강함(tsc·eslint clean, 빈 catch·`console`·`any`·실제 코드 TODO 0, 모든 액션 `requireUser`). **선택했던 개선 후보 중 상당수가 이미 닫혀 있었음** — D7(에픽 라벨)·D8(WikiView content 동기화)은 이미 구현·배선 완료였는데 roadmap 상태만 `TODO` 로 stale, D1 의 인프라 불요 부분(순수 헬퍼 유닛)도 이미 완료. 실제로 남은 명확한 갭은 **위키 본문검색**(C7 한계)뿐이라 이것만 구현.
+
+- **위키 본문 전문검색(D10, C7 확장)**: ⌘K 전역 검색이 위키를 제목만 매칭하던 한계 해소. 본문이 Tiptap 리치 JSON(`content Json`)이라 SQL `contains` 불가 → **denormalized 순수 텍스트 사본** `WikiPage.searchText String?`(additive 마이그레이션 `20260709075321_wiki_search_text`) 추가. 본문 변경 액션 3곳(`createWikiPage`=빈 문자열, `updateWikiContent`, `restoreWikiRevision`)에서 `docToPlainText(content)` 로 채움(`renameWikiPage` 는 제목만이라 제외). `globalSearch` 위키 where 를 `OR:[{title},{searchText}]` 로 확장(휴지통 `deletedAt:null` 유지), 제목 미매칭·본문 매칭 시 결과 `subtitle` 에 `searchExcerpt`(신규 순수 헬퍼) 발췌 표시 — 커맨드 팔레트는 `subtitle` 을 이미 공통 렌더.
+- **기존 페이지 백필**: `prisma/backfill-wiki-search.ts`(미백필=`searchText:null` 만 대상, idempotent) 1회 실행 → 7페이지 반영. tsx 가 `@/` alias 미해석이라 `docToPlainText` 로직을 스크립트에 인라인 복제(원본 변경 시 동기화 필요 — 주석 명시).
+- **검증(E2E)**: 실 DB 에서 본문 토큰 "개요"(제목 "브랜드 캠페인 위키" 에 없음)로 OR 검색 → 해당 페이지 1건 반환 확인.
+- **테스트**: `searchExcerpt` 유닛 8건 추가(대소문자·앞뒤 말줄임·공백 단일화·빈입력·미매칭 폴백) → 총 **97 green**.
+- **문서 현행화**: D7·D8 을 `DONE`(이미 구현)으로 정정 + D10 신규 항목 + [gotchas §16](./gotchas.md)(searchText 동기화·백필·인덱스 미도입 배경) 추가. **교훈: 착수 전 코드로 현행 확인**(문서 stale 주의).
+- **인덱스 미도입(의도)**: `contains` 는 btree 미활용이나 위키 규모 작아 순차 스캔 충분 → GIN pg_trgm 미도입. 트래픽 커지면 tsvector FTS 로 승급.
+
+검증: `tsc`·`eslint` clean, `vitest` **97/97**.
+
 ---
 
 ## 2026-07-09 — 반응형 개선(특히 위키)

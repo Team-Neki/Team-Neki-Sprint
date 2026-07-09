@@ -22,6 +22,7 @@ import { BackButton } from "@/components/detail/back-button";
 import { HistoryPanel } from "@/components/detail/history-panel";
 import { EpicField } from "@/components/detail/epic-field";
 import { TaskLabels } from "@/components/detail/task-labels";
+import { TaskDependencies } from "@/components/detail/task-dependencies";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   MetaRow,
@@ -241,6 +242,26 @@ export default async function TaskDetail({
               allLabels={labelOptions}
             />
           </MetaRow>
+        </Card>
+
+        <Card className="p-5">
+          <TaskDependencies
+            taskId={task.id}
+            blockers={task.blockedBy.map((d) => ({
+              id: d.blocker.id,
+              number: d.blocker.number,
+              title: d.blocker.title,
+              status: d.blocker.status,
+              teamKey: d.blocker.team?.key ?? null,
+            }))}
+            blocking={task.blocking.map((d) => ({
+              id: d.blocked.id,
+              number: d.blocked.number,
+              title: d.blocked.title,
+              status: d.blocked.status,
+              teamKey: d.blocked.team?.key ?? null,
+            }))}
+          />
         </Card>
 
         <Card className="p-5">

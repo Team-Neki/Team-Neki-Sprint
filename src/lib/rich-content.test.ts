@@ -6,6 +6,7 @@ import {
   plainTextOf,
   isValueEmpty,
   mentionsInValue,
+  searchExcerpt,
 } from "@/lib/rich-content";
 
 const EMPTY_DOC: JSONContent = { type: "doc", content: [{ type: "paragraph" }] };
@@ -198,5 +199,53 @@ describe("mentionsInValue", () => {
   it("멘션 없는 값 → 빈 집합", () => {
     expect(mentionsInValue("plain text").size).toBe(0);
     expect(mentionsInValue(null).size).toBe(0);
+  });
+});
+
+describe("searchExcerpt (전역 검색 본문 발췌)", () => {
+  it("매칭 주변을 잘라 앞뒤 말줄임을 붙인다", () => {
+    const text =
+      "이 문서는 배포 절차를 설명한다. 스테이징 환경에서 검증 후 운영에 반영한다. 롤백은 ArgoCD 로.";
+    const out = searchExcerpt(text, "검증", 8);
+    expect(out).toContain("검증");
+    expect(out.startsWith("…")).toBe(true);
+    expect(out.endsWith("…")).toBe(true);
+  });
+
+  it("대소문자 무시로 매칭한다", () => {
+    expect(searchExcerpt("Deploy to Production", "deploy", 5)).toContain(
+      "Deploy",
+    );
+  });
+
+  it("매칭이 앞부분이면 접두 말줄임을 붙이지 않는다", () => {
+    const out = searchExcerpt("배포 파이프라인 문서", "배포", 4);
+    expect(out.startsWith("…")).toBe(false);
+  });
+
+  it("매칭이 없으면 앞부분(radius*2)을 반환", () => {
+    const out = searchExcerpt("abcdefghij klmnop", "zzz", 3);
+    expect(out.startsWith("abcdef")).toBe(true);
+    expect(out.endsWith("…")).toBe(true);
+  });
+
+  it("짧아서 안 잘리면 말줄임 없음", () => {
+    expect(searchExcerpt("짧은 본문", "본문", 40)).toBe("짧은 본문");
+  });
+
+  it("공백을 단일화하고 앞뒤를 트림", () => {
+    expect(searchExcerpt("  여러   공백\n\n줄  ", "공백", 40)).toBe(
+      "여러 공백 줄",
+    );
+  });
+
+  it("빈/누락 입력은 빈 문자열", () => {
+    expect(searchExcerpt(null, "x")).toBe("");
+    expect(searchExcerpt("", "x")).toBe("");
+    expect(searchExcerpt("   ", "x")).toBe("");
+  });
+
+  it("빈 query 는 매칭 없음 취급(앞부분 반환)", () => {
+    expect(searchExcerpt("abcdefghij", "", 3)).toBe("abcdef…");
   });
 });

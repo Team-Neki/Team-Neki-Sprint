@@ -8,7 +8,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { StatusBadge, PriorityBadge, LabelBadge } from "@/components/badges";
+import {
+  StatusBadge,
+  PriorityBadge,
+  LabelBadge,
+  BlockedBadge,
+} from "@/components/badges";
 import { UserBadge, type MiniUser } from "@/components/user-badge";
 import type { TaskEpicOption } from "@/components/forms/task-dialog";
 import type { TeamOption } from "@/components/forms/fields";
@@ -38,6 +43,8 @@ export type TaskTableRow = {
   labels?: { label: { id: string; name: string; color: string } }[];
   assigneeId?: string | null;
   storyPoints?: number | null;
+  // 미완료 blocker 가 있으면 true(차단됨 배지). 목록 쿼리(getTasks)만 제공, 하위목록은 미제공.
+  blocked?: boolean;
 };
 
 /** 목록 페이지에서 인라인 편집(담당자 select 등)에 필요한 옵션 목록. */
@@ -101,6 +108,7 @@ export function TasksTable({
                       {t.title}
                     </Link>
                   )}
+                  {t.blocked && <BlockedBadge />}
                   {t.labels?.map((l) => (
                     <LabelBadge
                       key={l.label.id}

@@ -4,7 +4,37 @@
 
 각 항목은 **현상/배경 · 접근안 · 영향 파일 · 데이터 모델 영향 · 열린 질문 · 규모 · 상태**로 스코핑. 구현 착수 전 이 문서에서 접근안과 열린 질문을 먼저 합의한다.
 
-상태 범례: `TODO`(미착수) · `REVIEW`(조사·결정 필요) · `WIP` · `DONE`
+상태 범례: `TODO`(미착수) · `REVIEW`(조사·결정 필요) · `WIP` · `백로그`(의도적 보류) · `DONE`
+
+## 상태 현황(요약)
+
+한눈에 보는 전체 백로그 상태. 상세는 각 항목 섹션 참조. (2026-07-09 기준)
+
+| 항목 | 내용 | 그룹 | 규모 | 상태 |
+|---|---|:---:|:---:|---|
+| A1 | 알림 실시간 폴링 | A | S | `DONE` |
+| A2 | 보드 필터 재정렬 정합성 | A | S~M | `DONE` |
+| A3 | 위키 댓글 앵커 동시편집 가드 | A | M | `DONE` |
+| A4 | `ItemRow` hover 수정 | A | XS | `DONE` |
+| B5 | 자동화 테스트 인프라 | B | M~L | `DONE` |
+| B6 | eslint `.worktrees` ignore | B | XS | `DONE` |
+| C7 | 전역 검색 / ⌘K | C | M | `DONE` |
+| C8 | `Label` 스키마 표면화 | C | M | `DONE` |
+| D1 | 테스트 깊이 | D | M | `WIP` (순수 유닛 완료 · 통합/E2E 인프라 잔여) |
+| D2 | 삭제 인가 게이트 | D | S | `DONE` |
+| D3 | 캐싱 전략(데이터 레이어) | D | L | `DONE` (안전 부분집합) |
+| D4 | 실시간(폴링→SSE) | D | M | `백로그` (현 규모 폴링 충분) |
+| D5 | 에러 핸들링 일관화 | D | S | `DONE` (검토 — 이미 일관, 변경 불필요) |
+| D6 | 문자열 인자 액션 검증 | D | XS | `DONE` |
+| D7 | 에픽 라벨 부여 | D | S | `DONE` |
+| D8 | `WikiView` content 동기화 | D | XS | `DONE` |
+| D9 | 아바타 트리거·정렬·a11y | D | S | `DONE` |
+| D10 | 위키 본문 전문검색 | D | M | `DONE` |
+| D11 | 태스크 의존성(blocks/blockedBy) | D | M | `DONE` |
+| D12 | 라우트 에러/로딩 바운더리 | D | M | `DONE` |
+| D13 | 위키 리치 렌더링(표·코드·mermaid) | D | M | `DONE` |
+
+**열린 항목은 D1(테스트 통합/E2E 인프라)와 D4(SSE, 의도적 보류)뿐.** 나머지 전부 `DONE`.
 
 > **진행 현황(2026-07-08): 8건 전부 `DONE`·`main` 병합.** git worktree 병렬 4파 구현(A4·B6·A2·A3 → A1·C7 → C8 + B5). 각 파 병합 후 통합 `tsc`+`eslint`+`next build` 통과, 신규 테스트 73건 green. 상세는 [work-log](./work-log.md).
 
@@ -108,7 +138,7 @@
 
 ### C7. 전역 검색 / 커맨드 팔레트(⌘K) · 규모 M · `DONE`
 
-> 구현: `queries.globalSearch`(태스크·에픽·프로젝트·위키·사용자 그룹별 top5, insensitive contains, `TEAM-n` key 매칭, 위키 `deletedAt:null` 필수) + `globalSearchAction` + `command-palette.tsx`(Base UI Dialog, ⌘K/Ctrl+K 전역 키다운, 디바운스, ↑/↓·Enter 내비). 토픽바 마운트. 외부 의존 없음. 한계: 위키는 제목만(본문 전문 검색 아님).
+> 구현: `queries.globalSearch`(태스크·에픽·프로젝트·위키·사용자 그룹별 top5, insensitive contains, `TEAM-n` key 매칭, 위키 `deletedAt:null` 필수) + `globalSearchAction` + `command-palette.tsx`(Base UI Dialog, ⌘K/Ctrl+K 전역 키다운, 디바운스, ↑/↓·Enter 내비). 토픽바 마운트. 외부 의존 없음. (구 한계 "위키 제목만"은 D10 에서 본문 전문검색으로 해소.)
 
 - **현상/배경**: `app-shell`·`ui`에 검색 컴포넌트 **0건**(코드 확인). 태스크 목록 필터만 존재하고, **엔티티 횡단 검색·⌘K 커맨드 팔레트가 없음**. Jira+Wiki 통합 워크스페이스에서 큰 갭(태스크/에픽/프로젝트/위키/사용자를 key·제목으로 빠르게 점프).
 - **접근안**:
@@ -145,7 +175,9 @@
 
 목록 개편 후 프로젝트 전반 점검에서 도출. 치명 버그 없음(모든 액션 `requireUser`, 이슈번호 원자 트랜잭션, `any`/`console`/TODO 0). 개선은 깊이·견고성·확장성 위주. **우선순위 P1→P4 순차 진행.**
 
-> **진행 현황(2026-07-09)**: D2·D6·D7·D8·D9(아바타·정렬) `DONE`. D1 순수 헬퍼 유닛 `DONE`(89 pass)·통합/E2E는 인프라 필요로 잔여. D5 검토 결과 **이미 일관**(폼·댓글 등 모두 toast)이라 변경 불필요. **D3 캐싱 `DONE`**(공유 목록/옵션/트리 14개 `unstable_cache` + 태그 무효화, force-dynamic 유지·순수 additive — 안전 부분집합만; 고빈도 엔티티 목록 전면 확대는 방침대로 보류). **D9 a11y 전수 점검 `DONE`**(아이콘 전용 요소 이름 갭 2건 수정). D4(SSE)는 **의도적 백로그 보류**(현 규모 폴링 충분). 상세는 [work-log](./work-log.md).
+> **진행 현황(2026-07-09)**: D2·D6·D7·D8·D9(아바타·정렬) `DONE`. D1 순수 헬퍼 유닛 `DONE`(97 pass — searchExcerpt 8건 포함)·통합/E2E는 인프라 필요로 잔여. D5 검토 결과 **이미 일관**(폼·댓글 등 모두 toast)이라 변경 불필요. **D3 캐싱 `DONE`**(공유 목록/옵션/트리 14개 `unstable_cache` + 태그 무효화, force-dynamic 유지·순수 additive — 안전 부분집합만; 고빈도 엔티티 목록 전면 확대는 방침대로 보류). **D9 a11y 전수 점검 `DONE`**(아이콘 전용 요소 이름 갭 2건 수정). **D10 위키 본문 전문검색 `DONE`**(C7 확장 — searchText denorm 컬럼 + 발췌). **D11 태스크 의존성 `DONE`**(blocks/blockedBy + 순환 방지). **D12 에러/로딩 바운더리 `DONE`**(견고성). D4(SSE)는 **의도적 백로그 보류**(현 규모 폴링 충분). 상세는 [work-log](./work-log.md).
+>
+> **주의(문서 stale 교훈)**: D7·D8 은 실제로는 이미 구현돼 있었는데 상태가 `TODO` 로 남아 있었다. 작업 착수 전 코드로 현행 확인할 것.
 
 ### D1(P1). 테스트 깊이 · 규모 M · `WIP`
 
@@ -154,7 +186,7 @@
 - **열린 질문**: 통합/E2E는 테스트 DB·인증 우회 인프라 선행 필요.
 - **비고**: (a)는 즉시, (b)(c)는 인프라 결정 후.
 
-### D2(P1). 삭제 인가(authorization) 게이트 · 규모 S · `WIP`
+### D2(P1). 삭제 인가(authorization) 게이트 · 규모 S · `DONE`
 
 - **현상/배경**: 인증만 하면 아무 태스크/에픽/프로젝트/위키를 수정·삭제 가능(오너/role 체크 없음; `notifications`만 user 스코프). 내부 협업툴이라 편집 개방은 유지하되, **파괴적 삭제는 무방비**.
 - **결정(채택)**: 삭제 계열만 게이트 — **ADMIN 또는 소유자/작성자**(task=reporter, epic/project=owner, wiki=author)만. 편집은 개방 유지.
@@ -170,23 +202,41 @@
 
 - 알림 벨 45s 폴링(A1에서 도입). 현 규모 적정 → SSE/WebSocket은 규모 커질 때. 백로그 유지.
 
-### D5(P3). 에러 핸들링 일관화 · 규모 S · `TODO`
+### D5(P3). 에러 핸들링 일관화 · 규모 S · `DONE` (검토 — 변경 불필요)
 
 - **현상/배경**: `catch {}`/토스트 후 무시가 ~40곳. 의도적(draft 자동저장)도 있으나 일부는 실패가 조용히 묻힘.
 - **접근안**: 사용자 대면 실패=토스트, 의도적 무시엔 이유 주석, 서버측은 최소 로깅. 우선 사용자 영향 큰 곳부터.
 
-### D6(P3). 문자열 인자 액션 검증 · 규모 XS · `TODO`
+### D6(P3). 문자열 인자 액션 검증 · 규모 XS · `DONE`
 
 - **현상/배경**: 대부분 액션은 zod 검증하나 `addComment(taskId, body)` 등 문자열 인자는 빈값 체크만.
 - **접근안**: 본문 스키마(비어있지 않음·최대 길이·doc JSON 형태) 검증 추가.
 
-### D7(P4). 에픽 라벨 부여 · 규모 S · `TODO`
+### D7(P4). 에픽 라벨 부여 · 규모 S · `DONE`
 
-- 스키마 `LabelsOnEpics` 존재하나 UI 없음. 프로젝트 라벨(D 직전 구현)과 동일 패턴(`EntityLabels` + `addLabelToEpic`/`removeLabelFromEpic`)으로 확장.
+> 확인(2026-07-09): 이미 구현·배선 완료였음(문서가 stale). `addLabelToEpic`/`removeLabelFromEpic`(actions/labels.ts) + `EpicLabels`(detail/epic-labels.tsx → 공용 `EntityLabels`) + `getEpic` 의 `labels: labelInclude` include + 에픽 상세(`epics/[id]/page.tsx`)에 배선됨. 프로젝트 라벨과 동일 패턴.
 
-### D8(P4). `WikiView`(버전 미리보기) content prop 동기화 · 규모 XS · `TODO`
+### D8(P4). `WikiView`(버전 미리보기) content prop 동기화 · 규모 XS · `DONE`
 
-- gotchas §10과 동일 잠재(읽기전용 Tiptap이 content 변경 미반영). 버전 비교 UI에서 드러날 수 있음.
+> 확인(2026-07-09): 이미 구현 완료였음(문서가 stale). `WikiView`(wiki-view.tsx)에 gotchas §10 의 content 동기화 `useEffect`(`setContent(content,{emitUpdate:false})`)가 적용돼 있어 버전 미리보기 전환 시 본문이 갱신됨.
+
+### D10(신규). 위키 본문 전문검색(C7 확장) · 규모 M · `DONE`
+
+> 구현(2026-07-09): C7 전역 검색이 위키를 **제목만** 매칭하던 한계 해소. `WikiPage.searchText`(순수 텍스트 사본) 컬럼 additive 추가 + 저장 경로 3곳(`createWikiPage`/`updateWikiContent`/`restoreWikiRevision`)에서 `docToPlainText(content)` 로 채움 + 기존 7페이지 백필(`prisma/backfill-wiki-search.ts`, idempotent) + `globalSearch` 가 `OR:[title, searchText]` 로 조회, 제목 미매칭·본문 매칭 시 `subtitle` 에 `searchExcerpt` 발췌 표시. 순수 헬퍼 `searchExcerpt` 유닛 8건 추가(총 97 green). 인덱스는 소규모라 미도입(순차 스캔). 배경·동기화 함정은 [gotchas §16]. **후속(TODO)**: 문서·티켓 링크 피커(`searchWikiPages`)는 여전히 제목만(picker 특성상 유지).
+
+### D11(신규). 태스크 의존성(blocks / blockedBy) · 규모 M · `DONE`
+
+> 구현(2026-07-09): PM 툴 핵심 기능 부재(스키마·UI 전무)였음. `TaskDependency`(blocker→blocked 방향 엣지, `@@id`+cascade+`@@index([blockedId])`) additive 추가(마이그레이션 `20260709080738_task_dependency`). 서버 액션 `addTaskDependency`/`removeTaskDependency`(존재 확인·자기참조/**순환 방지**·멱등). 순환 판정은 순수 헬퍼 `lib/task-deps.wouldCreateCycle`(dependsOn 도달성 DFS)로 분리 → 유닛 8건. `getTask` 에 `blockedBy`/`blocking` include. UI `detail/task-dependencies.tsx`(`LinkSearchPopover`+`searchTasksAction` 재사용, 두 방향 리스트, 미완료 blocker '차단됨' 배지) → 상세 사이드바 카드. 방향/순환 함정은 [gotchas §17].
+>
+> **후속 완료(2026-07-09)**: (1) **보드/목록 '차단됨' 배지** — `getBoardTasks`/`getTasks` 가 `blockedBy` 상태만 로드해 `blocked`(미완료 blocker 존재) 계산, `BlockedBadge`(badges.tsx)를 칸반 카드·태스크 표에 노출. (2) **의존성 Activity 기록** — `add/removeTaskDependency` 가 양쪽 태스크에 `dependency_added`/`dependency_removed` 로그(meta 에 상대 key·title), `activity-format`·`history-panel` 에 렌더 케이스 추가(유닛 2건). 잔여 후속 없음.
+
+### D12(신규). 라우트 에러/로딩 바운더리 · 규모 M · `DONE`
+
+> 구현(2026-07-09): 앱 전체에 `error.tsx`·`loading.tsx` 0개였음(견고성 갭 — throw 시 Next 기본 화면, 느린 force-dynamic 로드 시 빈 화면). `(app)/error.tsx`(client, `reset()` 재시도 + `digest` 표기) + `(app)/loading.tsx`(Skeleton, `aria-busy`) + 루트 `global-error.tsx`(자체 `<html>/<body>`+인라인 스타일 안전망). (app) 하위 전 세그먼트가 상속. 콘솔/외부로그는 관례상 미도입(리포팅 훅 위치만 주석). 배치·검증 주의는 [gotchas §17].
+
+### D13(신규). 위키 리치 렌더링(표·코드 구문강조·mermaid) · 규모 M · `DONE`
+
+> 구현(2026-07-09): 위키 상세에서 표·코드블록(구문강조)·mermaid 다이어그램 렌더링. 확장을 `wikiExtensions()` 한 곳에 등록해 에디터·읽기전용 뷰 자동 공유. 표=`TableKit`(툴바 삽입/행·열 편집 Popover), 코드=`CodeBlockLowlight`+lowlight(StarterKit CodeBlock 대체, hljs 라이트 팔레트 CSS), mermaid=커스텀 atom 노드 `MermaidBlock`(ReactNodeView, `mermaid` 동적 import·지연청크, 편집 textarea+실시간 미리보기, `securityLevel:strict`). 신규 deps 4개(main 직접 설치). 표 셀·코드 텍스트는 검색(§16) 커버, mermaid 소스는 atom 이라 미커버(의도). 함정·검증주의 [gotchas §18]. **검증**: tsc·eslint·vitest 107·build green, **실렌더는 로그인 게이트라 브라우저 확인 필요**.
 
 ### D9(P4). 담당자 아바타-only 트리거 · 컬럼 정렬 · a11y 스팟 점검 · 규모 S · `DONE`
 

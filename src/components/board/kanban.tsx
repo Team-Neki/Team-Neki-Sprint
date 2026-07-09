@@ -25,7 +25,7 @@ import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import type { Status, Priority } from "@prisma/client";
 import { STATUS_ORDER, STATUS_META, formatIssueKey } from "@/lib/constants";
-import { PriorityBadge } from "@/components/badges";
+import { PriorityBadge, BlockedBadge } from "@/components/badges";
 import { UserBadge, type MiniUser } from "@/components/user-badge";
 import { Card } from "@/components/ui/card";
 import {
@@ -53,6 +53,8 @@ export type BoardTask = {
   assignee: MiniUser | null;
   team: { key: string } | null;
   epic: { id: string; title: string } | null;
+  // 미완료 blocker 가 있으면 true(차단됨 배지). getBoardTasks 에서 계산.
+  blocked?: boolean;
 };
 
 type Columns = Record<Status, string[]>;
@@ -338,6 +340,7 @@ function TaskCard({
       )}
     >
       <p className="text-sm leading-snug font-medium">{task.title}</p>
+      {task.blocked && <BlockedBadge className="self-start" />}
       <div className="flex items-center justify-between gap-2">
         <span className="text-muted-foreground font-mono text-[11px]">
           {formatIssueKey(task.team?.key, task.number)}

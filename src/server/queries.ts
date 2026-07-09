@@ -2,6 +2,7 @@ import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import type { Prisma, Status } from "@prisma/client";
 import { formatIssueKey } from "@/lib/constants";
+import { searchExcerpt } from "@/lib/rich-content";
 import { CACHE_TAGS, CACHE_REVALIDATE } from "@/lib/cache";
 
 const miniUser = {
@@ -339,8 +340,8 @@ export type BoardFilter = {
 };
 
 export const getBoardTasks = unstable_cache(
-  (filter: BoardFilter = {}) =>
-    prisma.task.findMany({
+  async (filter: BoardFilter = {}) => {
+    const rows = await prisma.task.findMany({
       where: {
         assigneeId: filter.assigneeId,
         teamId: filter.teamId,
@@ -355,8 +356,15 @@ export const getBoardTasks = unstable_cache(
         team: miniTeam,
         epic: { select: { id: true, title: true } },
         labels: labelInclude,
+        // 차단됨 배지용: 미완료 blocker 존재 여부만 계산(상태만 로드).
+        blockedBy: { select: { blocker: { select: { status: true } } } },
       },
-    }),
+    });
+    return rows.map(({ blockedBy, ...t }) => ({
+      ...t,
+      blocked: blockedBy.some((d) => d.blocker.status !== "DONE"),
+    }));
+  },
   ["board-tasks"],
   { tags: [CACHE_TAGS.tasks], revalidate: CACHE_REVALIDATE.list },
 );
@@ -371,8 +379,8 @@ export type TaskFilter = {
 };
 
 export const getTasks = unstable_cache(
-  (filter: TaskFilter = {}) =>
-    prisma.task.findMany({
+  async (filter: TaskFilter = {}) => {
+    const rows = await prisma.task.findMany({
       where: {
         status: filter.status,
         assigneeId: filter.assigneeId,
@@ -392,8 +400,15 @@ export const getTasks = unstable_cache(
         team: miniTeam,
         epic: { select: { id: true, title: true } },
         labels: labelInclude,
+        // 차단됨 배지용: 미완료 blocker 존재 여부만 계산(상태만 로드).
+        blockedBy: { select: { blocker: { select: { status: true } } } },
       },
-    }),
+    });
+    return rows.map(({ blockedBy, ...t }) => ({
+      ...t,
+      blocked: blockedBy.some((d) => d.blocker.status !== "DONE"),
+    }));
+  },
   ["tasks"],
   { tags: [CACHE_TAGS.tasks], revalidate: CACHE_REVALIDATE.list },
 );
@@ -422,6 +437,35 @@ export function getTask(id: string) {
       // 연결된 위키(#3).
       wikiLinks: {
         include: { page: { select: { id: true, title: true } } },
+      },
+      // 의존성: blockedBy=나를 막는 태스크들(blocker), blocking=내가 막는 태스크들(blocked).
+      blockedBy: {
+        orderBy: { createdAt: "asc" },
+        include: {
+          blocker: {
+            select: {
+              id: true,
+              number: true,
+              title: true,
+              status: true,
+              team: { select: { key: true } },
+            },
+          },
+        },
+      },
+      blocking: {
+        orderBy: { createdAt: "asc" },
+        include: {
+          blocked: {
+            select: {
+              id: true,
+              number: true,
+              title: true,
+              status: true,
+              team: { select: { key: true } },
+            },
+          },
+        },
       },
     },
   });
@@ -743,7 +787,8 @@ export type GlobalSearchResult = {
  * 전역 검색(C7). 태스크·에픽·프로젝트·위키·사용자를 가로질러 대소문자 무시
  * contains 로 조회하고, 각 그룹을 상위 CAP 개로 캡한 plain 결과를 반환한다.
  * - 태스크·에픽: 제목 + (숫자/‘TEAM-n’/‘TEAM’ 형태면) key 매칭. searchTasks 규칙 재사용.
- * - 위키: 제목만. 주의: soft-delete(gotchas §8) — deletedAt: null 필수(휴지통 유출 방지).
+ * - 위키: 제목 + 본문(searchText). 본문만 매칭 시 subtitle 에 발췌 표시. 주의:
+ *   soft-delete(gotchas §8) — deletedAt: null 필수(휴지통 유출 방지).
  * - 사용자: 이름/이메일.
  */
 export async function globalSearch(query: string): Promise<GlobalSearchResult> {
@@ -820,10 +865,14 @@ export async function globalSearch(query: string): Promise<GlobalSearchResult> {
       select: { id: true, title: true },
     }),
     prisma.wikiPage.findMany({
-      where: { deletedAt: null, title: insensitive },
+      // 제목 + 본문(searchText) 매칭. 휴지통 제외(gotchas §8).
+      where: {
+        deletedAt: null,
+        OR: [{ title: insensitive }, { searchText: insensitive }],
+      },
       orderBy: { updatedAt: "desc" },
       take: CAP,
-      select: { id: true, title: true },
+      select: { id: true, title: true, searchText: true },
     }),
     prisma.user.findMany({
       where: { OR: [{ name: insensitive }, { email: insensitive }] },
@@ -851,11 +900,17 @@ export async function globalSearch(query: string): Promise<GlobalSearchResult> {
       title: p.title,
       href: `/projects/${p.id}`,
     })),
-    wiki: wiki.map((w) => ({
-      id: w.id,
-      title: w.title,
-      href: `/wiki/${w.id}`,
-    })),
+    wiki: wiki.map((w) => {
+      // 제목에 이미 매칭되면 발췌 불필요. 본문에서만 매칭됐을 때 왜 떴는지 보이게 발췌.
+      const titleHit = w.title.toLowerCase().includes(q.toLowerCase());
+      const bodyHit = (w.searchText ?? "").toLowerCase().includes(q.toLowerCase());
+      return {
+        id: w.id,
+        title: w.title,
+        subtitle: !titleHit && bodyHit ? searchExcerpt(w.searchText, q) : undefined,
+        href: `/wiki/${w.id}`,
+      };
+    }),
     users: users.map((u) => ({
       id: u.id,
       title: u.name ?? u.email ?? "이름 없음",

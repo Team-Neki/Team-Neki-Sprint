@@ -16,6 +16,8 @@ import {
   ListChecks,
   Quote,
   Code,
+  Table as TableIcon,
+  Workflow,
   Link as LinkIcon,
   Undo,
   Redo,
@@ -265,6 +267,10 @@ function Toolbar({ editor }: { editor: Editor }) {
       <Btn label="코드 블록" active={editor.isActive("codeBlock")} onClick={() => editor.chain().focus().toggleCodeBlock().run()}>
         <Code className="size-4" />
       </Btn>
+      <TableButton editor={editor} />
+      <Btn label="다이어그램(mermaid)" onClick={() => editor.chain().focus().insertContent({ type: "mermaidBlock" }).run()}>
+        <Workflow className="size-4" />
+      </Btn>
       <LinkButton editor={editor} />
       <Sep />
       <Btn label="실행 취소" onClick={() => editor.chain().focus().undo().run()}>
@@ -274,6 +280,105 @@ function Toolbar({ editor }: { editor: Editor }) {
         <Redo className="size-4" />
       </Btn>
     </div>
+  );
+}
+
+function TableMenuItem({
+  onClick,
+  children,
+}: {
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="hover:bg-accent w-full rounded px-2 py-1.5 text-left text-sm"
+    >
+      {children}
+    </button>
+  );
+}
+
+/** 표 삽입 + (표 안일 때) 행·열 편집 메뉴. Base UI Popover 안 버튼 리스트. */
+function TableButton({ editor }: { editor: Editor }) {
+  const [open, setOpen] = useState(false);
+  const inTable = editor.isActive("table");
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        render={
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="표"
+            title="표"
+            className={cn(
+              "size-8",
+              inTable && "bg-accent text-accent-foreground",
+            )}
+          >
+            <TableIcon className="size-4" />
+          </Button>
+        }
+      />
+      <PopoverContent align="start" className="w-44 p-1">
+        <TableMenuItem
+          onClick={() => {
+            editor
+              .chain()
+              .focus()
+              .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
+              .run();
+            setOpen(false);
+          }}
+        >
+          표 삽입 (3×3)
+        </TableMenuItem>
+        {inTable && (
+          <>
+            <Separator className="my-1" />
+            <TableMenuItem
+              onClick={() => editor.chain().focus().addRowAfter().run()}
+            >
+              아래 행 추가
+            </TableMenuItem>
+            <TableMenuItem
+              onClick={() => editor.chain().focus().addColumnAfter().run()}
+            >
+              오른쪽 열 추가
+            </TableMenuItem>
+            <TableMenuItem
+              onClick={() => editor.chain().focus().deleteRow().run()}
+            >
+              행 삭제
+            </TableMenuItem>
+            <TableMenuItem
+              onClick={() => editor.chain().focus().deleteColumn().run()}
+            >
+              열 삭제
+            </TableMenuItem>
+            <TableMenuItem
+              onClick={() => editor.chain().focus().toggleHeaderRow().run()}
+            >
+              헤더 행 토글
+            </TableMenuItem>
+            <Separator className="my-1" />
+            <TableMenuItem
+              onClick={() => {
+                editor.chain().focus().deleteTable().run();
+                setOpen(false);
+              }}
+            >
+              표 삭제
+            </TableMenuItem>
+          </>
+        )}
+      </PopoverContent>
+    </Popover>
   );
 }
 
