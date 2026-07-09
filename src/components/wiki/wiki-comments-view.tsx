@@ -77,6 +77,17 @@ export function WikiCommentsView({
     editorProps: { attributes: { class: "tiptap focus:outline-none" } },
   });
 
+  // Tiptap useEditor 는 최초 content 만 반영하고 이후 content prop 변경엔 반응하지 않는다.
+  // 편집 저장(commit) 후 router.refresh() 로 새 본문이 내려와도, 뷰 셸이 이미 마운트돼 있어
+  // 에디터가 옛 본문을 그대로 붙들고 있었다(→ 수동 새로고침해야 반영되던 버그). content 가
+  // 실제로 바뀌면 에디터에 직접 반영해 즉시 갱신되게 한다. deps 가 content 참조 변경일 때만
+  // 도므로, 댓글 마크 편집 같은 로컬 편집 중에는 실행되지 않는다.
+  useEffect(() => {
+    if (!editor) return;
+    if (JSON.stringify(content) === JSON.stringify(editor.getJSON())) return;
+    editor.commands.setContent(content, { emitUpdate: false });
+  }, [editor, content]);
+
   // 선택 → 플로팅 버튼 위치 계산. 선택이 에디터 본문 안에 완전히 있을 때만.
   const onMouseUp = useCallback(() => {
     if (!editor || composing) return;

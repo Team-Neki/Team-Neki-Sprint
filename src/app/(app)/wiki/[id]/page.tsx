@@ -98,7 +98,10 @@ export default async function WikiPageView({
   })} 수정`;
 
   return (
-    <div>
+    // pb-16: 긴 페이지에서 스크롤 끝에 하단 여백 확보. main(overflow-y-auto)의 pb 는
+    // 스크롤 컨테이너 자기 하단 패딩이라 overflow 끝에서 무시될 수 있어(WebKit), 여백을
+    // 스크롤 높이에 포함되는 자식 블록에 준다. (연결된 티켓이 바닥에 딱 붙던 문제)
+    <div className="pb-16">
       <WikiDetail
         pageId={page.id}
         title={page.title}
