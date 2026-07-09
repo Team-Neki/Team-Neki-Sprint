@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
+import { useInSheet } from "@/components/detail/in-sheet-context";
 
 /**
  * 뒤로가기 버튼(B3 back). 브라우저 히스토리가 있으면 `router.back()`으로 직전 화면
@@ -16,6 +17,9 @@ export function BackButton({
   label: string;
 }) {
   const router = useRouter();
+  // 우측 슬라이드 상세 안에선 뒤로가기(닫기 X 와 중복·라벨 오해)를 숨긴다.
+  const inSheet = useInSheet();
+  if (inSheet) return null;
   return (
     <button
       type="button"

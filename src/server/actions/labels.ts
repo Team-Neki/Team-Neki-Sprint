@@ -98,3 +98,24 @@ export async function removeLabelFromTask(taskId: string, labelId: string) {
   revalidatePath("/board");
   return { taskId, labelId };
 }
+
+export async function addLabelToProject(projectId: string, labelId: string) {
+  await requireUser();
+  // 이미 붙어 있어도 idempotent(중복 시 no-op).
+  await prisma.labelsOnProjects.upsert({
+    where: { projectId_labelId: { projectId, labelId } },
+    create: { projectId, labelId },
+    update: {},
+  });
+  revalidatePath("/projects");
+  revalidatePath(`/projects/${projectId}`);
+  return { projectId, labelId };
+}
+
+export async function removeLabelFromProject(projectId: string, labelId: string) {
+  await requireUser();
+  await prisma.labelsOnProjects.deleteMany({ where: { projectId, labelId } });
+  revalidatePath("/projects");
+  revalidatePath(`/projects/${projectId}`);
+  return { projectId, labelId };
+}

@@ -62,29 +62,6 @@ async function mdByEpic(epicIds: string[]): Promise<Map<string, MdRollup>> {
   return map;
 }
 
-/** 프로젝트 id별 하위(에픽→태스크) MD 합. Task 에 projectId 가 없어 에픽 경유로 집계. */
-async function mdByProject(projectIds: string[]): Promise<Map<string, MdRollup>> {
-  const map = new Map<string, MdRollup>();
-  if (projectIds.length === 0) return map;
-  const epics = await prisma.epic.findMany({
-    where: { projectId: { in: projectIds } },
-    select: {
-      projectId: true,
-      tasks: { select: { estimatedMd: true, actualMd: true } },
-    },
-  });
-  for (const e of epics) {
-    if (!e.projectId) continue;
-    const cur = map.get(e.projectId) ?? { estimated: 0, actual: 0 };
-    const s = sumMd(e.tasks);
-    map.set(e.projectId, {
-      estimated: cur.estimated + s.estimated,
-      actual: cur.actual + s.actual,
-    });
-  }
-  return map;
-}
-
 export function getMembers() {
   return prisma.user.findMany({
     select: {
@@ -140,13 +117,7 @@ export async function getSprint(id: string) {
     },
   });
   if (!sprint) return null;
-  // 하위 프로젝트별 MD 롤업(에픽→태스크 합) 부착 — ProjectsTable 의 MD 컬럼용.
-  const md = await mdByProject(sprint.projects.map((p) => p.id));
-  const projects = sprint.projects.map((p) => ({
-    ...p,
-    md: md.get(p.id) ?? ZERO_MD,
-  }));
-  return { ...sprint, projects };
+  return sprint;
 }
 
 export function getSprintOptions() {
@@ -177,9 +148,7 @@ export async function getProjects(filter: ProjectFilter = {}) {
       _count: { select: { epics: true } },
     },
   });
-  // MD 롤업(하위 에픽→태스크 합) 부착.
-  const md = await mdByProject(projects.map((p) => p.id));
-  return projects.map((p) => ({ ...p, md: md.get(p.id) ?? ZERO_MD }));
+  return projects;
 }
 
 export async function getProject(id: string) {
@@ -244,22 +213,19 @@ export async function getEpics(filter: EpicFilter = {}) {
     },
   });
   const ids = epics.map((e) => e.id);
-  // MD 롤업 + 스토리포인트 롤업(하위 태스크 storyPoints 합). Epic엔 자체 SP 필드가
-  // 없어 목록의 StoryPoint 컬럼은 하위 합(읽기전용)으로 표시한다.
-  const [md, spGroups] = await Promise.all([
-    mdByEpic(ids),
-    prisma.task.groupBy({
-      by: ["epicId"],
-      where: { epicId: { in: ids } },
-      _sum: { storyPoints: true },
-    }),
-  ]);
+  // 스토리포인트 롤업(하위 태스크 storyPoints 합). Epic 엔 자체 SP 필드가 없어
+  // 목록의 StoryPoint 컬럼은 하위 합(읽기전용)으로 표시한다. (MD 롤업은 목록에서
+  // 안 쓰므로 계산하지 않음 — 상세 페이지만 rollup 표시.)
+  const spGroups = await prisma.task.groupBy({
+    by: ["epicId"],
+    where: { epicId: { in: ids } },
+    _sum: { storyPoints: true },
+  });
   const spByEpic = new Map(
     spGroups.map((g) => [g.epicId, g._sum.storyPoints ?? 0]),
   );
   return epics.map((e) => ({
     ...e,
-    md: md.get(e.id) ?? ZERO_MD,
     storyPoints: spByEpic.get(e.id) ?? 0,
   }));
 }

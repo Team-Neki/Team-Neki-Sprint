@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { ArrowUpRight } from "lucide-react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { InSheetProvider } from "@/components/detail/in-sheet-context";
 
 /**
  * 목록에서 key/열기 클릭 시 intercepting route 가 이 시트로 상세 페이지를 감싸
@@ -39,7 +40,7 @@ export function DetailSheet({
         >
           <ArrowUpRight className="size-4" />
         </a>
-        {children}
+        <InSheetProvider>{children}</InSheetProvider>
       </SheetContent>
     </Sheet>
   );

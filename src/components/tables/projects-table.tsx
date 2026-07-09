@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import type { Priority, Status } from "@prisma/client";
@@ -18,6 +19,8 @@ import {
   InlineMember,
   InlineDate,
 } from "@/components/detail/inline-fields";
+import { ProjectLabels } from "@/components/detail/project-labels";
+import type { LabelItem } from "@/components/detail/entity-labels";
 import { OpenDetailIcon } from "./open-detail";
 import { EmptyRow } from "./cells";
 
@@ -42,6 +45,7 @@ export type ProjectTableRow = {
 export type ProjectEditContext = {
   members: MiniUser[];
   sprints: { id: string; name: string }[];
+  labels: LabelItem[];
 };
 
 const fmt = (d: Date | null | undefined) =>
@@ -94,7 +98,9 @@ export function ProjectsTable({
                     className="text-sm font-medium"
                   />
                 ) : (
-                  p.title
+                  <Link href={`/projects/${p.id}`} className="hover:underline">
+                    {p.title}
+                  </Link>
                 )}
               </TableCell>
               <TableCell>
@@ -137,17 +143,25 @@ export function ProjectsTable({
                 )}
               </TableCell>
               <TableCell>
-                <span className="flex flex-wrap items-center gap-1">
-                  {p.labels?.length
-                    ? p.labels.map((l) => (
-                        <LabelBadge
-                          key={l.label.id}
-                          name={l.label.name}
-                          color={l.label.color}
-                        />
-                      ))
-                    : "—"}
-                </span>
+                {edit ? (
+                  <ProjectLabels
+                    projectId={p.id}
+                    labels={p.labels?.map((l) => l.label) ?? []}
+                    allLabels={edit.labels}
+                  />
+                ) : (
+                  <span className="flex flex-wrap items-center gap-1">
+                    {p.labels?.length
+                      ? p.labels.map((l) => (
+                          <LabelBadge
+                            key={l.label.id}
+                            name={l.label.name}
+                            color={l.label.color}
+                          />
+                        ))
+                      : "—"}
+                  </span>
+                )}
               </TableCell>
               <TableCell className="text-muted-foreground text-xs tabular-nums">
                 {fmt(p.createdAt)}

@@ -1,5 +1,10 @@
 import { Plus, Target } from "lucide-react";
-import { getProjects, getMembers, getSprintOptions } from "@/server/queries";
+import {
+  getProjects,
+  getMembers,
+  getSprintOptions,
+  getLabelOptions,
+} from "@/server/queries";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -15,10 +20,11 @@ export default async function ProjectsPage({
   searchParams: Promise<{ owner?: string }>;
 }) {
   const sp = await searchParams;
-  const [projects, members, sprints] = await Promise.all([
+  const [projects, members, sprints, labels] = await Promise.all([
     getProjects({ ownerId: sp.owner || undefined }),
     getMembers(),
     getSprintOptions(),
+    getLabelOptions(),
   ]);
 
   return (
@@ -44,7 +50,10 @@ export default async function ProjectsPage({
         <EmptyState members={members} sprints={sprints} />
       ) : (
         <Card className="overflow-hidden py-0">
-          <ProjectsTable projects={projects} edit={{ members, sprints }} />
+          <ProjectsTable
+            projects={projects}
+            edit={{ members, sprints, labels }}
+          />
         </Card>
       )}
     </div>

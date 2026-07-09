@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Priority, Status } from "@prisma/client";
 import {
   Table,
@@ -93,7 +94,9 @@ export function EpicsTable({
                     className="text-sm font-medium"
                   />
                 ) : (
-                  e.title
+                  <Link href={`/epics/${e.id}`} className="hover:underline">
+                    {e.title}
+                  </Link>
                 )}
               </TableCell>
               <TableCell>

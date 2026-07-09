@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Priority, Status } from "@prisma/client";
 import {
   Table,
@@ -96,7 +97,9 @@ export function TasksTable({
                       className="text-sm font-medium"
                     />
                   ) : (
-                    <span>{t.title}</span>
+                    <Link href={`/tasks/${t.id}`} className="hover:underline">
+                      {t.title}
+                    </Link>
                   )}
                   {t.labels?.map((l) => (
                     <LabelBadge
