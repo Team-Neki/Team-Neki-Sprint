@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { wikiCommentBodySchema } from "@/lib/validators";
 import { logActivity } from "@/server/activity";
+import { bumpTags, CACHE_TAGS } from "@/lib/cache";
 
 /**
  * B10 위키 인라인 댓글 서버 액션.
@@ -159,5 +160,7 @@ export async function saveWikiCommentAnchors(
     select: { updatedAt: true },
   });
   revalidatePath(`/wiki/${pageId}`);
+  // 앵커 저장은 page.content/updatedAt 을 바꾼다 → 사이드바 트리 updatedAt 반영.
+  bumpTags(CACHE_TAGS.wiki);
   return { ok: true, updatedAt: updated.updatedAt.toISOString() };
 }

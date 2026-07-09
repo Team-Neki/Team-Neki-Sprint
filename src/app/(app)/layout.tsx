@@ -61,7 +61,14 @@ export default async function AppLayout({
             {/* Mobile menu */}
             <Sheet>
             <SheetTrigger
-              render={<Button variant="ghost" size="icon" className="md:hidden" />}
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="메뉴 열기"
+                  className="md:hidden"
+                />
+              }
             >
               <Menu className="size-5" />
             </SheetTrigger>

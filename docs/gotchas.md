@@ -100,3 +100,18 @@
 - **전체 재사용 방법**: 상세 body 를 따로 추출하지 않고 **`[id]/page` 의 default export(async server component)를 그대로 `<TaskDetail params={params} />` 로 렌더**. React 19 타입에서 async 컴포넌트를 JSX 자식으로 써도 tsc 통과(`@ts-expect-error` 불필요).
 - **셀 인라인 편집과의 충돌**: 목록 행이 예전엔 `TableRowLink`(행 전체 클릭 이동)였는데, 셀 안에 편집 컨트롤(select/input)을 넣으면 클릭이 행 이동으로 샌다 → **행 전체 링크를 제거**하고 key 셀만 트리거(`OpenDetailKey`), 나머지 셀은 인라인 편집. (프로젝트는 key 가 없어 후행 아이콘 셀 `OpenDetailIcon` 로 연다.)
 - **검증 주의**: 인터셉트 슬라이드는 build 로는 라우트 등록만 확인됨(`/x/(.)[id]` 가 route 목록에 뜸). **실제 열림/닫힘·↗ 새 탭은 브라우저 soft-nav 로 확인**해야 함(직접 URL 진입은 hard-load 라 전체 페이지가 뜸 — 인터셉트 아님).
+
+## 13. Next 16 데이터 캐시(unstable_cache) + `revalidateTag` 시그니처 (D3 캐싱)
+
+- **배경(2026-07-09)**: 공유(비유저 종속) 목록/옵션/트리 쿼리를 `unstable_cache` 로 감싸 요청 간 DB 부하를 줄였다(`src/lib/cache.ts` 태그 + `queries.ts` 래핑). 페이지는 `requireUser`(쿠키)로 어차피 동적(force-dynamic)이라 라우트 캐시는 그대로 두고 **데이터 레이어만** 캐시 — 순수 additive.
+- **`use cache` 아님**: Next 16 은 `use cache` 디렉티브를 권장하지만 `cacheComponents` 플래그가 필요하다(이 프로젝트는 미설정). 플래그를 켜면 force-dynamic·Suspense 경계 전면 재작업이라 과함 → **`unstable_cache`(구 모델)** 가 저위험 선택.
+- **함정: `revalidateTag` 두 번째 인자 필수.** Next 16 에서 `revalidateTag(tag)` 단일 인자는 **deprecated**(TS 에러 `Expected 2 arguments, but got 1`). 기본 권장값 `"max"` 는 **stale-while-revalidate**(옛 데이터 먼저 서빙)라, 사용자가 방금 편집한 내용을 다음 요청에서 바로 못 볼 수 있다 → 내부 툴엔 부적절. **`revalidateTag(tag, { expire: 0 })`** 로 즉시 만료시켜 `revalidatePath` 와 동일한 일관성을 준다. (`bumpTags` 헬퍼가 처리.)
+- **캐시 대상 선정 원칙**: 유저별/검색/상세 쿼리는 캐시 금지(정합성 리스크·저가치). 캐시한 목록은 **교차 엔티티 표시 의존성**을 무효화에 반영해야 한다 — 예: 팀 key 변경 → 에픽/태스크 목록에도 반영되므로 team 액션이 `epics`/`tasks` 태그도 bump. 놓쳤을 때를 대비해 `unstable_cache` 에 시간 백스톱(`revalidate`)도 함께 둔다.
+- **주의**: dev 서버에서도 `unstable_cache` 는 동작(라우트 캐시와 별개)하므로, 캐싱 관련 검증 시 태그 무효화가 실제로 도는지 확인.
+
+## 14. 아이콘 전용 인터랙티브 요소엔 접근 가능한 이름 필수 (D9 a11y)
+
+- **원칙**: 자식이 아이콘(lucide)만인 버튼/트리거는 `aria-label`(또는 `title`, `sr-only` 텍스트)로 스크린리더용 이름을 반드시 준다. 텍스트 라벨이 함께 있으면 불필요.
+- **`Button` 프리미티브(ui/button.tsx)는 focus-visible ring 내장** — `Button` 사용처는 포커스 링을 따로 안 줘도 됨. 커스텀 `outline-none` 요소만 `focus-visible:ring*` 대체 표시를 확인.
+- **실제 갭(2026-07-09 전수 점검)**: 앱 셸 모바일 메뉴(`layout.tsx`, `<Menu/>` 아이콘만)·위키 에디터 툴바 13개(`editor.tsx` `Btn` — 굵게/기울임/제목/목록/실행취소 등)가 이름 없이 남아 있었음 → `aria-label` 추가(툴바는 `title`+`aria-pressed`도). 나머지(⋯메뉴·닫기·색상칩·연결해제 등)는 이미 `aria-label`/`title` 보유.
+- **calendar nav**: react-day-picker 기본 nav 버튼은 라이브러리가 aria-label 을 제공(Chevron 아이콘만 커스텀) → 별도 처리 불필요.

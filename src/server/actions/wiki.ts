@@ -14,6 +14,7 @@ import {
 import { logActivity } from "@/server/activity";
 import { extractMentionUserIds } from "@/lib/mentions";
 import { assertCanManage } from "@/lib/authz";
+import { bumpTags, CACHE_TAGS } from "@/lib/cache";
 
 const EMPTY_DOC: Prisma.InputJsonValue = {
   type: "doc",
@@ -50,6 +51,7 @@ export async function createWikiPage(input: unknown) {
   });
 
   revalidatePath("/wiki", "layout");
+  bumpTags(CACHE_TAGS.wiki);
   return { id: page.id };
 }
 
@@ -125,6 +127,7 @@ export async function updateWikiContent(
     .catch(() => {});
 
   revalidatePath("/wiki", "layout");
+  bumpTags(CACHE_TAGS.wiki);
   revalidatePath(`/wiki/${id}`);
   return { id };
 }
@@ -175,6 +178,7 @@ export async function renameWikiPage(id: string, title: string) {
     action: "updated",
   });
   revalidatePath("/wiki", "layout");
+  bumpTags(CACHE_TAGS.wiki);
   revalidatePath(`/wiki/${id}`);
 }
 
@@ -228,6 +232,7 @@ export async function deleteWikiPage(id: string) {
     action: "trashed",
   });
   revalidatePath("/wiki", "layout");
+  bumpTags(CACHE_TAGS.wiki);
 }
 
 /** 휴지통에서 복원: 페이지 + 함께 삭제됐던 후손(deletedAt != null) 복구. */
@@ -245,6 +250,7 @@ export async function restoreWikiPage(id: string) {
     action: "restored",
   });
   revalidatePath("/wiki", "layout");
+  bumpTags(CACHE_TAGS.wiki);
   revalidatePath(`/wiki/${id}`);
 }
 
@@ -266,6 +272,7 @@ export async function purgeWikiPage(id: string) {
     action: "deleted",
   });
   revalidatePath("/wiki", "layout");
+  bumpTags(CACHE_TAGS.wiki);
 }
 
 /** 페이지를 폴더에 넣거나 뺀다(folderId=null 이면 폴더 밖으로). */
@@ -276,6 +283,7 @@ export async function movePageToFolder(pageId: string, folderId: string | null) 
     data: { folderId },
   });
   revalidatePath("/wiki", "layout");
+  bumpTags(CACHE_TAGS.wiki);
   revalidatePath(`/wiki/${pageId}`);
 }
 
@@ -298,6 +306,7 @@ export async function createWikiFolder(input: unknown) {
   });
 
   revalidatePath("/wiki", "layout");
+  bumpTags(CACHE_TAGS.wiki);
   return { id: folder.id };
 }
 
@@ -307,6 +316,7 @@ export async function renameWikiFolder(id: string, name: string) {
   if (!nextName) throw new Error("폴더 이름을 입력하세요");
   await prisma.wikiFolder.update({ where: { id }, data: { name: nextName } });
   revalidatePath("/wiki", "layout");
+  bumpTags(CACHE_TAGS.wiki);
 }
 
 /**
@@ -317,6 +327,7 @@ export async function deleteWikiFolder(id: string) {
   await requireUser();
   await prisma.wikiFolder.delete({ where: { id } });
   revalidatePath("/wiki", "layout");
+  bumpTags(CACHE_TAGS.wiki);
 }
 
 // ---------- 티켓 ↔ 위키 링크(#3) ----------
@@ -360,6 +371,7 @@ export async function toggleWikiFavorite(pageId: string) {
     });
   }
   revalidatePath("/wiki", "layout");
+  bumpTags(CACHE_TAGS.wiki);
   revalidatePath(`/wiki/${pageId}`);
   return { favorited: !existing };
 }
@@ -408,6 +420,7 @@ export async function restoreWikiRevision(revisionId: string) {
   });
 
   revalidatePath("/wiki", "layout");
+  bumpTags(CACHE_TAGS.wiki);
   revalidatePath(`/wiki/${rev.pageId}`);
   return { id: rev.pageId };
 }

@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { sprintSchema, sprintStatusEnum } from "@/lib/validators";
 import { logActivity } from "@/server/activity";
+import { bumpTags, CACHE_TAGS } from "@/lib/cache";
 
 export async function createSprint(input: unknown) {
   const user = await requireUser();
@@ -22,6 +23,7 @@ export async function createSprint(input: unknown) {
   });
 
   revalidatePath("/sprints");
+  bumpTags(CACHE_TAGS.sprints);
   return { id: sprint.id };
 }
 
@@ -40,6 +42,8 @@ export async function updateSprint(id: string, input: unknown) {
 
   revalidatePath("/sprints");
   revalidatePath(`/sprints/${id}`);
+  // 스프린트 이름·상태는 프로젝트 목록에도 표시되므로 프로젝트 캐시도 무효화.
+  bumpTags(CACHE_TAGS.sprints, CACHE_TAGS.projects);
   return { id };
 }
 
@@ -57,6 +61,7 @@ export async function setSprintStatus(id: string, status: SprintStatus) {
   });
   revalidatePath("/sprints");
   revalidatePath(`/sprints/${id}`);
+  bumpTags(CACHE_TAGS.sprints, CACHE_TAGS.projects);
   return { id };
 }
 
@@ -72,4 +77,5 @@ export async function deleteSprint(id: string) {
   });
   revalidatePath("/sprints");
   revalidatePath("/projects");
+  bumpTags(CACHE_TAGS.sprints, CACHE_TAGS.projects);
 }

@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-07-09 — 백로그 D3(데이터 캐시)·D9(a11y 점검) 마무리
+
+[roadmap-v2 그룹 D](./roadmap-v2.md)의 남은 실행 가능 항목 2건. 스키마 변경 0건.
+
+- **D3 데이터 레이어 캐싱(force-dynamic 유지, 순수 additive)**: 공유(비유저 종속) 목록/옵션/트리 쿼리 14개(`getTeams`/`getTeamOptions`/`getSprints`/`getSprintOptions`/`getProjects`/`getProjectOptions`/`getEpics`/`getEpicOptions`/`getBoardTasks`/`getTasks`/`getLabels`/`getLabelOptions`/`getWikiTree`/`getWikiFolders`)를 `unstable_cache` 로 래핑(엔티티별 태그 + 시간 백스톱). 페이지는 `requireUser`(쿠키)로 어차피 동적이라 **라우트 캐시는 안 건드리고 DB 조회만** 요청 간 공유 → 폼/목록 로드마다 반복되던 옵션·롤업 쿼리 부하 감소. 각 mutating 액션에 `revalidateTag`(`bumpTags` 헬퍼)를 기존 `revalidatePath` 와 **함께** 배선하되 **교차 엔티티 표시 의존성**을 반영(예: team 변경 → `epics`/`tasks`/`projects` 도 무효화, label 변경 → 3개 목록 + `labels`, epic 변경 → `tasks`(제목 표시)·`projects`(카운트)). 유저별/검색/상세 쿼리는 캐시 제외(정합성 리스크·저가치). **Next 16 함정**: `revalidateTag` 두 번째 인자 필수 + 기본 `"max"` 는 stale-first라, 편집 즉시 반영 위해 `{ expire: 0 }` 사용([gotchas §13](./gotchas.md)). `use cache` 는 `cacheComponents` 플래그 미설정이라 미채택.
+- **D9 a11y 전수 점검**: 아이콘 전용 인터랙티브 요소의 접근 가능한 이름 갭 2건 수정 — 앱 셸 모바일 메뉴 버튼(`layout.tsx`, `<Menu/>` 만) `aria-label="메뉴 열기"`, 위키 에디터 툴바 13개(`editor.tsx` `Btn`) `aria-label`(굵게/기울임/제목1~3/목록/체크리스트/인용/코드/실행취소/다시실행) + `title`·`aria-pressed`. `Button` 프리미티브는 focus-visible ring 내장이라 포커스 링 문제 없음, calendar nav 는 react-day-picker 가 라벨 제공. 나머지(⋯메뉴·닫기·색상칩·연결해제 등)는 이미 커버돼 있어 변경 없음([gotchas §14](./gotchas.md)).
+- **미실행(의도적)**: D1 통합/E2E(테스트 DB·SSO 우회 인프라 선결), D3의 고빈도 엔티티 목록까지의 전면 확대는 로드맵 방침("무리한 리라이트 지양")대로 안전 부분집합만, D4 SSE 는 백로그 유지.
+
+검증: `tsc`·`eslint` clean, `vitest` **89/89**, `next build` Compiled successfully(페이지는 의도대로 `ƒ` 동적 유지 — 데이터 캐시가 그 아래서 동작).
+
+---
+
 ## 2026-07-09 — 위키 저장 반영·목록 개편(인라인 편집+슬라이드 상세)·프로필 메뉴 크래시
 
 라이브 피드백 배치. 스키마 변경 0건(기존 컬럼/관계만 활용).

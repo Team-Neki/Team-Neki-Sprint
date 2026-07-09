@@ -7,6 +7,7 @@ import { projectSchema } from "@/lib/validators";
 import { logActivity, diffFields } from "@/server/activity";
 import { notifyNewMentions } from "@/server/notify";
 import { assertCanManage } from "@/lib/authz";
+import { bumpTags, CACHE_TAGS } from "@/lib/cache";
 
 export async function createProject(input: unknown) {
   const user = await requireUser();
@@ -26,6 +27,8 @@ export async function createProject(input: unknown) {
 
   revalidatePath("/projects");
   if (project.sprintId) revalidatePath(`/sprints/${project.sprintId}`);
+  // 프로젝트 캐시 + 스프린트 캐시(하위 프로젝트 수 표시).
+  bumpTags(CACHE_TAGS.projects, CACHE_TAGS.sprints);
   return { id: project.id };
 }
 
@@ -45,6 +48,8 @@ export async function updateProject(id: string, input: unknown) {
   revalidatePath("/projects");
   revalidatePath(`/projects/${id}`);
   if (project.sprintId) revalidatePath(`/sprints/${project.sprintId}`);
+  // 프로젝트 제목은 에픽 목록에도 표시되므로 에픽 캐시도 함께 무효화.
+  bumpTags(CACHE_TAGS.projects, CACHE_TAGS.epics, CACHE_TAGS.sprints);
   return { id };
 }
 
@@ -52,6 +57,7 @@ function revalidateProjectPaths(id: string, sprintId: string | null) {
   revalidatePath("/projects");
   revalidatePath(`/projects/${id}`);
   if (sprintId) revalidatePath(`/sprints/${sprintId}`);
+  bumpTags(CACHE_TAGS.projects, CACHE_TAGS.epics, CACHE_TAGS.sprints);
 }
 
 // 프로젝트 인라인 편집(diff 대상).
@@ -134,4 +140,5 @@ export async function deleteProject(id: string) {
   });
   revalidatePath("/projects");
   if (project.sprintId) revalidatePath(`/sprints/${project.sprintId}`);
+  bumpTags(CACHE_TAGS.projects, CACHE_TAGS.epics, CACHE_TAGS.sprints);
 }

@@ -10,6 +10,7 @@ import { notifyNewMentions } from "@/server/notify";
 import { isValueEmpty } from "@/lib/rich-content";
 import { nextTeamNumber } from "@/server/keys";
 import { assertCanManage } from "@/lib/authz";
+import { bumpTags, CACHE_TAGS } from "@/lib/cache";
 
 export async function createTask(input: unknown) {
   const user = await requireUser();
@@ -49,6 +50,8 @@ export async function createTask(input: unknown) {
   revalidatePath("/board");
   revalidatePath("/tasks");
   if (task.epicId) revalidatePath(`/epics/${task.epicId}`);
+  // 태스크 캐시 + 에픽 캐시(하위 태스크 수·SP 롤업이 목록에 표시됨).
+  bumpTags(CACHE_TAGS.tasks, CACHE_TAGS.epics);
   return { id: task.id };
 }
 
@@ -71,6 +74,7 @@ export async function updateTask(id: string, input: unknown) {
   revalidatePath("/tasks");
   revalidatePath(`/tasks/${id}`);
   if (task.epicId) revalidatePath(`/epics/${task.epicId}`);
+  bumpTags(CACHE_TAGS.tasks, CACHE_TAGS.epics);
   return { id };
 }
 
@@ -160,6 +164,7 @@ export async function reorderBoardTask(
 
   revalidatePath("/board");
   revalidatePath("/tasks");
+  bumpTags(CACHE_TAGS.tasks);
 }
 
 function revalidateTaskPaths(id: string, epicId: string | null) {
@@ -167,6 +172,7 @@ function revalidateTaskPaths(id: string, epicId: string | null) {
   revalidatePath("/tasks");
   revalidatePath(`/tasks/${id}`);
   if (epicId) revalidatePath(`/epics/${epicId}`);
+  bumpTags(CACHE_TAGS.tasks, CACHE_TAGS.epics);
 }
 
 // 인라인 편집 시 로드하는 태스크의 편집 가능 필드(diff 대상). 팀/번호는 불변이라 제외.
@@ -258,6 +264,7 @@ export async function deleteTask(id: string) {
   });
   revalidatePath("/board");
   revalidatePath("/tasks");
+  bumpTags(CACHE_TAGS.tasks, CACHE_TAGS.epics);
 }
 
 export async function addComment(taskId: string, body: string) {

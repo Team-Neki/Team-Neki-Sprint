@@ -229,48 +229,48 @@ export function WikiEditor({
 function Toolbar({ editor }: { editor: Editor }) {
   return (
     <div className="bg-background/80 sticky top-14 z-10 flex flex-wrap items-center gap-0.5 rounded-md border p-1 backdrop-blur">
-      <Btn active={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()}>
+      <Btn label="굵게" active={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()}>
         <Bold className="size-4" />
       </Btn>
-      <Btn active={editor.isActive("italic")} onClick={() => editor.chain().focus().toggleItalic().run()}>
+      <Btn label="기울임" active={editor.isActive("italic")} onClick={() => editor.chain().focus().toggleItalic().run()}>
         <Italic className="size-4" />
       </Btn>
-      <Btn active={editor.isActive("strike")} onClick={() => editor.chain().focus().toggleStrike().run()}>
+      <Btn label="취소선" active={editor.isActive("strike")} onClick={() => editor.chain().focus().toggleStrike().run()}>
         <Strikethrough className="size-4" />
       </Btn>
       <Sep />
-      <Btn active={editor.isActive("heading", { level: 1 })} onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}>
+      <Btn label="제목 1" active={editor.isActive("heading", { level: 1 })} onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}>
         <Heading1 className="size-4" />
       </Btn>
-      <Btn active={editor.isActive("heading", { level: 2 })} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}>
+      <Btn label="제목 2" active={editor.isActive("heading", { level: 2 })} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}>
         <Heading2 className="size-4" />
       </Btn>
-      <Btn active={editor.isActive("heading", { level: 3 })} onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}>
+      <Btn label="제목 3" active={editor.isActive("heading", { level: 3 })} onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}>
         <Heading3 className="size-4" />
       </Btn>
       <Sep />
-      <Btn active={editor.isActive("bulletList")} onClick={() => editor.chain().focus().toggleBulletList().run()}>
+      <Btn label="글머리 목록" active={editor.isActive("bulletList")} onClick={() => editor.chain().focus().toggleBulletList().run()}>
         <List className="size-4" />
       </Btn>
-      <Btn active={editor.isActive("orderedList")} onClick={() => editor.chain().focus().toggleOrderedList().run()}>
+      <Btn label="번호 목록" active={editor.isActive("orderedList")} onClick={() => editor.chain().focus().toggleOrderedList().run()}>
         <ListOrdered className="size-4" />
       </Btn>
-      <Btn active={editor.isActive("taskList")} onClick={() => editor.chain().focus().toggleTaskList().run()}>
+      <Btn label="체크리스트" active={editor.isActive("taskList")} onClick={() => editor.chain().focus().toggleTaskList().run()}>
         <ListChecks className="size-4" />
       </Btn>
       <Sep />
-      <Btn active={editor.isActive("blockquote")} onClick={() => editor.chain().focus().toggleBlockquote().run()}>
+      <Btn label="인용" active={editor.isActive("blockquote")} onClick={() => editor.chain().focus().toggleBlockquote().run()}>
         <Quote className="size-4" />
       </Btn>
-      <Btn active={editor.isActive("codeBlock")} onClick={() => editor.chain().focus().toggleCodeBlock().run()}>
+      <Btn label="코드 블록" active={editor.isActive("codeBlock")} onClick={() => editor.chain().focus().toggleCodeBlock().run()}>
         <Code className="size-4" />
       </Btn>
       <LinkButton editor={editor} />
       <Sep />
-      <Btn onClick={() => editor.chain().focus().undo().run()}>
+      <Btn label="실행 취소" onClick={() => editor.chain().focus().undo().run()}>
         <Undo className="size-4" />
       </Btn>
-      <Btn onClick={() => editor.chain().focus().redo().run()}>
+      <Btn label="다시 실행" onClick={() => editor.chain().focus().redo().run()}>
         <Redo className="size-4" />
       </Btn>
     </div>
@@ -349,10 +349,13 @@ function LinkButton({ editor }: { editor: Editor }) {
 }
 
 function Btn({
+  label,
   active,
   onClick,
   children,
 }: {
+  // 아이콘 전용 툴바 버튼이라 스크린리더용 이름(aria-label) 필수. title 로 툴팁도 겸함.
+  label: string;
   active?: boolean;
   onClick: () => void;
   children: React.ReactNode;
@@ -362,6 +365,9 @@ function Btn({
       type="button"
       variant="ghost"
       size="icon"
+      aria-label={label}
+      title={label}
+      aria-pressed={active}
       className={cn("size-8", active && "bg-accent text-accent-foreground")}
       onClick={onClick}
     >
