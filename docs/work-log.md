@@ -8,6 +8,7 @@
 
 | 날짜 | 세션 | 상태 |
 |---|---|---|
+| 2026-07-09 | 추정 단위 MD 일원화 · 목록/상세/타임라인 UX 개선 · 리뷰 상태 제거 (커밋 `0984416`) | `DONE`\* |
 | 2026-07-09 | 위키 리치 렌더링(표·코드 구문강조·mermaid, D13) | `DONE`\* |
 | 2026-07-09 | 에러/로딩 바운더리(D12) + 태스크 의존성(D11) | `DONE` |
 | 2026-07-09 | 위키 본문 전문검색(D10) + 백로그 문서 현행화 | `DONE` |
@@ -18,6 +19,20 @@
 | ~2026-07-08 | Phase 1~4 + 로드맵 v2 8건 (이하 15개 세션) | `DONE` |
 
 \* 코드·빌드·테스트 검증 완료. 실렌더(mermaid/표/강조)는 로그인 게이트라 브라우저 확인 필요.
+
+---
+
+## 2026-07-09 — 추정 단위 MD 일원화 · 목록/상세/타임라인 UX 개선 · 리뷰 상태 제거
+
+커밋 `0984416`. 사용자 피드백 다수를 한 세션에 반영. 검증: tsc 0 · vitest 106 pass · eslint clean. DB 스키마 변경 2건 포함(마이그레이션) — 타 환경은 `prisma migrate deploy` 필요.
+
+- **추정 단위 SP→MD 일원화**: `Task.storyPoints`(Int) 컬럼 **DROP**(마이그레이션 `20260709130000_drop_task_story_points`). 추정은 `estimatedMd`/`actualMd`(Float 소수)만. 목록 표의 "SP" 열을 MD(=`estimatedMd`)로 교체, 에픽 롤업(`getEpics`)·스프린트 합(`getSprints` raw 집계로 Task→Epic→Project→Sprint MD 합)도 MD 기준. 폼·상세·검증(`validators`)·활동라벨·seed·테스트에서 storyPoints 제거. 태스크 MD 변경 시 `epics`·`sprints` 캐시 태그도 무효화. [gotchas §20]
+- **리뷰(IN_REVIEW) 상태 제거**: `Status` enum 에서 삭제(마이그레이션 `20260709120000_remove_in_review_status` — Postgres enum 값 제거 불가라 타입 재생성 + 기존 IN_REVIEW 행 BACKLOG 이관). constants/validators/kanban/seed/design-system 전 참조 정리. 상태는 4개(BACKLOG/TODO/IN_PROGRESS/DONE).
+- **목록 표(tasks/epics/projects)**: ① 컬럼 순서 우선순위→상태. ② **행 전체 클릭 → 우측 슬라이드 상세**(`RowOpenSheet`, 편집 컨트롤·↗ 는 인터랙티브 가드로 제외). ③ 제목 **클릭-투-에딧**(`InlineTitle` — 글자=편집, 우측 빈공간=상세 링크). ④ 정렬 헤더 **3단계 토글**(내림→오름→정렬없음, `SortableHead`). ⑤ MD 인라인 **직접 입력**(number 스피너 제거 → `inputMode=decimal` + `field-sizing:content` 좌측정렬). ⑥ 프로젝트 레이블 열 좌측정렬, MD·담당자 열 간격. [gotchas §12·§20]
+- **상세 시트**: ① 뷰포트 `lg:grid-cols-3` → **컨테이너 쿼리**(`@container/detail` + `@3xl/detail:*`)로 전환 → 좁은 시트 3열 겹침 해결. ② 인터셉트 본문을 `<Suspense fallback={<DetailSkeleton/>}>` 로 **스트리밍** → 목록 유지 + 시트만 슬라이드(전체화면 loading 플래시 제거). ③ `<main>` `scrollbar-gutter:stable` → 시트 열릴 때 좌우 밀림 방지. [gotchas §19]
+- **타임라인**: 프로젝트→**담당자별 그룹**(좌측 이름/아바타) + 그룹 간격, 날짜축 **2줄(월+모든 일자)**, 의미없는 회색 세로줄(그리드·주말 음영) 제거, **에픽=옅은 회색·태스크=짙은 회색** 구분, 바 라벨 sticky(가로 스크롤 시 보이는 좌측에 고정, 좌측 잘림 패딩).
+- **기타**: 위키 수정 버튼 헤더→제목 행 우측 이동(편집은 저장 버튼으로만), 유저 메뉴 `DropdownMenuItem nativeButton` 경고 수정, 예상/실제 MD 툴팁(`FieldHint`, 1md=8h).
+- **함정(신규 발견)**: 인터셉트 대상 경로를 `router.prefetch` 하면 `Invalid interception route` 로 인터셉트가 깨져 전체 페이지로 폴백 → `RowOpenSheet` 에서 prefetch 제거. [gotchas §12]
 
 ---
 

@@ -98,8 +98,10 @@
 - **파일 구조(세그먼트별, tasks/epics/projects 동일)**: `{seg}/layout.tsx`(children + `detail` 슬롯 렌더) · `{seg}/@detail/default.tsx`(→ `null`) · `{seg}/@detail/(.)[id]/page.tsx`(전체 상세 `[id]/page` 를 import 해 `DetailSheet`(client Sheet)로 감쌈). `@detail` 슬롯을 **각 목록 세그먼트 안**에 두어 인터셉트를 그 목록에서만 발생시킴(보드·대시보드·위키 등 다른 곳의 상세 링크는 기존대로 전체 페이지 이동).
 - **핵심 동작**: soft-nav(목록 내 key 클릭 = `<Link>`/`router.push`)만 인터셉트 → children 슬롯은 목록 유지, `@detail` 이 시트 렌더(URL 은 `/x/[id]` 로 마스킹). hard-load/새 탭(`target=_blank`)은 인터셉트 안 되고 children 의 `[id]/page` 전체가 렌더. `default.tsx` 는 미매칭 슬롯용(→ null).
 - **전체 재사용 방법**: 상세 body 를 따로 추출하지 않고 **`[id]/page` 의 default export(async server component)를 그대로 `<TaskDetail params={params} />` 로 렌더**. React 19 타입에서 async 컴포넌트를 JSX 자식으로 써도 tsc 통과(`@ts-expect-error` 불필요).
-- **셀 인라인 편집과의 충돌**: 목록 행이 예전엔 `TableRowLink`(행 전체 클릭 이동)였는데, 셀 안에 편집 컨트롤(select/input)을 넣으면 클릭이 행 이동으로 샌다 → **행 전체 링크를 제거**하고 key 셀만 트리거(`OpenDetailKey`), 나머지 셀은 인라인 편집. (프로젝트는 key 가 없어 후행 아이콘 셀 `OpenDetailIcon` 로 연다.)
-- **검증 주의**: 인터셉트 슬라이드는 build 로는 라우트 등록만 확인됨(`/x/(.)[id]` 가 route 목록에 뜸). **실제 열림/닫힘·↗ 새 탭은 브라우저 soft-nav 로 확인**해야 함(직접 URL 진입은 hard-load 라 전체 페이지가 뜸 — 인터셉트 아님).
+- **셀 인라인 편집 + 행 전체 클릭 (2026-07-09 갱신)**: 목록 행 어디를 눌러도 시트가 열리되, 셀 안 편집 컨트롤(select/input/버튼/링크·↗)은 그대로 동작해야 한다 → **`RowOpenSheet`**(`src/components/ui/table-row-link.tsx`)가 행 `onClick` 에서 `e.target.closest(INTERACTIVE)`(a·button·input·textarea·select·`[role=combobox]`·`[data-slot=select-trigger]` 등)면 내비게이션을 스킵하는 **인터랙티브 가드**로 처리한다. 편집(`edit`) 모드 행만 `RowOpenSheet` 로 감싸고 하위목록(non-edit)은 일반 `TableRow`(인터셉트 슬롯이 없어 소프트 인터셉트 안 됨). 제목 셀은 `InlineTitle` 의 클릭-투-에딧(글자=편집, 우측 빈공간=상세 링크)로 별도 처리. ↗ 는 `<a target=_blank>` 라 가드에 걸려 새 탭으로 연다. (예전의 "행 링크 제거 후 key 셀만 트리거" 서술은 폐기 — 지금은 행 전체 클릭이 정상.)
+- **함정: 인터셉트 라우트를 `router.prefetch` 하면 인터셉트가 깨진다.** `RowOpenSheet` 에 `onMouseEnter={() => router.prefetch(href)}` 를 넣었더니 dev 로그에 `⨯ Invalid interception route: /tasks/(.)(.)<id>` 가 쏟아지며 **키 링크·행 클릭 모두 시트 대신 전체 페이지로 폴백**했다(인터셉트 모듈이 깨짐). `<Link>` 의 자동 prefetch 는 이 문제가 없지만 **수동 `router.prefetch(<인터셉트 대상 경로>)` 는 금지**. 이미 깨진 상태면 `rm -rf .next` + dev 재시작으로 stale 모듈 정리.
+- **깜빡임 방지(스트리밍)**: `@detail` 슬롯엔 자체 `loading.tsx` 가 없어, force-dynamic 상세가 서버 렌더되는 동안 상위 `(app)/loading.tsx` 가 **전체 화면(목록 포함)**을 스켈레톤으로 덮어 깜빡였다 → 인터셉트 `page.tsx` 에서 시트(client)는 즉시 렌더하고 **본문만 `<Suspense fallback={<DetailSkeleton/>}>` 로 감싸** 스트리밍(`src/components/detail/detail-skeleton.tsx`). 목록 유지 + 시트만 슬라이드 + 내부만 스켈레톤→콘텐츠.
+- **검증 주의**: 인터셉트 슬라이드는 build 로는 라우트 등록만 확인됨(`/x/(.)[id]` 가 route 목록에 뜸). **실제 열림/닫힘·↗ 새 탭은 브라우저 soft-nav 로 확인**해야 함(직접 URL 진입은 hard-load 라 전체 페이지가 뜸 — 인터셉트 아님). claude-in-chrome 자동화 툴은 이 소프트 내비를 구동하지 못해 시트를 못 띄우는 경우가 있으니 육안 확인 권장.
 
 ## 13. Next 16 데이터 캐시(unstable_cache) + `revalidateTag` 시그니처 (D3 캐싱)
 
@@ -148,3 +150,15 @@
   - editor.isEditable 로 편집(코드 textarea 토글 + 실시간 미리보기) vs 뷰(다이어그램만) 분기. 읽기전용 뷰는 editable=false 라 자동으로 다이어그램만.
 - **검색(searchText, §16) 커버리지**: `docToPlainText` 는 node.content 를 재귀하므로 **표 셀·코드블록 텍스트는 검색됨**. **mermaid 소스는 atom(attrs.code)라 검색 안 됨**(다이어그램은 프로즈 아님 — 의도).
 - **검증 주의**: build/tsc/lint 로는 컴파일·번들만 확인됨. mermaid 실렌더·표 리사이즈·강조는 **브라우저에서** 확인해야 한다(로그인 게이트 — SSO 세션 필요). mermaid 문법 오류는 NodeView 가 `.wiki-mermaid-error` 로 표시.
+
+## 19. 상세 시트 레이아웃은 컨테이너 쿼리로 (뷰포트 `lg:` 아님) · 스크롤바 시프트 (2026-07-09 UX)
+
+- **뷰포트 브레이크포인트 함정**: 상세 페이지(`{seg}/[id]/page.tsx`)는 전체 페이지(넓음)와 우측 시트(≈720px) **양쪽에서 재사용**된다. 그리드에 `lg:grid-cols-3`(뷰포트 기준)를 쓰면 뷰포트가 넓을 때 **좁은 시트 안에서도 3열이 강제**돼 텍스트가 겹친다 → **컨테이너 쿼리**로 전환: 루트를 `@container/detail`, 그리드를 `@3xl/detail:grid-cols-3`(자식은 `@3xl/detail:col-span-*`). 시트 컨테이너(≈720px < 48rem)는 1열, 전체 페이지(≥768px)는 3열. Tailwind v4 는 컨테이너 쿼리 내장(`@container/name` + `@3xl/name:`). tasks·epics·projects 3곳 동일.
+- **모달 열 때 좌우 밀림(스크롤바 보정)**: 이 앱의 유일한 스크롤바는 `(app)/layout.tsx` 의 `<main overflow-y-auto>` 에 있다(body 는 `overflow-hidden`). 시트(Base UI Dialog) 열 때 스크롤 락으로 `<main>` 스크롤바가 사라지면 콘텐츠가 폭만큼 넓어져 좌우로 튄다 → `<main>` 에 **`[scrollbar-gutter:stable]`** 로 스크롤바 폭을 항상 예약.
+
+## 20. 인라인 숫자(MD) 입력 · 추정 단위 SP→MD 일원화 (2026-07-09)
+
+- **추정 단위 = MD 단일**: `Task.storyPoints`(Int) **컬럼 DROP**(마이그레이션 `..._drop_task_story_points`). 추정은 `estimatedMd`/`actualMd`(Float, 소수) 뿐. 목록 표의 옛 "SP" 열은 `estimatedMd` 로, 에픽 롤업(`getEpics`)·스프린트 합(`getSprints` raw 집계)도 MD 기준. **`storyPoints` 를 다시 참조하면 tsc/런타임 에러**(스키마에 없음).
+- **인라인 편집 입력은 `type="text" inputMode="decimal"`**: `type="number"` 스피너(±카운트) 대신 직접 타이핑. `optionalMd` 검증은 `z.coerce.number().min(0)`(`.int()` 없음)이라 소수 허용. `InlineNumber`(`detail/inline-fields.tsx`)는 이제 MD 전용(storyPoints 제거).
+- **정렬 함정**: 우측정렬 인풋을 셀에 넣으면 헤더와 값 우측선이 인풋 패딩만큼 어긋나고, 고정폭이면 빈 박스가 좌측으로 뻗어 커 보인다 → **`[field-sizing:content]`(박스가 글자 폭만큼) + 좌측 정렬**(타이핑 시 우측 확장) + `min-w-*`(빈 값 클릭영역). 헤더/셀도 좌측 정렬로 맞춘다. MD·담당자 열이 붙으면 담당자 셀에 `pl-*` 로 간격.
+- **리뷰 상태 제거 여파**: `Status` enum 에서 `IN_REVIEW` 삭제(Postgres enum 은 값 제거 불가 → 타입 재생성 마이그레이션, 기존 행은 BACKLOG 이관). 새 상태 참조·라벨·보드 컬럼은 4개(BACKLOG/TODO/IN_PROGRESS/DONE)만.

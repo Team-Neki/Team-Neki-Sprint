@@ -33,8 +33,16 @@
 | D11 | 태스크 의존성(blocks/blockedBy) | D | M | `DONE` |
 | D12 | 라우트 에러/로딩 바운더리 | D | M | `DONE` |
 | D13 | 위키 리치 렌더링(표·코드·mermaid) | D | M | `DONE` |
+| E1 | 추정 단위 SP→MD 일원화 · storyPoints 컬럼 DROP | E | M | `DONE` |
+| E2 | 리뷰 상태(IN_REVIEW) 제거 + 기존 행 BACKLOG 이관 | E | S | `DONE` |
+| E3 | 목록 UX — 행클릭 시트·제목 클릭에딧·정렬 3단계·컬럼 순서(우선순위→상태)·MD 직접입력/정렬 | E | M | `DONE` |
+| E4 | 상세 시트 — 컨테이너 쿼리(겹침 수정)·Suspense 스트리밍(깜빡임 제거)·scrollbar-gutter | E | M | `DONE` |
+| E5 | 타임라인 재디자인 — 담당자 그룹·2줄 날짜축·세로줄 제거·에픽/태스크 회색 구분·sticky 라벨 | E | M | `DONE` |
+| E6 | 위키 수정 버튼 이동 · MD 툴팁(FieldHint) · 유저메뉴 nativeButton 수정 | E | S | `DONE` |
 
 **열린 항목은 D1(테스트 통합/E2E 인프라)와 D4(SSE, 의도적 보류)뿐.** 나머지 전부 `DONE`.
+
+> **그룹 E — UX 개선 2차(2026-07-09, 커밋 `0984416`)**: 사용자 피드백 기반 목록/상세/타임라인 UX + 추정 단위 MD 일원화 + 리뷰 상태 제거. DB 스키마 변경 2건(마이그레이션) 포함. 상세는 [work-log](./work-log.md#2026-07-09--추정-단위-md-일원화--목록상세타임라인-ux-개선--리뷰-상태-제거) · 함정은 [gotchas §12·§19·§20](./gotchas.md).
 
 > **진행 현황(2026-07-08): 8건 전부 `DONE`·`main` 병합.** git worktree 병렬 4파 구현(A4·B6·A2·A3 → A1·C7 → C8 + B5). 각 파 병합 후 통합 `tsc`+`eslint`+`next build` 통과, 신규 테스트 73건 green. 상세는 [work-log](./work-log.md).
 

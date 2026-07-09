@@ -59,7 +59,7 @@ flowchart LR
 
 흰 배경 대비를 위해 텍스트는 `-600`대, dot은 채도 유지(`-500`), 중립 상태는 그레이(모노톤 유지). DESIGN.md의 "여섯 번째 액센트 금지" 원칙의 in-product 예외(기능적 상태 색).
 
-- STATUS: 백로그=neutral, 할 일=blue, 진행 중=amber, 리뷰=violet, 완료=emerald
+- STATUS: 백로그=neutral, 할 일=blue, 진행 중=amber, 완료=emerald (리뷰/IN_REVIEW 는 2026-07-09 제거)
 - PRIORITY: 긴급=red-600, 높음=orange-600, 보통=neutral-600, 낮음=neutral-400
 
 ## 공용 컴포넌트 패턴
