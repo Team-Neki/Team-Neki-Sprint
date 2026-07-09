@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -43,12 +44,16 @@ export function UserMenu({
         <span className="hidden max-w-28 truncate text-sm sm:inline">{name}</span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuLabel className="flex flex-col">
-          <span className="truncate">{name}</span>
-          <span className="text-muted-foreground truncate text-xs font-normal">
-            {email}
-          </span>
-        </DropdownMenuLabel>
+        {/* GroupLabel 은 Base UI 상 반드시 Group 안에 있어야 한다(밖이면
+            MenuGroupContext missing 오류 → 메뉴 크래시). 프로필 라벨을 Group 으로 감싼다. */}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="flex flex-col">
+            <span className="truncate">{name}</span>
+            <span className="text-muted-foreground truncate text-xs font-normal">
+              {email}
+            </span>
+          </DropdownMenuLabel>
+        </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <form action={onSignOut}>
           <DropdownMenuItem
