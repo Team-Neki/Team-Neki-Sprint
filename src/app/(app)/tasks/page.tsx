@@ -1,4 +1,4 @@
-import { Plus } from "lucide-react";
+import { Plus, ListTodo } from "lucide-react";
 import type { Status } from "@prisma/client";
 import {
   getTasks,
@@ -13,6 +13,7 @@ import { Card } from "@/components/ui/card";
 import { TasksTable } from "@/components/tables/tasks-table";
 import { TaskDialog } from "@/components/forms/task-dialog";
 import { TaskFilters } from "@/components/tasks/task-filters";
+import { EmptyState } from "@/components/empty-state";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,14 @@ export default async function TasksPage({
   }>;
 }) {
   const sp = await searchParams;
+  // 필터가 하나라도 걸렸으면 "필터 결과 0"으로 안내(생성 CTA 대신 필터 조정 유도).
+  const hasFilter = !!(
+    sp.status ||
+    sp.assignee ||
+    sp.team ||
+    sp.label ||
+    sp.q
+  );
   const [tasks, epics, teams, members, labels] = await Promise.all([
     getTasks({
       status: (sp.status as Status) || undefined,
@@ -65,9 +74,37 @@ export default async function TasksPage({
 
       <TaskFilters members={members} teams={teams} labels={labels} />
 
-      <Card className="overflow-hidden py-0">
-        <TasksTable tasks={tasks} edit={{ members, teams, epics: epicOptions }} />
-      </Card>
+      {tasks.length === 0 ? (
+        hasFilter ? (
+          <EmptyState
+            icon={ListTodo}
+            title="조건에 맞는 태스크가 없습니다"
+            description="필터를 조정하거나 초기화해 보세요."
+          />
+        ) : (
+          <EmptyState
+            icon={ListTodo}
+            title="아직 태스크가 없습니다"
+            description="첫 태스크를 만들어 작업을 시작하세요."
+            action={
+              <TaskDialog
+                members={members}
+                teams={teams}
+                epics={epicOptions}
+                trigger={
+                  <Button variant="outline">
+                    <Plus className="size-4" /> 첫 태스크 만들기
+                  </Button>
+                }
+              />
+            }
+          />
+        )
+      ) : (
+        <Card className="overflow-hidden py-0">
+          <TasksTable tasks={tasks} edit={{ members, teams, epics: epicOptions }} />
+        </Card>
+      )}
     </div>
   );
 }

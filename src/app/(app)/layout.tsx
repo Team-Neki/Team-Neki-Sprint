@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Menu } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { signOut } from "@/auth";
@@ -14,6 +13,7 @@ import {
   SidebarProvider,
   DesktopSidebar,
   SidebarToggle,
+  SidebarBrand,
 } from "@/components/app-shell/sidebar-collapse";
 import { toNotifItem } from "@/components/app-shell/notification-shared";
 import { Button } from "@/components/ui/button";
@@ -37,20 +37,11 @@ export default async function AppLayout({
     await signOut({ redirectTo: "/login" });
   }
 
-  const brand = (
-    <Link href="/dashboard" className="flex items-center gap-2 px-5 py-4">
-      <span className="bg-primary text-primary-foreground flex size-7 items-center justify-center rounded-lg text-sm font-bold">
-        S
-      </span>
-      <span className="text-base font-semibold tracking-tight">Sprint</span>
-    </Link>
-  );
-
   return (
     <SidebarProvider>
       <div className="flex h-dvh overflow-hidden">
-        {/* Desktop sidebar (접기 가능) */}
-        <DesktopSidebar brand={brand}>
+        {/* Desktop sidebar (접기 가능 — 접히면 아이콘 레일) */}
+        <DesktopSidebar brand={<SidebarBrand />}>
           <SidebarNav />
         </DesktopSidebar>
 
@@ -74,8 +65,8 @@ export default async function AppLayout({
             </SheetTrigger>
             <SheetContent side="left" className="w-64 p-0">
               <SheetTitle className="sr-only">메뉴</SheetTitle>
-              {brand}
-              <SidebarNav />
+              <SidebarBrand alwaysExpanded />
+              <SidebarNav alwaysExpanded />
             </SheetContent>
           </Sheet>
 

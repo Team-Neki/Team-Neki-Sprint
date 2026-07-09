@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SprintsTable } from "@/components/tables/sprints-table";
 import { SprintDialog } from "@/components/forms/sprint-dialog";
+import { EmptyState } from "@/components/empty-state";
 
 export const dynamic = "force-dynamic";
 
@@ -27,19 +28,20 @@ export default async function SprintsPage() {
       </PageHeader>
 
       {sprints.length === 0 ? (
-        <Card className="flex flex-col items-center gap-3 py-16">
-          <div className="bg-muted flex size-12 items-center justify-center rounded-full">
-            <Rocket className="text-muted-foreground size-6" />
-          </div>
-          <p className="text-muted-foreground text-sm">아직 스프린트가 없습니다.</p>
-          <SprintDialog
-            trigger={
-              <Button variant="outline">
-                <Plus className="size-4" /> 첫 스프린트 만들기
-              </Button>
-            }
-          />
-        </Card>
+        <EmptyState
+          icon={Rocket}
+          title="아직 스프린트가 없습니다"
+          description="첫 스프린트를 만들어 기간 단위로 작업을 묶어보세요."
+          action={
+            <SprintDialog
+              trigger={
+                <Button variant="outline">
+                  <Plus className="size-4" /> 첫 스프린트 만들기
+                </Button>
+              }
+            />
+          }
+        />
       ) : (
         <Card className="overflow-hidden py-0">
           <SprintsTable sprints={sprints} />

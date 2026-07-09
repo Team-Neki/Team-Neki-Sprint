@@ -1,8 +1,10 @@
 "use client";
 
 import { createContext, useContext, useState } from "react";
+import Link from "next/link";
 import { PanelLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SprintMark } from "@/components/logo";
 import { cn } from "@/lib/utils";
 
 /**
@@ -26,13 +28,17 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-function useSidebar() {
+export function useSidebar() {
   const ctx = useContext(SidebarContext);
   if (!ctx) throw new Error("useSidebar must be used within SidebarProvider");
   return ctx;
 }
 
-/** 데스크톱 사이드바(md+). 접히면 폭 0 으로 슬라이드(내용은 overflow-hidden 으로 클립). */
+/**
+ * 데스크톱 사이드바(md+). 접히면 폭 0 대신 아이콘 레일(w-14)로 줄여, 접은 상태에서도
+ * 아이콘 + 툴팁으로 내비게이션이 유지된다(SidebarNav 가 collapsed 컨텍스트를 읽어
+ * 아이콘 전용으로 렌더). 내용은 overflow-hidden 으로 클립.
+ */
 export function DesktopSidebar({
   brand,
   children,
@@ -45,12 +51,40 @@ export function DesktopSidebar({
     <aside
       className={cn(
         "bg-background hidden shrink-0 flex-col overflow-hidden border-r transition-[width] duration-200 md:flex",
-        collapsed ? "w-0 border-r-0" : "w-60",
+        collapsed ? "w-14" : "w-60",
       )}
     >
       {brand}
       <div className="flex-1 overflow-y-auto">{children}</div>
     </aside>
+  );
+}
+
+/**
+ * 브랜드 로고/워드마크. 접히면(collapsed) 로고만 중앙정렬(레일 폭에 맞춤).
+ * 모바일 Sheet 는 alwaysExpanded 로 항상 풀 브랜드.
+ */
+export function SidebarBrand({
+  alwaysExpanded = false,
+}: {
+  alwaysExpanded?: boolean;
+}) {
+  const { collapsed } = useSidebar();
+  const isCollapsed = !alwaysExpanded && collapsed;
+  return (
+    <Link
+      href="/dashboard"
+      className={cn(
+        "flex items-center py-4",
+        isCollapsed ? "justify-center px-2" : "gap-2 px-5",
+      )}
+      aria-label="Sprint 대시보드"
+    >
+      <SprintMark />
+      {!isCollapsed && (
+        <span className="text-base font-semibold tracking-tight">Sprint</span>
+      )}
+    </Link>
   );
 }
 

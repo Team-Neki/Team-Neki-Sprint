@@ -55,7 +55,7 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {STATUS_ORDER.map((s) => (
           <Link key={s} href={`/tasks?status=${s}`}>
-            <Card className="hover:border-primary/40 transition-colors">
+            <Card className="hover:ring-primary/30 transition-shadow">
               <CardContent className="py-0">
                 <div className="flex items-center gap-2">
                   <span className={`size-2 rounded-full ${STATUS_META[s].dot}`} />

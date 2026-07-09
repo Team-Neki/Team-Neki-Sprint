@@ -9,6 +9,7 @@ import { UserBadge } from "@/components/user-badge";
 import { TeamDialog } from "@/components/forms/team-dialog";
 import { ConfirmDelete } from "@/components/confirm-delete";
 import { MemberTeamSelect } from "@/components/teams/member-team-select";
+import { EmptyState } from "@/components/empty-state";
 
 export const dynamic = "force-dynamic";
 
@@ -35,19 +36,20 @@ export default async function TeamsPage() {
       </PageHeader>
 
       {teams.length === 0 ? (
-        <Card className="flex flex-col items-center gap-3 py-16">
-          <div className="bg-muted flex size-12 items-center justify-center rounded-full">
-            <Users className="text-muted-foreground size-6" />
-          </div>
-          <p className="text-muted-foreground text-sm">아직 팀이 없습니다.</p>
-          <TeamDialog
-            trigger={
-              <Button variant="outline">
-                <Plus className="size-4" /> 첫 팀 만들기
-              </Button>
-            }
-          />
-        </Card>
+        <EmptyState
+          icon={Users}
+          title="아직 팀이 없습니다"
+          description="첫 팀을 만들어 이슈 key 접두어와 유저 그룹을 정하세요."
+          action={
+            <TeamDialog
+              trigger={
+                <Button variant="outline">
+                  <Plus className="size-4" /> 첫 팀 만들기
+                </Button>
+              }
+            />
+          }
+        />
       ) : (
         <div className="mb-8 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {teams.map((t) => {

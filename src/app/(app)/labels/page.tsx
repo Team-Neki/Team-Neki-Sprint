@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { LabelBadge } from "@/components/badges";
 import { LabelDialog } from "@/components/labels/label-dialog";
 import { ConfirmDelete } from "@/components/confirm-delete";
+import { EmptyState } from "@/components/empty-state";
 
 export const dynamic = "force-dynamic";
 
@@ -30,19 +31,20 @@ export default async function LabelsPage() {
       </PageHeader>
 
       {labels.length === 0 ? (
-        <Card className="flex flex-col items-center gap-3 py-16">
-          <div className="bg-muted flex size-12 items-center justify-center rounded-full">
-            <Tag className="text-muted-foreground size-6" />
-          </div>
-          <p className="text-muted-foreground text-sm">아직 라벨이 없습니다.</p>
-          <LabelDialog
-            trigger={
-              <Button variant="outline">
-                <Plus className="size-4" /> 첫 라벨 만들기
-              </Button>
-            }
-          />
-        </Card>
+        <EmptyState
+          icon={Tag}
+          title="아직 라벨이 없습니다"
+          description="첫 라벨을 만들어 이슈를 가로질러 태그하세요."
+          action={
+            <LabelDialog
+              trigger={
+                <Button variant="outline">
+                  <Plus className="size-4" /> 첫 라벨 만들기
+                </Button>
+              }
+            />
+          }
+        />
       ) : (
         <Card className="divide-border flex flex-col gap-0 divide-y py-0">
           {labels.map((l) => {

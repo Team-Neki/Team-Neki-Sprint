@@ -18,6 +18,7 @@ import {
   Code,
   Table as TableIcon,
   Workflow,
+  Image as ImageIcon,
   Link as LinkIcon,
   Undo,
   Redo,
@@ -39,6 +40,27 @@ import {
   saveWikiDraft,
   discardWikiDraft,
 } from "@/server/actions/wiki";
+
+/** 이미지 파일을 업로드하고 서빙 URL 을 반환. 실패 시 토스트 + null(본문 이미지 첨부). */
+async function uploadImage(file: File): Promise<string | null> {
+  const fd = new FormData();
+  fd.append("file", file);
+  try {
+    const res = await fetch("/api/wiki/upload", { method: "POST", body: fd });
+    if (!res.ok) {
+      const err = (await res.json().catch(() => null)) as {
+        error?: string;
+      } | null;
+      toast.error(err?.error ?? "이미지 업로드에 실패했습니다");
+      return null;
+    }
+    const { url } = (await res.json()) as { url: string };
+    return url;
+  } catch {
+    toast.error("이미지 업로드에 실패했습니다");
+    return null;
+  }
+}
 
 export function WikiEditor({
   pageId,
@@ -164,6 +186,61 @@ export function WikiEditor({
     return () => window.removeEventListener("keydown", onKey);
   }, [commit]);
 
+  // 이미지 붙여넣기/드롭 → 업로드 후 본문에 삽입. editorProps 대신 DOM 리스너로
+  // 처리(editor 생성 이후 attach). 업로드 성공 URL 만 삽입(base64 금지).
+  useEffect(() => {
+    if (!editor) return;
+    const dom = editor.view.dom;
+    async function insertImageFiles(files: FileList, dropPos?: number) {
+      const images = Array.from(files).filter((f) =>
+        f.type.startsWith("image/"),
+      );
+      for (const file of images) {
+        const url = await uploadImage(file);
+        if (!url || !editor) continue;
+        if (dropPos != null) {
+          editor
+            .chain()
+            .insertContentAt(dropPos, { type: "image", attrs: { src: url } })
+            .run();
+        } else {
+          editor.chain().focus().setImage({ src: url }).run();
+        }
+      }
+    }
+    function hasImage(files: FileList | undefined) {
+      return (
+        !!files &&
+        files.length > 0 &&
+        Array.from(files).some((f) => f.type.startsWith("image/"))
+      );
+    }
+    function onPaste(e: ClipboardEvent) {
+      const files = e.clipboardData?.files;
+      if (hasImage(files)) {
+        e.preventDefault();
+        void insertImageFiles(files as FileList);
+      }
+    }
+    function onDrop(e: DragEvent) {
+      const files = e.dataTransfer?.files;
+      if (hasImage(files)) {
+        e.preventDefault();
+        const pos = editor?.view.posAtCoords({
+          left: e.clientX,
+          top: e.clientY,
+        })?.pos;
+        void insertImageFiles(files as FileList, pos);
+      }
+    }
+    dom.addEventListener("paste", onPaste);
+    dom.addEventListener("drop", onDrop);
+    return () => {
+      dom.removeEventListener("paste", onPaste);
+      dom.removeEventListener("drop", onDrop);
+    };
+  }, [editor]);
+
   // 디바운스 임시저장 반영 전 이탈 시 편집 유실 경고(draft 로 대부분 보호되지만 안전장치).
   useEffect(() => {
     function onBeforeUnload(e: BeforeUnloadEvent) {
@@ -271,6 +348,7 @@ function Toolbar({ editor }: { editor: Editor }) {
       <Btn label="다이어그램(mermaid)" onClick={() => editor.chain().focus().insertContent({ type: "mermaidBlock" }).run()}>
         <Workflow className="size-4" />
       </Btn>
+      <ImageButton editor={editor} />
       <LinkButton editor={editor} />
       <Sep />
       <Btn label="실행 취소" onClick={() => editor.chain().focus().undo().run()}>
@@ -280,6 +358,44 @@ function Toolbar({ editor }: { editor: Editor }) {
         <Redo className="size-4" />
       </Btn>
     </div>
+  );
+}
+
+/** 이미지 첨부 버튼: 파일 선택 → 업로드 → 본문에 삽입. 붙여넣기/드롭도 지원(useEffect). */
+function ImageButton({ editor }: { editor: Editor }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // 같은 파일 재선택 허용
+    if (!file) return;
+    setBusy(true);
+    try {
+      const url = await uploadImage(file);
+      if (url) editor.chain().focus().setImage({ src: url }).run();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/gif,image/webp"
+        className="hidden"
+        onChange={onPick}
+      />
+      <Btn
+        label="이미지 첨부"
+        onClick={() => inputRef.current?.click()}
+        active={busy}
+      >
+        <ImageIcon className="size-4" />
+      </Btn>
+    </>
   );
 }
 

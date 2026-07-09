@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth, signIn } from "@/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { SprintMark } from "@/components/logo";
 
 export default async function LoginPage({
   searchParams,
@@ -18,9 +19,7 @@ export default async function LoginPage({
       <Card className="w-full max-w-sm shadow-sm">
         <CardContent className="flex flex-col items-center gap-6 py-10">
           <div className="text-center">
-            <div className="bg-primary text-primary-foreground mx-auto mb-4 flex size-11 items-center justify-center rounded-xl text-lg font-bold">
-              S
-            </div>
+            <SprintMark className="mx-auto mb-4 size-11" />
             <h1 className="text-xl font-semibold tracking-tight">Sprint</h1>
             <p className="text-muted-foreground mt-1 text-sm">
               팀 일정과 문서를 한곳에서

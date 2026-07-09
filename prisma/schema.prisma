@@ -317,6 +317,21 @@ model WikiFolder {
   updatedAt DateTime     @updatedAt
 }
 
+/**
+ * 위키 본문에 첨부한 이미지. 바이너리를 DB 에 저장(파일시스템 가정 없이 포터블)하고
+ * GET /api/wiki/image/[id] 로 서빙한다. content-addressed(cuid) 라 캐시 immutable.
+ * uploaderId 는 감사용 스칼라(FK 관계 없음 — 유저 삭제와 무관하게 이미지 보존).
+ */
+model WikiImage {
+  id         String   @id @default(cuid())
+  data       Bytes
+  mimeType   String
+  name       String?
+  size       Int
+  uploaderId String?
+  createdAt  DateTime @default(now())
+}
+
 model WikiPage {
   id        String     @id @default(cuid())
   title     String

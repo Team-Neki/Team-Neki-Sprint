@@ -6,6 +6,7 @@ import {
   getMembers,
 } from "@/server/queries";
 import { PageHeader } from "@/components/page-header";
+import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EpicsTable } from "@/components/tables/epics-table";
@@ -51,22 +52,23 @@ export default async function EpicsPage({
       </OwnerFilter>
 
       {epics.length === 0 ? (
-        <Card className="flex flex-col items-center gap-3 py-16">
-          <div className="bg-muted flex size-12 items-center justify-center rounded-full">
-            <Layers className="text-muted-foreground size-6" />
-          </div>
-          <p className="text-muted-foreground text-sm">아직 에픽이 없습니다.</p>
-          <EpicDialog
-            members={members}
-            teams={teams}
-            projects={projects}
-            trigger={
-              <Button variant="outline">
-                <Plus className="size-4" /> 첫 에픽 만들기
-              </Button>
-            }
-          />
-        </Card>
+        <EmptyState
+          icon={Layers}
+          title="아직 에픽이 없습니다"
+          description="첫 에픽을 만들어 프로젝트를 구조화하세요."
+          action={
+            <EpicDialog
+              members={members}
+              teams={teams}
+              projects={projects}
+              trigger={
+                <Button variant="outline">
+                  <Plus className="size-4" /> 첫 에픽 만들기
+                </Button>
+              }
+            />
+          }
+        />
       ) : (
         <Card className="overflow-hidden py-0">
           <EpicsTable epics={epics} edit={{ members, teams, projects }} />

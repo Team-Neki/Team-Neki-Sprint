@@ -5,6 +5,7 @@ import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import { TableKit } from "@tiptap/extension-table";
 import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
+import Image from "@tiptap/extension-image";
 import { createLowlight, common } from "lowlight";
 // '#' 티켓 멘션(#4) / '@' 사람 멘션(B5). 각각 자기완결 모듈, 여기 한 줄씩만 추가.
 import { TicketMention } from "@/components/wiki/ticket-mention";
@@ -47,6 +48,11 @@ export function wikiExtensions(opts?: { placeholder?: string }) {
     TableKit.configure({ table: { resizable: true } }),
     // mermaid 다이어그램 블록.
     MermaidBlock,
+    // 본문 이미지. base64 금지(업로드→URL 만 허용), 서빙 URL 은 same-origin.
+    Image.configure({
+      allowBase64: false,
+      HTMLAttributes: { class: "wiki-image" },
+    }),
     TicketMention,
     PersonMention,
     CommentMark,

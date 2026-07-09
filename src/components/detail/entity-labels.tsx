@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Tag, Plus } from "lucide-react";
@@ -58,15 +58,29 @@ export function EntityLabels({
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState(COLORS[0]);
 
-  const selected = new Set(labels.map((l) => l.id));
+  // 낙관적 라벨 목록: 서버 왕복(router.refresh) 전에 배지를 즉시 붙이고/떼어
+  // 체감 지연을 없앤다. refresh 로 새 props(labels)가 오면 자동으로 재동기화된다.
+  const [optimisticLabels, applyOptimistic] = useOptimistic(
+    labels,
+    (state, action: { type: "add" | "remove"; label: LabelItem }) =>
+      action.type === "remove"
+        ? state.filter((l) => l.id !== action.label.id)
+        : state.some((l) => l.id === action.label.id)
+          ? state
+          : [...state, action.label],
+  );
+
+  const selected = new Set(optimisticLabels.map((l) => l.id));
 
   function toggle(label: LabelItem) {
+    const attaching = !selected.has(label.id);
     start(async () => {
+      applyOptimistic({ type: attaching ? "add" : "remove", label });
       try {
-        if (selected.has(label.id)) {
-          await detach(label.id);
-        } else {
+        if (attaching) {
           await attach(label.id);
+        } else {
+          await detach(label.id);
         }
         router.refresh();
       } catch {
@@ -75,10 +89,11 @@ export function EntityLabels({
     });
   }
 
-  function remove(labelId: string) {
+  function remove(label: LabelItem) {
     start(async () => {
+      applyOptimistic({ type: "remove", label });
       try {
-        await detach(labelId);
+        await detach(label.id);
         router.refresh();
       } catch {
         toast.error("제거에 실패했습니다");
@@ -95,6 +110,7 @@ export function EntityLabels({
     start(async () => {
       try {
         const label = await createLabel({ name, color: newColor });
+        applyOptimistic({ type: "add", label });
         await attach(label.id);
         setNewName("");
         setCreating(false);
@@ -107,12 +123,12 @@ export function EntityLabels({
 
   return (
     <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
-      {labels.map((l) => (
+      {optimisticLabels.map((l) => (
         <LabelBadge
           key={l.id}
           name={l.name}
           color={l.color}
-          onRemove={pending ? undefined : () => remove(l.id)}
+          onRemove={pending ? undefined : () => remove(l)}
         />
       ))}
       <Popover open={open} onOpenChange={setOpen}>

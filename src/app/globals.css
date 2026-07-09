@@ -322,6 +322,19 @@
   white-space: pre-wrap;
 }
 
+/* 본문 첨부 이미지. 본문 폭에 맞춰 축소 + 카드 라운드/hairline. */
+.tiptap img.wiki-image {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  margin: 0.5em 0;
+}
+.tiptap img.wiki-image.ProseMirror-selectednode {
+  outline: 2px solid color-mix(in oklch, var(--link) 40%, transparent);
+  outline-offset: 2px;
+}
+
 .tiptap ul[data-type="taskList"] {
   list-style: none;
   padding-left: 0.25rem;
