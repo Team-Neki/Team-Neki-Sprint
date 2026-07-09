@@ -138,3 +138,53 @@
 ## 빠른 배치 후보(반나절)
 
 **A1(알림 폴링) + A4(ItemRow hover) + B6(eslint ignore)** — 근거 명확, 규모 XS~S, 데이터 모델 영향 0. 한 스트림으로 묶어 먼저 닫기 좋음.
+
+---
+
+## 그룹 D — 전체 코드베이스 감사(2026-07-09 리뷰)
+
+목록 개편 후 프로젝트 전반 점검에서 도출. 치명 버그 없음(모든 액션 `requireUser`, 이슈번호 원자 트랜잭션, `any`/`console`/TODO 0). 개선은 깊이·견고성·확장성 위주. **우선순위 P1→P4 순차 진행.**
+
+### D1(P1). 테스트 깊이 · 규모 M · `WIP`
+
+- **현상/배경**: 순수 로직 유닛 73개(validators·rich-content·constants·activity-format)뿐. 서버 액션·쿼리·`keys.ts`(원자 번호)·컴포넌트·E2E 스모크 전무. 이 규모 앱의 최대 갭.
+- **접근안**: (a) 순수/준순수 헬퍼 유닛 확대 — `diffFields`(activity), `extractMentionUserIds`(mentions), `nextTeamNumber`(fake tx). (b) 서버 액션/쿼리 통합 테스트는 테스트 DB(컨테이너) 필요 — 별도 인프라 스코프. (c) Playwright 스모크는 Google SSO 우회(세션 주입) 필요 — 별도 인프라 스코프.
+- **열린 질문**: 통합/E2E는 테스트 DB·인증 우회 인프라 선행 필요.
+- **비고**: (a)는 즉시, (b)(c)는 인프라 결정 후.
+
+### D2(P1). 삭제 인가(authorization) 게이트 · 규모 S · `WIP`
+
+- **현상/배경**: 인증만 하면 아무 태스크/에픽/프로젝트/위키를 수정·삭제 가능(오너/role 체크 없음; `notifications`만 user 스코프). 내부 협업툴이라 편집 개방은 유지하되, **파괴적 삭제는 무방비**.
+- **결정(채택)**: 삭제 계열만 게이트 — **ADMIN 또는 소유자/작성자**(task=reporter, epic/project=owner, wiki=author)만. 편집은 개방 유지.
+- **영향 파일**: `server/actions/{tasks,epics,projects,wiki}.ts` + 인가 헬퍼(`lib/authz.ts`).
+
+### D3(P2). 캐싱 전략(force-dynamic 전면) · 규모 L · `REVIEW→백로그`
+
+- **현상/배경**: 23개 중 22개 `force-dynamic`, `revalidateTag`/`unstable_cache` 0. 매 요청 DB 조회.
+- **판단**: 내부툴에선 기능적으로 무해하고, 전면 태그 캐싱 전환은 **정합성 리스크(스테일)** 대비 즉시 가치 낮음. **지금은 백로그 유지**(트래픽↑ 시 목록/트리부터 태그 캐싱으로 점진 전환). 무리한 리라이트 지양.
+
+### D4(P2). 실시간성(폴링→SSE) · 규모 M · `백로그`
+
+- 알림 벨 45s 폴링(A1에서 도입). 현 규모 적정 → SSE/WebSocket은 규모 커질 때. 백로그 유지.
+
+### D5(P3). 에러 핸들링 일관화 · 규모 S · `TODO`
+
+- **현상/배경**: `catch {}`/토스트 후 무시가 ~40곳. 의도적(draft 자동저장)도 있으나 일부는 실패가 조용히 묻힘.
+- **접근안**: 사용자 대면 실패=토스트, 의도적 무시엔 이유 주석, 서버측은 최소 로깅. 우선 사용자 영향 큰 곳부터.
+
+### D6(P3). 문자열 인자 액션 검증 · 규모 XS · `TODO`
+
+- **현상/배경**: 대부분 액션은 zod 검증하나 `addComment(taskId, body)` 등 문자열 인자는 빈값 체크만.
+- **접근안**: 본문 스키마(비어있지 않음·최대 길이·doc JSON 형태) 검증 추가.
+
+### D7(P4). 에픽 라벨 부여 · 규모 S · `TODO`
+
+- 스키마 `LabelsOnEpics` 존재하나 UI 없음. 프로젝트 라벨(D 직전 구현)과 동일 패턴(`EntityLabels` + `addLabelToEpic`/`removeLabelFromEpic`)으로 확장.
+
+### D8(P4). `WikiView`(버전 미리보기) content prop 동기화 · 규모 XS · `TODO`
+
+- gotchas §10과 동일 잠재(읽기전용 Tiptap이 content 변경 미반영). 버전 비교 UI에서 드러날 수 있음.
+
+### D9(P4). 담당자 아바타-only 트리거 · 컬럼 정렬 · a11y 스팟 점검 · 규모 S · `TODO`
+
+- 목록 담당자 인라인 편집 트리거를 아바타-only로. 생성/수정시간·우선순위 컬럼 정렬 토글. 아이콘 버튼 aria-label·포커스 링·시트/팝오버 키보드 트랩 전수 점검.

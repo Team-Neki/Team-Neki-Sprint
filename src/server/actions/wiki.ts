@@ -13,6 +13,7 @@ import {
 } from "@/server/queries";
 import { logActivity } from "@/server/activity";
 import { extractMentionUserIds } from "@/lib/mentions";
+import { assertCanManage } from "@/lib/authz";
 
 const EMPTY_DOC: Prisma.InputJsonValue = {
   type: "doc",
@@ -208,6 +209,13 @@ async function collectSubtreeIds(rootId: string): Promise<string[]> {
  */
 export async function deleteWikiPage(id: string) {
   const user = await requireUser();
+  const page = await prisma.wikiPage.findUnique({
+    where: { id },
+    select: { authorId: true },
+  });
+  if (!page) throw new Error("페이지를 찾을 수 없습니다");
+  // 휴지통 이동(soft delete)은 작성자(author) 또는 ADMIN 만.
+  assertCanManage(user, "위키 페이지", page.authorId);
   const ids = await collectSubtreeIds(id);
   await prisma.wikiPage.updateMany({
     where: { id: { in: ids } },
@@ -243,6 +251,13 @@ export async function restoreWikiPage(id: string) {
 /** 휴지통에서 영구 삭제(하드). 하위 페이지·리비전·댓글 등 cascade 로 함께 삭제. */
 export async function purgeWikiPage(id: string) {
   const user = await requireUser();
+  const page = await prisma.wikiPage.findUnique({
+    where: { id },
+    select: { authorId: true },
+  });
+  if (!page) throw new Error("페이지를 찾을 수 없습니다");
+  // 영구 삭제(하드·cascade)는 작성자(author) 또는 ADMIN 만.
+  assertCanManage(user, "위키 페이지", page.authorId);
   await prisma.wikiPage.delete({ where: { id } });
   await logActivity({
     userId: user.id,

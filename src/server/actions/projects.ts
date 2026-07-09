@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/session";
 import { projectSchema } from "@/lib/validators";
 import { logActivity, diffFields } from "@/server/activity";
 import { notifyNewMentions } from "@/server/notify";
+import { assertCanManage } from "@/lib/authz";
 
 export async function createProject(input: unknown) {
   const user = await requireUser();
@@ -117,6 +118,13 @@ export async function updateProjectFields(id: string, input: unknown) {
 
 export async function deleteProject(id: string) {
   const user = await requireUser();
+  const existing = await prisma.project.findUnique({
+    where: { id },
+    select: { ownerId: true },
+  });
+  if (!existing) throw new Error("프로젝트를 찾을 수 없습니다");
+  // 삭제는 소유자(owner) 또는 ADMIN 만.
+  assertCanManage(user, "프로젝트", existing.ownerId);
   const project = await prisma.project.delete({ where: { id } });
   await logActivity({
     userId: user.id,

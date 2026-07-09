@@ -7,6 +7,7 @@ import { epicSchema } from "@/lib/validators";
 import { logActivity, diffFields } from "@/server/activity";
 import { notifyNewMentions } from "@/server/notify";
 import { nextTeamNumber } from "@/server/keys";
+import { assertCanManage } from "@/lib/authz";
 
 export async function createEpic(input: unknown) {
   const user = await requireUser();
@@ -126,6 +127,13 @@ export async function updateEpicFields(id: string, input: unknown) {
 
 export async function deleteEpic(id: string) {
   const user = await requireUser();
+  const epic = await prisma.epic.findUnique({
+    where: { id },
+    select: { ownerId: true },
+  });
+  if (!epic) throw new Error("에픽을 찾을 수 없습니다");
+  // 삭제는 소유자(owner) 또는 ADMIN 만.
+  assertCanManage(user, "에픽", epic.ownerId);
   await prisma.epic.delete({ where: { id } });
   await logActivity({
     userId: user.id,

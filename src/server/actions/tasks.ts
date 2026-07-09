@@ -9,6 +9,7 @@ import { logActivity, diffFields } from "@/server/activity";
 import { notifyNewMentions } from "@/server/notify";
 import { isValueEmpty } from "@/lib/rich-content";
 import { nextTeamNumber } from "@/server/keys";
+import { assertCanManage } from "@/lib/authz";
 
 export async function createTask(input: unknown) {
   const user = await requireUser();
@@ -241,6 +242,13 @@ export async function updateTaskFields(id: string, input: unknown) {
 
 export async function deleteTask(id: string) {
   const user = await requireUser();
+  const task = await prisma.task.findUnique({
+    where: { id },
+    select: { reporterId: true, assigneeId: true },
+  });
+  if (!task) throw new Error("태스크를 찾을 수 없습니다");
+  // 삭제는 작성자(reporter)·담당자(assignee) 또는 ADMIN 만.
+  assertCanManage(user, "태스크", task.reporterId, task.assigneeId);
   await prisma.task.delete({ where: { id } });
   await logActivity({
     userId: user.id,
