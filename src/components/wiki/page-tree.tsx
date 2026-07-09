@@ -40,7 +40,17 @@ import {
   renameWikiPage,
   deleteWikiPage,
   toggleWikiFavorite,
+  moveWikiPage,
 } from "@/server/actions/wiki";
+
+/** 드롭 위치 의도. before/after=형제 재정렬, into=대상의 하위로 중첩. */
+type DropZone = "before" | "into" | "after";
+
+type MoveTarget = {
+  parentId: string | null;
+  folderId: string | null;
+  beforeId: string | null;
+};
 
 export type PageNode = {
   id: string;
@@ -127,11 +137,14 @@ function countPageDescendants(maps: Maps, pageId: string): number {
   return count;
 }
 
-// 생성 액션 + 즐겨찾기 집합을 트리 전역에서 공유(프롭 드릴링 방지).
+// 생성 액션 + 즐겨찾기 집합 + 드래그 이동 상태를 트리 전역에서 공유(프롭 드릴링 방지).
 type TreeCtx = {
   addPage: (opts: { parentId?: string | null; folderId?: string | null }) => void;
   addFolder: (parentId: string | null) => void;
   favSet: Set<string>;
+  dragId: string | null;
+  setDragId: (id: string | null) => void;
+  move: (pageId: string, target: MoveTarget) => void;
 };
 const Ctx = createContext<TreeCtx | null>(null);
 function useTree() {
@@ -151,6 +164,38 @@ export function PageTree({
 }) {
   const router = useRouter();
   const [, start] = useTransition();
+  const [dragId, setDragId] = useState<string | null>(null);
+
+  // 순환 방지용 페이지→부모 맵. 드롭 대상이 드래그 페이지의 하위인지 판정한다.
+  const pageParent = new Map<string, string | null>();
+  for (const p of pages) pageParent.set(p.id, p.parentId);
+  const isSelfOrDescendant = (pageId: string, targetParentId: string) => {
+    let cur: string | null = targetParentId;
+    const seen = new Set<string>();
+    while (cur) {
+      if (cur === pageId) return true;
+      if (seen.has(cur)) return false;
+      seen.add(cur);
+      cur = pageParent.get(cur) ?? null;
+    }
+    return false;
+  };
+
+  const move = (pageId: string, target: MoveTarget) => {
+    // 이동은 콘텐츠 트리 내부 한정. 새 부모가 자기 자신/하위면 순환이라 거부.
+    if (target.parentId && isSelfOrDescendant(pageId, target.parentId)) {
+      toast.error("하위 문서로는 이동할 수 없습니다");
+      return;
+    }
+    start(async () => {
+      try {
+        await moveWikiPage(pageId, target);
+        router.refresh();
+      } catch {
+        toast.error("이동에 실패했습니다");
+      }
+    });
+  };
 
   const addPage = (opts: {
     parentId?: string | null;
@@ -186,7 +231,9 @@ export function PageTree({
   const isEmpty = rootFolders.length === 0 && rootPages.length === 0;
 
   return (
-    <Ctx.Provider value={{ addPage, addFolder, favSet: new Set(favoriteIds) }}>
+    <Ctx.Provider
+      value={{ addPage, addFolder, favSet: new Set(favoriteIds), dragId, setDragId, move }}
+    >
       <div className="mb-1 flex items-center justify-between gap-1 px-1">
         <h2 className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
           콘텐츠
@@ -225,16 +272,28 @@ export function PageTree({
             <FolderItem key={f.id} folder={f} depth={0} maps={maps} />
           ))}
           {rootPages.map((p) => (
-            <PageItem key={p.id} page={p} depth={0} maps={maps} />
+            <PageItem key={p.id} page={p} depth={0} maps={maps} siblings={rootPages} />
           ))}
         </ul>
       )}
 
-      {/* 빈 공간 우클릭 → 추가 컨텍스트 메뉴. 목록 아래 여백을 우클릭해 새 페이지/폴더 추가. */}
+      {/* 빈 공간 우클릭 → 추가 컨텍스트 메뉴. 여기에 드롭하면 최상위(루트)로 이동. */}
       <ContextMenu>
         <ContextMenuTrigger
-          aria-label="여기에 추가"
-          className="mt-1 block min-h-24 w-full rounded-md"
+          aria-label="여기에 추가 · 루트로 이동"
+          className={cn(
+            "mt-1 block min-h-10 w-full rounded-md transition-colors",
+            dragId && "outline-border/70 outline-2 -outline-offset-2 outline-dashed",
+          )}
+          onDragOver={(e) => {
+            if (dragId) e.preventDefault();
+          }}
+          onDrop={(e) => {
+            if (!dragId) return;
+            e.preventDefault();
+            move(dragId, { parentId: null, folderId: null, beforeId: null });
+            setDragId(null);
+          }}
         />
         <ContextMenuContent>
           <ContextMenuItem onClick={() => addPage({})}>
@@ -289,12 +348,13 @@ function FolderItem({
   depth: number;
   maps: Maps;
 }) {
-  const { addFolder, addPage } = useTree();
+  const { addFolder, addPage, dragId, setDragId, move } = useTree();
   const router = useRouter();
   const [open, setOpen] = useState(true);
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(folder.name);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [dropInto, setDropInto] = useState(false);
   const [, start] = useTransition();
 
   const subFolders = maps.foldersByParent.get(folder.id) ?? [];
@@ -315,6 +375,9 @@ function FolderItem({
         setRenaming(false);
         router.refresh();
       } catch {
+        // 실패 시 편집값을 원래 이름으로 되돌린다.
+        setName(folder.name);
+        setRenaming(false);
         toast.error("이름 변경에 실패했습니다");
       }
     });
@@ -334,8 +397,26 @@ function FolderItem({
     <li>
       <ContextMenu>
         <ContextMenuTrigger
-          className="group hover:bg-accent/60 flex items-center gap-1 rounded-md pr-1 text-sm"
+          className={cn(
+            "group hover:bg-accent/60 flex items-center gap-1 rounded-md pr-1 text-sm",
+            dropInto && "ring-link bg-accent/40 ring-2 ring-inset",
+          )}
           style={{ paddingLeft: `${depth * 12 + 4}px` }}
+          onDragOver={(e) => {
+            if (!dragId) return;
+            e.preventDefault();
+            setDropInto(true);
+          }}
+          onDragLeave={() => setDropInto(false)}
+          onDrop={(e) => {
+            if (!dragId) return;
+            e.preventDefault();
+            setDropInto(false);
+            // 폴더로 이동: 최상위(부모 페이지 해제) + 이 폴더 소속 맨 끝에 배치.
+            move(dragId, { parentId: null, folderId: folder.id, beforeId: null });
+            setDragId(null);
+            setOpen(true);
+          }}
         >
           <button
             type="button"
@@ -378,6 +459,10 @@ function FolderItem({
             <button
               type="button"
               onClick={() => setOpen((o) => !o)}
+              onDoubleClick={() => {
+                setName(folder.name);
+                setRenaming(true);
+              }}
               className="flex min-w-0 flex-1 items-center gap-1.5 py-1.5 text-left"
             >
               {open ? (
@@ -436,7 +521,13 @@ function FolderItem({
             <FolderItem key={f.id} folder={f} depth={depth + 1} maps={maps} />
           ))}
           {folderPages.map((p) => (
-            <PageItem key={p.id} page={p} depth={depth + 1} maps={maps} />
+            <PageItem
+              key={p.id}
+              page={p}
+              depth={depth + 1}
+              maps={maps}
+              siblings={folderPages}
+            />
           ))}
         </ul>
       )}
@@ -456,19 +547,60 @@ function PageItem({
   page,
   depth,
   maps,
+  siblings,
 }: {
   page: PageNode;
   depth: number;
   maps: Maps;
+  /** 같은 컨테이너의 형제 목록(position 순). after 드롭 시 다음 형제 계산에 쓴다. */
+  siblings: PageNode[];
 }) {
-  const { addPage, favSet } = useTree();
+  const { addPage, favSet, dragId, setDragId, move } = useTree();
   const router = useRouter();
   const pathname = usePathname();
   const [open, setOpen] = useState(true);
   const [renaming, setRenaming] = useState(false);
   const [title, setTitle] = useState(page.title);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [zone, setZone] = useState<DropZone | null>(null);
   const [, start] = useTransition();
+
+  // after 드롭 = 이 페이지 "뒤"에 삽입 = 다음 형제 앞(없으면 맨 끝).
+  const sibIdx = siblings.findIndex((s) => s.id === page.id);
+  const nextSiblingId =
+    sibIdx >= 0 && sibIdx + 1 < siblings.length ? siblings[sibIdx + 1].id : null;
+
+  const isDragging = dragId === page.id;
+
+  function onDragOver(e: React.DragEvent) {
+    if (!dragId || dragId === page.id) return;
+    e.preventDefault();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    const z: DropZone =
+      y < rect.height * 0.3 ? "before" : y > rect.height * 0.7 ? "after" : "into";
+    setZone(z);
+  }
+
+  function onDrop() {
+    const id = dragId;
+    const z = zone;
+    setZone(null);
+    setDragId(null);
+    if (!id || id === page.id || !z) return;
+    if (z === "into") {
+      // 하위 페이지로 중첩: 이 페이지의 자식 맨 끝. folderId 는 부모를 따른다.
+      move(id, { parentId: page.id, folderId: page.folderId, beforeId: null });
+    } else if (z === "before") {
+      move(id, { parentId: page.parentId, folderId: page.folderId, beforeId: page.id });
+    } else {
+      move(id, {
+        parentId: page.parentId,
+        folderId: page.folderId,
+        beforeId: nextSiblingId,
+      });
+    }
+  }
 
   const active = pathname === `/wiki/${page.id}`;
   const children = maps.pageChildrenByParent.get(page.id) ?? [];
@@ -493,6 +625,9 @@ function PageItem({
         setRenaming(false);
         router.refresh();
       } catch {
+        // 실패 시 낙관적 편집값을 원래 제목으로 되돌려 화면에 남지 않게 한다.
+        setTitle(page.title);
+        setRenaming(false);
         toast.error("이름 변경에 실패했습니다");
       }
     });
@@ -518,14 +653,38 @@ function PageItem({
     <li>
       <ContextMenu>
         <ContextMenuTrigger
+          draggable={!renaming}
+          onDragStart={(e) => {
+            setDragId(page.id);
+            e.dataTransfer.effectAllowed = "move";
+            e.dataTransfer.setData("text/plain", page.id);
+          }}
+          onDragEnd={() => {
+            setDragId(null);
+            setZone(null);
+          }}
+          onDragOver={onDragOver}
+          onDragLeave={() => setZone(null)}
+          onDrop={(e) => {
+            e.preventDefault();
+            onDrop();
+          }}
           className={cn(
-            "group flex items-center gap-1 rounded-md pr-1.5 text-sm",
+            "group relative flex items-center gap-1 rounded-md pr-1.5 text-sm",
             active
               ? "bg-accent text-accent-foreground font-medium"
               : "hover:bg-accent/60 text-foreground",
+            isDragging && "opacity-50",
+            zone === "into" && "ring-link bg-accent/40 ring-2 ring-inset",
           )}
           style={{ paddingLeft: `${depth * 12 + 4}px` }}
         >
+          {zone === "before" && (
+            <span className="bg-link pointer-events-none absolute inset-x-1 top-0 h-0.5 rounded-full" />
+          )}
+          {zone === "after" && (
+            <span className="bg-link pointer-events-none absolute inset-x-1 bottom-0 h-0.5 rounded-full" />
+          )}
           <button
             type="button"
             onClick={() => setOpen((o) => !o)}
@@ -567,6 +726,12 @@ function PageItem({
             <Link
               href={`/wiki/${page.id}`}
               className="flex min-w-0 flex-1 items-center gap-1.5 py-1.5"
+              onDoubleClick={(e) => {
+                // 더블클릭 = 제목 인라인 편집(네비게이션 막고 편집 모드 진입).
+                e.preventDefault();
+                setTitle(page.title);
+                setRenaming(true);
+              }}
             >
               <FileText className="text-muted-foreground size-3.5 shrink-0" />
               <span className="truncate">{page.title || "제목 없음"}</span>
@@ -620,7 +785,13 @@ function PageItem({
       {hasChildren && open && (
         <ul className="flex flex-col gap-0.5">
           {children.map((c) => (
-            <PageItem key={c.id} page={c} depth={depth + 1} maps={maps} />
+            <PageItem
+              key={c.id}
+              page={c}
+              depth={depth + 1}
+              maps={maps}
+              siblings={children}
+            />
           ))}
         </ul>
       )}

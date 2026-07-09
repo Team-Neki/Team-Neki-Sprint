@@ -34,6 +34,8 @@ model User {
   ownedEpics    Epic[]     @relation("EpicOwner")
   assignedTasks Task[]     @relation("TaskAssignee")
   createdTasks  Task[]     @relation("TaskReporter")
+  // 참조(c.c.)로 걸린 태스크들(다대다).
+  ccTasks       Task[]     @relation("TaskCc")
   comments      Comment[]
   wikiComments  WikiComment[]
   authoredPages WikiPage[] @relation("PageAuthor")
@@ -223,6 +225,10 @@ model Task {
   epic        Epic?     @relation(fields: [epicId], references: [id], onDelete: SetNull)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  // 참조(c.c.) 수신자(다대다, implicit m2m). 담당자/보고자와 별개로, 티켓을 함께
+  // 참조하도록 선택된 사용자들. 순서/역할 없이 집합만 관리한다.
+  ccUsers   User[]           @relation("TaskCc")
 
   comments  Comment[]
   labels    LabelsOnTasks[]

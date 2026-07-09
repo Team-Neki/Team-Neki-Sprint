@@ -10,10 +10,13 @@ import { TeamDialog } from "@/components/forms/team-dialog";
 import { ConfirmDelete } from "@/components/confirm-delete";
 import { MemberTeamSelect } from "@/components/teams/member-team-select";
 import { EmptyState } from "@/components/empty-state";
+import { requireUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export default async function TeamsPage() {
+  const user = await requireUser();
+  const isAdmin = user.role === "ADMIN";
   const [teams, members, teamOptions] = await Promise.all([
     getTeams(),
     getMembers(),
@@ -128,32 +131,37 @@ export default async function TeamsPage() {
         </div>
       )}
 
-      <h2 className="mb-3 text-lg font-semibold">멤버 배정</h2>
-      <Card className="divide-border flex flex-col gap-0 divide-y py-0">
-        {members.length === 0 && (
-          <p className="text-muted-foreground py-8 text-center text-sm">
-            멤버가 없습니다.
-          </p>
-        )}
-        {members.map((m) => (
-          <div
-            key={m.id}
-            className="flex items-center justify-between gap-3 px-4 py-3"
-          >
-            <div className="flex min-w-0 items-center gap-2">
-              <UserBadge user={m} />
-              <span className="text-muted-foreground truncate text-xs">
-                {m.email}
-              </span>
-            </div>
-            <MemberTeamSelect
-              userId={m.id}
-              teamId={m.teamId ?? null}
-              teams={teamOptions}
-            />
-          </div>
-        ))}
-      </Card>
+      {/* 멤버 배정은 관리자(ADMIN)에게만 노출한다. */}
+      {isAdmin && (
+        <>
+          <h2 className="mb-3 text-lg font-semibold">멤버 배정</h2>
+          <Card className="divide-border flex flex-col gap-0 divide-y py-0">
+            {members.length === 0 && (
+              <p className="text-muted-foreground py-8 text-center text-sm">
+                멤버가 없습니다.
+              </p>
+            )}
+            {members.map((m) => (
+              <div
+                key={m.id}
+                className="flex items-center justify-between gap-3 px-4 py-3"
+              >
+                <div className="flex min-w-0 items-center gap-2">
+                  <UserBadge user={m} />
+                  <span className="text-muted-foreground truncate text-xs">
+                    {m.email}
+                  </span>
+                </div>
+                <MemberTeamSelect
+                  userId={m.id}
+                  teamId={m.teamId ?? null}
+                  teams={teamOptions}
+                />
+              </div>
+            ))}
+          </Card>
+        </>
+      )}
     </div>
   );
 }

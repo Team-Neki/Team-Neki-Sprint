@@ -22,6 +22,7 @@ import { BackButton } from "@/components/detail/back-button";
 import { HistoryPanel } from "@/components/detail/history-panel";
 import { EpicField } from "@/components/detail/epic-field";
 import { TaskLabels } from "@/components/detail/task-labels";
+import { TaskCc } from "@/components/detail/task-cc";
 import { TaskDependencies } from "@/components/detail/task-dependencies";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
@@ -169,6 +170,9 @@ export default async function TaskDetail({
               value={task.reporter}
               members={members}
             />
+          </MetaRow>
+          <MetaRow label="참조 (c.c.)" align="start">
+            <TaskCc taskId={task.id} value={task.ccUsers} members={members} />
           </MetaRow>
           <MetaRow label="우선순위">
             <InlinePriority type="task" id={task.id} value={task.priority} />

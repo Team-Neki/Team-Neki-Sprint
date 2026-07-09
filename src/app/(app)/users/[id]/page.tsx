@@ -1,12 +1,14 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Mail, Phone } from "lucide-react";
+import { Mail, Pencil, Phone } from "lucide-react";
 import type { Status } from "@prisma/client";
 import { requireUser } from "@/lib/session";
 import { getUserProfile } from "@/server/queries";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { BackButton } from "@/components/detail/back-button";
+import { ProfileDialog } from "@/components/forms/profile-dialog";
 import { initialsOf } from "@/components/user-badge";
 import { STATUS_META, formatIssueKey } from "@/lib/constants";
 import { cn } from "@/lib/utils";
@@ -26,16 +28,17 @@ export default async function UserProfilePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireUser();
+  const currentUser = await requireUser();
   const { id } = await params;
   const user = await getUserProfile(id);
   if (!user) notFound();
 
   const label = user.name ?? user.email;
+  const isSelf = currentUser.id === user.id;
 
   return (
     <div className="mx-auto max-w-3xl">
-      <BackButton fallback="/dashboard" label="대시보드" />
+      <BackButton fallback="/dashboard" label="뒤로 가기" />
 
       <div className="mt-3 flex items-center gap-4">
         <Avatar className="size-16">
@@ -44,7 +47,7 @@ export default async function UserProfilePage({
             {initialsOf(user)}
           </AvatarFallback>
         </Avatar>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h1 className="truncate text-2xl font-semibold tracking-tight">
             {label}
           </h1>
@@ -64,6 +67,17 @@ export default async function UserProfilePage({
             <span>{user.role === "ADMIN" ? "관리자" : "멤버"}</span>
           </div>
         </div>
+        {isSelf && (
+          <ProfileDialog
+            profile={{ name: user.name, phone: user.phone }}
+            trigger={
+              <Button variant="outline" size="sm" className="shrink-0">
+                <Pencil className="size-4" />
+                수정
+              </Button>
+            }
+          />
+        )}
       </div>
 
       <Card className="mt-6 gap-0 divide-y p-0">
@@ -87,16 +101,16 @@ export default async function UserProfilePage({
       </Card>
 
       <ItemSection
-        title="담당 태스크"
-        empty="담당 중인 태스크가 없어요"
-        items={user.assignedTasks}
-        hrefBase="/tasks"
-      />
-      <ItemSection
         title="오너 에픽"
         empty="오너인 에픽이 없어요"
         items={user.ownedEpics}
         hrefBase="/epics"
+      />
+      <ItemSection
+        title="담당 태스크"
+        empty="담당 중인 태스크가 없어요"
+        items={user.assignedTasks}
+        hrefBase="/tasks"
       />
     </div>
   );

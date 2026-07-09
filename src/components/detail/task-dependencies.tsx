@@ -149,9 +149,9 @@ export function TaskDependencies({
   return (
     <div className="flex flex-col gap-4">
       <section>
-        <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="mb-1 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <h3 className="text-sm font-medium">차단됨</h3>
+            <h3 className="text-sm font-medium">선행 작업</h3>
             {openBlockerCount > 0 && (
               <span className="bg-destructive/10 text-destructive rounded px-1.5 py-0.5 text-xs font-medium">
                 미완료 {openBlockerCount}
@@ -160,36 +160,42 @@ export function TaskDependencies({
           </div>
           <LinkSearchPopover
             triggerLabel="추가"
-            placeholder="이 태스크를 막는 티켓 검색…"
+            placeholder="먼저 끝나야 하는 티켓 검색…"
             emptyLabel="티켓이 없습니다"
             search={searchItems}
             onSelect={addBlocker}
             excludeIds={blockerExclude}
           />
         </div>
+        <p className="text-muted-foreground mb-2 text-xs">
+          이 작업을 시작하려면 먼저 끝나야 하는 항목
+        </p>
         <DepList
           items={blockers}
           onRemove={removeBlocker}
-          emptyLabel="이 태스크를 막는 항목이 없습니다."
+          emptyLabel="선행 작업이 없습니다."
         />
       </section>
 
       <section>
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <h3 className="text-sm font-medium">차단함</h3>
+        <div className="mb-1 flex items-center justify-between gap-2">
+          <h3 className="text-sm font-medium">후속 작업</h3>
           <LinkSearchPopover
             triggerLabel="추가"
-            placeholder="이 태스크가 막는 티켓 검색…"
+            placeholder="이 작업을 기다리는 티켓 검색…"
             emptyLabel="티켓이 없습니다"
             search={searchItems}
             onSelect={addBlocking}
             excludeIds={blockingExclude}
           />
         </div>
+        <p className="text-muted-foreground mb-2 text-xs">
+          이 작업이 끝나야 시작할 수 있는 항목
+        </p>
         <DepList
           items={blocking}
           onRemove={removeBlocking}
-          emptyLabel="이 태스크가 막는 항목이 없습니다."
+          emptyLabel="후속 작업이 없습니다."
         />
       </section>
     </div>

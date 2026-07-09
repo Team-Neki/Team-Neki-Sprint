@@ -45,8 +45,16 @@ export type TimelineEpic = {
 
 type Range = { start: Date; end: Date } | null;
 
-// Layout constants. NAME_W must match the `w-64` name gutter (16rem = 256px).
+// Layout constants. NAME_W is the default name-gutter width (16rem = 256px);
+// it is now resizable at runtime via the drag divider, so it seeds state.
 const NAME_W = 256;
+const NAME_W_MIN = 140;
+const NAME_W_MAX = 560;
+// 이름 열 구분선 ↔ 그래프(막대) 시작 사이 여백(px). 눈금 원점을 이만큼 밀어
+// 축(월/일)·마커·막대가 모두 같은 원점(nameW + RULER_PAD)에 정렬되게 한다.
+const RULER_PAD = 12;
+// 셀 내부 좌측 텍스트 여백(px) — 월 라벨과 일 숫자가 같은 시작 오프셋을 쓰게 한다.
+const CELL_PAD = 2;
 // Each date is a fixed-width day cell. Day width fills toward TARGET_RULER_PX but
 // is clamped to [DAY_W_MIN, DAY_W_MAX]: long ranges floor at the min (cells stay
 // readable, container widens → horizontal scroll), short ranges cap at the max.
@@ -82,6 +90,26 @@ export function EpicTimeline({
   today: Date;
 }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  // 이름 열(거터) 폭 — 드래그 리사이즈 가능. 구분선은 별도 오버레이가 아니라
+  // sticky 거터의 border-r 로 그린다(거터가 CSS sticky 라 스크롤에 안 흔들림).
+  const [nameW, setNameW] = useState(NAME_W);
+
+  function onResizeStart(e: React.PointerEvent) {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = nameW;
+    const onMove = (ev: PointerEvent) => {
+      const next = startW + (ev.clientX - startX);
+      setNameW(Math.min(NAME_W_MAX, Math.max(NAME_W_MIN, next)));
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }
 
   const toggle = (id: string) =>
     setExpanded((prev) => {
@@ -160,34 +188,44 @@ export function EpicTimeline({
 
   return (
     <div className="overflow-x-auto">
-      <div className="relative" style={{ width: NAME_W + rulerWidth }}>
+      <div className="relative" style={{ width: nameW + RULER_PAD + rulerWidth }}>
         {/* 날짜 축(2줄): 상단=월("N월"), 하단=모든 일자 숫자. 이름 거터 위는 sticky
             마스크로 가려 가로 스크롤 시 라벨이 거터 아래로 비치지 않게 한다. */}
         <div
-          className="text-muted-foreground relative mb-2 h-9 border-b text-[11px]"
-          style={{ width: NAME_W + rulerWidth }}
+          className="text-muted-foreground relative mb-2 h-11 border-b text-[11px]"
+          style={{ width: nameW + RULER_PAD + rulerWidth }}
         >
-          {/* sticky gutter mask over the frozen name column */}
+          {/* sticky gutter mask over the frozen name column. border-r = 이름 열 ↔
+              타임라인 구분선(sticky 라 스크롤에 안 흔들림). 우측 끝에 드래그 리사이즈 핸들. */}
           <div
-            className="bg-card sticky left-0 z-30 h-full border-b"
-            style={{ width: NAME_W }}
-          />
-          {/* 월 라벨(상단) — 각 달의 첫 표시일 위치 */}
+            className="bg-card border-border sticky left-0 z-40 h-full border-r border-b"
+            style={{ width: nameW }}
+          >
+            <div
+              onPointerDown={onResizeStart}
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="이름 열 너비 조절"
+              className="hover:bg-link/30 absolute inset-y-0 -right-1 z-40 w-2 cursor-col-resize"
+            />
+          </div>
+          {/* 월 라벨(상단)·일자 숫자(하단) 모두 셀 좌측(시작) 정렬 + 동일한 CELL_PAD
+              오프셋 → 각 달 첫날의 "N월"과 그 아래 일 숫자의 시작 글자가 세로로 맞는다. */}
           {months.map(({ index, label }) => (
             <span
               key={`m${index}`}
               className="text-foreground absolute top-1 whitespace-nowrap font-semibold"
-              style={{ left: NAME_W + index * dayWidth + 2 }}
+              style={{ left: nameW + RULER_PAD + index * dayWidth + CELL_PAD }}
             >
               {label}
             </span>
           ))}
-          {/* 일자 숫자(하단) — 모든 날짜, 셀 폭 중앙정렬이라 겹치지 않는다 */}
+          {/* 일자 숫자(하단) — 모든 날짜. 월 라벨과 세로 간격(gap)을 두려고 bottom 을 내린다. */}
           {dayList.map((d, i) => (
             <span
               key={`d${i}`}
-              className="absolute bottom-1 text-center text-[10px] tabular-nums"
-              style={{ left: NAME_W + i * dayWidth, width: dayWidth }}
+              className="absolute bottom-1.5 text-[10px] tabular-nums"
+              style={{ left: nameW + RULER_PAD + i * dayWidth + CELL_PAD }}
             >
               {format(d, "d")}
             </span>
@@ -195,21 +233,41 @@ export function EpicTimeline({
         </div>
 
         <div className="relative">
-          {/* 회색 세로줄(주별 그리드·주말 음영) 제거 — 오늘 마커(빨강)만 남긴다. */}
+          {/* 월 경계 세로 구분선 — 각 달 첫 표시일 위치(index 0 은 거터 구분선과 겹쳐 생략).
+              막대 뒤(z-0)에 깔려 그리드 역할만 한다. */}
+          {months.map(({ index }) =>
+            index === 0 ? null : (
+              <div
+                key={`mline${index}`}
+                className="bg-border pointer-events-none absolute top-0 bottom-0 z-0 w-px"
+                style={{ left: nameW + RULER_PAD + index * dayWidth }}
+              />
+            ),
+          )}
 
           {/* Today marker */}
           {todayIndex >= 0 && todayIndex < totalDays && (
             <div
               className="pointer-events-none absolute top-0 bottom-0 z-10 w-px bg-red-500"
-              style={{ left: NAME_W + todayIndex * dayWidth }}
+              style={{ left: nameW + RULER_PAD + todayIndex * dayWidth }}
             />
           )}
 
-          <div className="flex flex-col gap-8">
+          <div className="flex flex-col">
             {groups.map((g, gi) => (
-              <div key={gi} className="flex flex-col gap-1">
+              <div key={gi}>
+                {/* 그룹 간 간격을 이름 열에서도 이어지게 하는 sticky 스페이서 —
+                    border-r 로 구분선을 잇고 bg-card 로 월 구분선 침범을 막는다. */}
+                {gi > 0 && (
+                  <div
+                    className="bg-card border-border sticky left-0 z-30 h-8 border-r"
+                    style={{ width: nameW }}
+                  />
+                )}
+                <div className="flex flex-col gap-1">
                 <div
-                  className="bg-card text-foreground sticky left-0 z-20 flex w-64 shrink-0 items-center gap-1.5 pl-1 text-xs font-medium"
+                  className="bg-card border-border text-foreground sticky left-0 z-30 flex shrink-0 items-center gap-1.5 border-r pr-3 pl-1 text-xs font-medium"
+                  style={{ width: nameW }}
                   title={g.title}
                 >
                   <UserBadge user={g.owner} hideName size="xs" />
@@ -223,7 +281,10 @@ export function EpicTimeline({
                     <div key={epic.id} className="flex flex-col">
                       {/* Epic row */}
                       <div className="flex items-center">
-                        <div className="bg-card sticky left-0 z-20 flex w-64 shrink-0 items-center gap-1 self-stretch pr-3">
+                        <div
+                          className="bg-card border-border sticky left-0 z-30 flex shrink-0 items-center gap-1 self-stretch border-r pr-3"
+                          style={{ width: nameW }}
+                        >
                           <button
                             type="button"
                             onClick={() => toggle(epic.id)}
@@ -254,7 +315,7 @@ export function EpicTimeline({
                         </div>
                         <div
                           className="relative h-7 shrink-0"
-                          style={{ width: rulerWidth }}
+                          style={{ width: rulerWidth, marginLeft: RULER_PAD }}
                         >
                           {r ? (
                             <Link
@@ -273,7 +334,7 @@ export function EpicTimeline({
                                 // pl-1 + left 오프셋: sticky 로 끌려와 이름 거터에
                                 // 붙을 때 글자 좌측이 잘리지 않도록 여백을 준다.
                                 className="sticky min-w-0 truncate pl-1"
-                                style={{ left: NAME_W + 4 }}
+                                style={{ left: nameW + RULER_PAD + 4 }}
                               >
                                 {epic.tasks.length > 0
                                   ? `${epic.tasks.length} 태스크`
@@ -281,7 +342,13 @@ export function EpicTimeline({
                               </span>
                             </Link>
                           ) : (
-                            <span className="text-muted-foreground/60 absolute top-1/2 left-1 -translate-y-1/2 text-[11px]">
+                            // 일정 미설정 라벨은 sticky 가 아니라 스크롤 콘텐츠(ruler)
+                            // 안에 두어 막대(그래프)와 함께 좌우로 움직인다. left 는
+                            // 일자 라벨과 같은 CELL_PAD 오프셋으로 구분선 여백을 맞춘다.
+                            <span
+                              className="text-muted-foreground/60 pointer-events-none absolute top-1/2 -translate-y-1/2 text-[11px] whitespace-nowrap"
+                              style={{ left: CELL_PAD }}
+                            >
                               일정 미설정
                             </span>
                           )}
@@ -294,7 +361,10 @@ export function EpicTimeline({
                           const tr = taskRange(t);
                           return (
                             <div key={t.id} className="flex items-center">
-                              <div className="bg-card sticky left-0 z-20 flex w-64 shrink-0 items-center gap-1.5 self-stretch py-0.5 pr-3 pl-7">
+                              <div
+                                className="bg-card border-border sticky left-0 z-30 flex shrink-0 items-center gap-1.5 self-stretch border-r py-0.5 pr-3 pl-7"
+                                style={{ width: nameW }}
+                              >
                                 <Link
                                   href={`/tasks/${t.id}`}
                                   className="text-muted-foreground min-w-0 flex-1 truncate text-xs hover:underline"
@@ -306,7 +376,7 @@ export function EpicTimeline({
                               </div>
                               <div
                                 className="relative h-6 shrink-0"
-                                style={{ width: rulerWidth }}
+                                style={{ width: rulerWidth, marginLeft: RULER_PAD }}
                               >
                                 {tr && (
                                   <Link
@@ -327,6 +397,7 @@ export function EpicTimeline({
                     </div>
                   );
                 })}
+                </div>
               </div>
             ))}
           </div>

@@ -432,3 +432,28 @@ export async function removeTaskDependency(
   revalidateDepPaths(blockerId, blockedId);
   return { blockerId, blockedId };
 }
+
+/**
+ * 티켓 참조(c.c.) 수신자 집합 설정. 편집은 팀 전체에 개방(삭제만 제한 정책)이라
+ * 별도 소유자 게이트 없이 로그인 사용자면 변경 가능하다. userIds 로 전체 목록을 교체.
+ */
+export async function setTaskCc(taskId: string, userIds: string[]) {
+  const user = await requireUser();
+  const ids = [
+    ...new Set((userIds ?? []).filter((u) => typeof u === "string" && u)),
+  ];
+  await prisma.task.update({
+    where: { id: taskId },
+    data: { ccUsers: { set: ids.map((id) => ({ id })) } },
+  });
+  await logActivity({
+    userId: user.id,
+    entityType: "task",
+    entityId: taskId,
+    action: "updated",
+    meta: { field: "cc" },
+  });
+  revalidatePath(`/tasks/${taskId}`);
+  bumpTags(CACHE_TAGS.tasks);
+  return { id: taskId };
+}

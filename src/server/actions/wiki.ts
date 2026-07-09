@@ -292,6 +292,66 @@ export async function movePageToFolder(pageId: string, folderId: string | null) 
   revalidatePath(`/wiki/${pageId}`);
 }
 
+/**
+ * 사이드바 트리 드래그앤드롭 이동(콘텐츠 트리 내부 한정). 대상 컨테이너
+ * (parentId, folderId) 로 옮기고, beforeId 앞(없으면 맨 끝)에 끼워 형제 position 을
+ * 0..n 으로 재색인한다. 새 부모가 자기 자신/하위(순환)면 거부한다.
+ */
+export async function moveWikiPage(
+  pageId: string,
+  target: {
+    parentId: string | null;
+    folderId: string | null;
+    beforeId: string | null;
+  },
+) {
+  await requireUser();
+  const { parentId, folderId, beforeId } = target;
+
+  // 순환 방지: 새 부모의 조상 체인을 따라 올라가며 pageId 를 만나면 거부.
+  if (parentId) {
+    if (parentId === pageId) throw new Error("cannot nest a page under itself");
+    let cur: string | null = parentId;
+    const seen = new Set<string>();
+    while (cur) {
+      if (cur === pageId) throw new Error("cannot move a page into its descendant");
+      if (seen.has(cur)) break;
+      seen.add(cur);
+      const p: { parentId: string | null } | null =
+        await prisma.wikiPage.findUnique({
+          where: { id: cur },
+          select: { parentId: true },
+        });
+      cur = p?.parentId ?? null;
+    }
+  }
+
+  await prisma.$transaction(async (tx) => {
+    const siblings = await tx.wikiPage.findMany({
+      where: { parentId, folderId, deletedAt: null, id: { not: pageId } },
+      orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+      select: { id: true },
+    });
+    const ids = siblings.map((s) => s.id);
+    const at = beforeId ? ids.indexOf(beforeId) : -1;
+    ids.splice(at < 0 ? ids.length : at, 0, pageId);
+
+    await tx.wikiPage.update({
+      where: { id: pageId },
+      data: { parentId, folderId },
+    });
+    await Promise.all(
+      ids.map((id, i) =>
+        tx.wikiPage.update({ where: { id }, data: { position: i } }),
+      ),
+    );
+  });
+
+  revalidatePath("/wiki", "layout");
+  bumpTags(CACHE_TAGS.wiki);
+  revalidatePath(`/wiki/${pageId}`);
+}
+
 // ---------- 폴더(#2) ----------
 
 export async function createWikiFolder(input: unknown) {
