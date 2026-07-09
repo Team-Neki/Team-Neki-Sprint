@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/table";
 import { TableRowLink } from "@/components/ui/table-row-link";
 import { SprintStatusBadge } from "@/components/badges";
-import { CountCell, EmptyRow } from "./cells";
+import { EmptyRow } from "./cells";
 
 /** 스프린트 표의 한 행에 필요한 최소 데이터. */
 export type SprintTableRow = {
@@ -20,7 +20,8 @@ export type SprintTableRow = {
   startDate: Date | null;
   endDate: Date | null;
   status: SprintStatus;
-  _count: { projects: number };
+  /** 스프린트에 속한 전체 태스크의 예상 MD 합(하위 프로젝트→에픽→태스크 롤업). */
+  estimatedMd: number;
 };
 
 function dateRange(start: Date | null, end: Date | null) {
@@ -33,7 +34,7 @@ function dateRange(start: Date | null, end: Date | null) {
 
 /**
  * 스프린트 목록 표.
- * 컬럼: [이름] [기간] [프로젝트] [상태]
+ * 컬럼: [이름] [기간] [MD] [상태]
  */
 export function SprintsTable({
   sprints,
@@ -48,7 +49,7 @@ export function SprintsTable({
         <TableRow>
           <TableHead>이름</TableHead>
           <TableHead className="w-56">기간</TableHead>
-          <TableHead className="w-24 text-right">프로젝트</TableHead>
+          <TableHead className="w-24 text-right">MD</TableHead>
           <TableHead className="w-24">상태</TableHead>
         </TableRow>
       </TableHeader>
@@ -62,7 +63,9 @@ export function SprintsTable({
               <TableCell className="text-muted-foreground text-xs">
                 {dateRange(s.startDate, s.endDate)}
               </TableCell>
-              <CountCell value={s._count.projects} />
+              <TableCell className="text-muted-foreground text-right text-xs tabular-nums">
+                {s.estimatedMd || "—"}
+              </TableCell>
               <TableCell>
                 <SprintStatusBadge status={s.status} />
               </TableCell>

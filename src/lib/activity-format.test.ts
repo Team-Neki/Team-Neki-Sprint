@@ -107,8 +107,8 @@ describe("activityDescription", () => {
 
   it("status_changed: 상태 라벨 문장", () => {
     expect(
-      activityDescription("status_changed", { status: "IN_REVIEW" }, lookups),
-    ).toBe("상태를 리뷰 로 변경");
+      activityDescription("status_changed", { status: "IN_PROGRESS" }, lookups),
+    ).toBe("상태를 진행 중 로 변경");
   });
 
   it("정형 액션 → 한국어", () => {

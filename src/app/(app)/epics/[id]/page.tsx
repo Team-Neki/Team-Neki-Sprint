@@ -57,8 +57,9 @@ export default async function EpicDetail({
   const issueKey = formatIssueKey(epic.team?.key, epic.number);
 
   return (
-    <div className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-3">
-      <div className="lg:col-span-2">
+    <div className="@container/detail mx-auto max-w-5xl">
+      <div className="grid gap-6 @3xl/detail:grid-cols-3">
+      <div className="@3xl/detail:col-span-2">
         <BackButton fallback="/epics" label="에픽" />
 
         <div className="mb-6 flex items-start justify-between gap-3">
@@ -120,7 +121,7 @@ export default async function EpicDetail({
         </Card>
       </div>
 
-      <div className="lg:col-span-1">
+      <div className="@3xl/detail:col-span-1">
         <Card className="flex flex-col gap-3 p-5">
           <MetaRow label="상태">
             <InlineStatus type="epic" id={epic.id} value={epic.status} />
@@ -194,6 +195,7 @@ export default async function EpicDetail({
             />
           </MetaRow>
         </Card>
+      </div>
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { Editor } from "@tiptap/react";
@@ -20,6 +21,13 @@ import {
 } from "@/components/selects/option-select";
 import { STATUS_ORDER, PRIORITY_ORDER } from "@/lib/constants";
 import { UserBadge, type MiniUser } from "@/components/user-badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toDateInput } from "@/components/forms/fields";
 import { updateTaskFields } from "@/server/actions/tasks";
@@ -63,13 +71,48 @@ function useFieldSave(type: DetailEntity, id: string) {
   return { pending, save };
 }
 
+/**
+ * 필드 라벨 옆에 붙는 작은 도움말 아이콘. hover 시 툴팁으로 설명을 보여준다.
+ * (예: MD 필드의 "1md=8h" 환산·산정 의미)
+ */
+export function FieldHint({
+  children,
+  hint,
+}: {
+  children: React.ReactNode;
+  hint: React.ReactNode;
+}) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      {children}
+      <TooltipProvider delay={150}>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <span
+                aria-label="설명"
+                className="text-muted-foreground/70 hover:text-muted-foreground inline-flex cursor-help"
+              >
+                <Info className="size-3" />
+              </span>
+            }
+          />
+          <TooltipContent className="flex flex-col gap-0.5 text-center">
+            {hint}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    </span>
+  );
+}
+
 /** 메타 카드의 한 줄: 라벨(좌) + 편집 값(우). */
 export function MetaRow({
   label,
   children,
   align = "center",
 }: {
-  label: string;
+  label: React.ReactNode;
   children: React.ReactNode;
   align?: "center" | "start";
 }) {
@@ -95,15 +138,23 @@ export function InlineTitle({
   id,
   value,
   className,
+  href,
 }: {
   type: DetailEntity;
   id: string;
   value: string;
   /** 셀 등 좁은 곳에서 쓰기 위한 스타일 override(기본은 상세용 큰 제목). */
   className?: string;
+  /**
+   * 목록 셀용: 제공하면 클릭-투-에딧 모드가 된다. 기본은 제목 텍스트만 보이고
+   * (글자 폭만큼), 텍스트를 클릭해야 열 길이만큼 확장된 인풋으로 편집한다. 텍스트
+   * 우측의 빈 공간을 클릭하면 이 href(상세)로 소프트 내비 → 우측 슬라이드 상세.
+   */
+  href?: string;
 }) {
   const { pending, save } = useFieldSave(type, id);
   const [text, setText] = useState(value);
+  const [editing, setEditing] = useState(false);
   // 서버 확정값(prop)이 바뀌면(refresh 후) 로컬 편집값을 렌더 중 동기화(effect 미사용).
   const [prev, setPrev] = useState(value);
   if (value !== prev) {
@@ -120,11 +171,16 @@ export function InlineTitle({
     if (next !== value) save({ title: next });
   }
 
-  return (
+  const input = (
     <input
+      // 목록 클릭-투-에딧에서 편집 진입 시 바로 포커스.
+      autoFocus={href ? editing : undefined}
       value={text}
       onChange={(e) => setText(e.target.value)}
-      onBlur={commit}
+      onBlur={() => {
+        commit();
+        setEditing(false);
+      }}
       onKeyDown={(e) => {
         if (e.key === "Enter") {
           e.preventDefault();
@@ -141,6 +197,32 @@ export function InlineTitle({
         className,
       )}
     />
+  );
+
+  // 상세 페이지(큰 제목): 항상 편집 가능한 인풋.
+  if (!href) return input;
+  // 목록 셀: 편집 중이면 열 길이만큼 인풋, 아니면 글자 폭 텍스트 + 우측 빈공간 상세 링크.
+  if (editing) return input;
+  return (
+    <span className="flex min-w-0 flex-1 items-center">
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        title="클릭해서 제목 편집"
+        className={cn(
+          "hover:bg-accent min-w-0 truncate rounded px-1 py-0.5 text-left",
+          className,
+        )}
+      >
+        {value}
+      </button>
+      <Link
+        href={href}
+        scroll={false}
+        aria-label="상세 열기"
+        className="min-h-7 flex-1 self-stretch"
+      />
+    </span>
   );
 }
 
@@ -367,15 +449,13 @@ export function InlineNumber({
   id,
   field,
   value,
-  step = "1",
   placeholder = "—",
   suffix,
 }: {
   type: DetailEntity;
   id: string;
-  field: "storyPoints" | "estimatedMd" | "actualMd";
+  field: "estimatedMd" | "actualMd";
   value: number | null;
-  step?: string;
   placeholder?: string;
   suffix?: string;
 }) {
@@ -396,18 +476,23 @@ export function InlineNumber({
   return (
     <span className="inline-flex items-center gap-1">
       <Input
-        type="number"
-        min={0}
-        step={step}
+        type="text"
+        inputMode="decimal"
         value={text}
         placeholder={placeholder}
         disabled={pending}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(e) => {
+          const v = e.target.value;
+          // 숫자와 소수점 하나만 허용(스피너 없이 직접 입력).
+          if (v === "" || /^\d*\.?\d*$/.test(v)) setText(v);
+        }}
         onBlur={commit}
         onKeyDown={(e) => {
           if (e.key === "Enter") e.currentTarget.blur();
         }}
-        className="h-7 w-16 border-transparent bg-transparent px-1.5 text-right text-sm hover:border-input focus-visible:border-ring"
+        // field-sizing:content 로 박스가 글자 폭만큼만(빈 값은 min-w 로 클릭영역 확보).
+        // 좌측 정렬 → 타이핑 시 박스가 우측으로 자라고, 열 좌측선과 값이 맞는다.
+        className="h-7 min-w-8 max-w-24 border-transparent bg-transparent px-1.5 text-left text-sm [field-sizing:content] hover:border-input focus-visible:border-ring"
         aria-label={field}
       />
       {suffix && <span className="text-muted-foreground text-xs">{suffix}</span>}

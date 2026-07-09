@@ -1,9 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Eye, Pencil } from "lucide-react";
 import type { JSONContent } from "@tiptap/react";
-import { Button } from "@/components/ui/button";
 import { UserBadge, type MiniUser } from "@/components/user-badge";
 import { WikiEditor } from "@/components/wiki/editor";
 import { WikiCommentsView } from "@/components/wiki/wiki-comments-view";
@@ -12,8 +10,8 @@ import { WikiPageMenu } from "@/components/wiki/wiki-page-menu";
 import type { RevisionListItem } from "@/components/wiki/version-history";
 
 /**
- * 위키 상세의 뷰/편집 전환 셸. 기본은 읽기전용 뷰(WikiCommentsView), 우측 상단 '편집'
- * 버튼으로 에디터(WikiEditor)로 토글한다. 편집은 명시적 '저장/취소'로 마치며(에디터 내부),
+ * 위키 상세의 뷰/편집 전환 셸. 기본은 읽기전용 뷰(WikiCommentsView), 제목 행 우측의 '수정'
+ * 버튼으로 에디터(WikiEditor)로 전환한다. 편집은 명시적 '저장/취소'로만 마치며(에디터 내부),
  * onExit 으로 뷰 모드로 복귀한다. 편집 중 변경은 임시저장본(WikiDraft)에 자동저장된다.
  */
 export function WikiDetail({
@@ -59,21 +57,6 @@ export function WikiDetail({
             <span className="shrink-0">{updatedLabel}</span>
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            <Button
-              variant={mode === "edit" ? "secondary" : "outline"}
-              size="sm"
-              onClick={() => setMode((m) => (m === "edit" ? "view" : "edit"))}
-            >
-              {mode === "edit" ? (
-                <>
-                  <Eye className="size-4" /> 보기
-                </>
-              ) : (
-                <>
-                  <Pencil className="size-4" /> 수정
-                </>
-              )}
-            </Button>
             <WikiPageMenu
               pageId={pageId}
               favorited={favorited}
@@ -101,6 +84,7 @@ export function WikiDetail({
           threads={threads}
           currentUserId={currentUserId}
           updatedAt={updatedAt}
+          onEdit={() => setMode("edit")}
         />
       )}
     </div>

@@ -10,6 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { RowOpenSheet } from "@/components/ui/table-row-link";
 import { StatusBadge, PriorityBadge, LabelBadge } from "@/components/badges";
 import { UserBadge, type MiniUser } from "@/components/user-badge";
 import {
@@ -75,15 +76,15 @@ export function ProjectsTable({
           {edit ? (
             <>
               <SortableHead field="title">제목</SortableHead>
-              <SortableHead field="status" className="w-28">
-                상태
-              </SortableHead>
               <TableHead className="w-32">담당자</TableHead>
               <SortableHead field="dueDate" className="w-28">
                 기한
               </SortableHead>
               <SortableHead field="priority" className="w-24">
                 우선순위
+              </SortableHead>
+              <SortableHead field="status" className="w-28">
+                상태
               </SortableHead>
               <TableHead className="w-40">레이블</TableHead>
               <SortableHead field="createdAt" className="w-24">
@@ -96,10 +97,10 @@ export function ProjectsTable({
           ) : (
             <>
               <TableHead>제목</TableHead>
-              <TableHead className="w-28">상태</TableHead>
               <TableHead className="w-32">담당자</TableHead>
               <TableHead className="w-28">기한</TableHead>
               <TableHead className="w-24">우선순위</TableHead>
+              <TableHead className="w-28">상태</TableHead>
               <TableHead className="w-40">레이블</TableHead>
               <TableHead className="w-24">생성시간</TableHead>
               <TableHead className="w-24">수정시간</TableHead>
@@ -114,27 +115,22 @@ export function ProjectsTable({
         {projects.length === 0 ? (
           <EmptyRow colSpan={9} message={emptyMessage} />
         ) : (
-          projects.map((p) => (
-            <TableRow key={p.id}>
+          projects.map((p) => {
+            const cells = (
+              <>
               <TableCell className="font-medium">
                 {edit ? (
                   <InlineTitle
                     type="project"
                     id={p.id}
                     value={p.title}
+                    href={`/projects/${p.id}`}
                     className="text-sm font-medium"
                   />
                 ) : (
                   <Link href={`/projects/${p.id}`} className="hover:underline">
                     {p.title}
                   </Link>
-                )}
-              </TableCell>
-              <TableCell>
-                {edit ? (
-                  <InlineStatus type="project" id={p.id} value={p.status} />
-                ) : (
-                  <StatusBadge status={p.status} />
                 )}
               </TableCell>
               <TableCell>
@@ -172,10 +168,18 @@ export function ProjectsTable({
               </TableCell>
               <TableCell>
                 {edit ? (
+                  <InlineStatus type="project" id={p.id} value={p.status} />
+                ) : (
+                  <StatusBadge status={p.status} />
+                )}
+              </TableCell>
+              <TableCell>
+                {edit ? (
                   <ProjectLabels
                     projectId={p.id}
                     labels={p.labels?.map((l) => l.label) ?? []}
                     allLabels={edit.labels}
+                    align="start"
                   />
                 ) : (
                   <span className="flex flex-wrap items-center gap-1">
@@ -200,8 +204,16 @@ export function ProjectsTable({
               <TableCell>
                 <OpenDetailIcon href={`/projects/${p.id}`} />
               </TableCell>
-            </TableRow>
-          ))
+              </>
+            );
+            return edit ? (
+              <RowOpenSheet key={p.id} href={`/projects/${p.id}`}>
+                {cells}
+              </RowOpenSheet>
+            ) : (
+              <TableRow key={p.id}>{cells}</TableRow>
+            );
+          })
         )}
       </TableBody>
     </Table>

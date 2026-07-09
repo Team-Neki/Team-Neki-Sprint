@@ -1,5 +1,7 @@
+import { Suspense } from "react";
 import ProjectDetail from "../../[id]/page";
 import { DetailSheet } from "@/components/detail/detail-sheet";
+import { DetailSkeleton } from "@/components/detail/detail-skeleton";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +14,9 @@ export default async function InterceptedProjectDetail({
   const { id } = await params;
   return (
     <DetailSheet fullHref={`/projects/${id}`}>
-      <ProjectDetail params={params} />
+      <Suspense fallback={<DetailSkeleton />}>
+        <ProjectDetail params={params} />
+      </Suspense>
     </DetailSheet>
   );
 }

@@ -4,7 +4,6 @@ export const STATUS_ORDER: Status[] = [
   "BACKLOG",
   "TODO",
   "IN_PROGRESS",
-  "IN_REVIEW",
   "DONE",
 ];
 
@@ -15,7 +14,6 @@ export const STATUS_META: Record<
   BACKLOG: { label: "백로그", color: "text-neutral-500", dot: "bg-neutral-400" },
   TODO: { label: "할 일", color: "text-blue-600", dot: "bg-blue-500" },
   IN_PROGRESS: { label: "진행 중", color: "text-amber-600", dot: "bg-amber-500" },
-  IN_REVIEW: { label: "리뷰", color: "text-violet-600", dot: "bg-violet-500" },
   DONE: { label: "완료", color: "text-emerald-600", dot: "bg-emerald-500" },
 };
 

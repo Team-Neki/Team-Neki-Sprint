@@ -9,7 +9,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { useEditor, EditorContent, type JSONContent } from "@tiptap/react";
-import { MessageSquarePlus } from "lucide-react";
+import { MessageSquarePlus, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { wikiExtensions } from "@/components/wiki/extensions";
 import {
@@ -68,6 +68,7 @@ export function WikiCommentsView({
   threads,
   currentUserId,
   updatedAt,
+  onEdit,
 }: {
   pageId: string;
   title: string;
@@ -75,6 +76,8 @@ export function WikiCommentsView({
   threads: ThreadItem[];
   currentUserId: string;
   updatedAt: string;
+  /** 제목 행 우측 '수정' 버튼 → 편집 모드 진입(상위 WikiDetail). */
+  onEdit?: () => void;
 }) {
   const router = useRouter();
   const isWide = useIsWide();
@@ -311,9 +314,21 @@ export function WikiCommentsView({
       {/* 본문: 데스크톱은 우측 댓글 거터만큼 비워 카드와 겹치지 않게. 모바일은 거터 폭이
           안 나오므로 전체폭 사용(댓글은 본문 아래로 스택). */}
       <div style={{ paddingRight: hasComments && isWide ? GUTTER : undefined }}>
-        <h1 className="mb-4 text-2xl font-semibold break-words md:text-3xl">
-          {title.trim() || "제목 없음"}
-        </h1>
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <h1 className="min-w-0 text-2xl font-semibold break-words md:text-3xl">
+            {title.trim() || "제목 없음"}
+          </h1>
+          {onEdit && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onEdit}
+              className="mt-0.5 shrink-0"
+            >
+              <Pencil className="size-4" /> 수정
+            </Button>
+          )}
+        </div>
         <div onClick={onDocClick}>
           <EditorContent editor={editor} />
         </div>

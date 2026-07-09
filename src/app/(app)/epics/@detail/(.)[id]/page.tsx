@@ -1,5 +1,7 @@
+import { Suspense } from "react";
 import EpicDetail from "../../[id]/page";
 import { DetailSheet } from "@/components/detail/detail-sheet";
+import { DetailSkeleton } from "@/components/detail/detail-skeleton";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +14,9 @@ export default async function InterceptedEpicDetail({
   const { id } = await params;
   return (
     <DetailSheet fullHref={`/epics/${id}`}>
-      <EpicDetail params={params} />
+      <Suspense fallback={<DetailSkeleton />}>
+        <EpicDetail params={params} />
+      </Suspense>
     </DetailSheet>
   );
 }

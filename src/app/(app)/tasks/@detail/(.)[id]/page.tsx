@@ -1,5 +1,7 @@
+import { Suspense } from "react";
 import TaskDetail from "../../[id]/page";
 import { DetailSheet } from "@/components/detail/detail-sheet";
+import { DetailSkeleton } from "@/components/detail/detail-skeleton";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +17,10 @@ export default async function InterceptedTaskDetail({
   const { id } = await params;
   return (
     <DetailSheet fullHref={`/tasks/${id}`}>
-      <TaskDetail params={params} />
+      {/* 시트는 즉시 슬라이드, 데이터 무거운 본문만 스트리밍(전체화면 loading 플래시 방지). */}
+      <Suspense fallback={<DetailSkeleton />}>
+        <TaskDetail params={params} />
+      </Suspense>
     </DetailSheet>
   );
 }

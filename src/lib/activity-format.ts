@@ -32,7 +32,6 @@ export const FIELD_LABEL: Record<string, string> = {
   sprintId: "스프린트",
   startDate: "시작일",
   dueDate: "기한",
-  storyPoints: "스토리포인트",
   estimatedMd: "예상 MD",
   actualMd: "실제 MD",
 };

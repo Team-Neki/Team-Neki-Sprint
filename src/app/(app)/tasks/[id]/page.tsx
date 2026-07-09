@@ -26,6 +26,7 @@ import { TaskDependencies } from "@/components/detail/task-dependencies";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   MetaRow,
+  FieldHint,
   InlineTitle,
   InlineDescription,
   InlineStatus,
@@ -65,8 +66,9 @@ export default async function TaskDetail({
   }
 
   return (
-    <div className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-3">
-      <div className="lg:col-span-2">
+    <div className="@container/detail mx-auto max-w-5xl">
+      <div className="grid gap-6 @3xl/detail:grid-cols-3">
+      <div className="@3xl/detail:col-span-2">
         <BackButton fallback="/board" label="보드" />
 
         <div className="mb-6 flex items-start justify-between gap-3">
@@ -145,7 +147,7 @@ export default async function TaskDetail({
         </Tabs>
       </div>
 
-      <div className="lg:col-span-1 flex flex-col gap-4">
+      <div className="@3xl/detail:col-span-1 flex flex-col gap-4">
         <Card className="flex flex-col gap-3 p-5">
           <MetaRow label="상태">
             <InlineStatus type="task" id={task.id} value={task.status} />
@@ -178,30 +180,46 @@ export default async function TaskDetail({
               epics={epicPickOptions}
             />
           </MetaRow>
-          <MetaRow label="스토리 포인트">
-            <InlineNumber
-              type="task"
-              id={task.id}
-              field="storyPoints"
-              value={task.storyPoints}
-            />
-          </MetaRow>
-          <MetaRow label="예상 MD">
+          <MetaRow
+            label={
+              <FieldHint
+                hint={
+                  <>
+                    <span>1md = 8h</span>
+                    <span>예측 산정 시간</span>
+                  </>
+                }
+              >
+                예상 MD
+              </FieldHint>
+            }
+          >
             <InlineNumber
               type="task"
               id={task.id}
               field="estimatedMd"
               value={task.estimatedMd}
-              step="0.5"
             />
           </MetaRow>
-          <MetaRow label="실제 MD">
+          <MetaRow
+            label={
+              <FieldHint
+                hint={
+                  <>
+                    <span>1md = 8h</span>
+                    <span>실제 산정 시간</span>
+                  </>
+                }
+              >
+                실제 MD
+              </FieldHint>
+            }
+          >
             <InlineNumber
               type="task"
               id={task.id}
               field="actualMd"
               value={task.actualMd}
-              step="0.5"
             />
           </MetaRow>
           <MetaRow label="시작일">
@@ -273,6 +291,7 @@ export default async function TaskDetail({
             }))}
           />
         </Card>
+      </div>
       </div>
     </div>
   );

@@ -8,6 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { RowOpenSheet } from "@/components/ui/table-row-link";
 import { StatusBadge, PriorityBadge } from "@/components/badges";
 import { UserBadge, type MiniUser } from "@/components/user-badge";
 import type { TeamOption } from "@/components/forms/fields";
@@ -22,7 +23,7 @@ import { EmptyRow } from "./cells";
 
 /**
  * 에픽 표의 한 행에 필요한 데이터.
- * `storyPoints` 는 하위 태스크 합(읽기전용 rollup) — Epic 자체엔 SP 필드가 없다.
+ * `estimatedMd` 는 하위 태스크 MD 합(읽기전용 rollup) — Epic 자체엔 MD 필드가 없다.
  */
 export type EpicTableRow = {
   id: string;
@@ -33,8 +34,8 @@ export type EpicTableRow = {
   team: { key: string } | null;
   teamId: string;
   owner: MiniUser | null;
-  /** 하위 태스크 SP 합. 목록(getEpics)에서만 계산 — 하위목록에선 생략(→ "—"). */
-  storyPoints?: number;
+  /** 하위 태스크 예상 MD 합. 목록(getEpics)에서만 계산 — 하위목록에선 생략(→ "—"). */
+  estimatedMd?: number;
   ownerId?: string | null;
 };
 
@@ -47,8 +48,8 @@ export type EpicEditContext = {
 
 /**
  * 에픽 목록/하위목록 공용 표.
- * 컬럼: [키] [제목] [우선순위] [StoryPoint(하위 합)] [담당자] [상태]
- * - `edit` 제공(목록): 각 셀 인라인 편집(StoryPoint 은 rollup 이라 항상 읽기전용).
+ * 컬럼: [키] [제목] [우선순위] [상태] [MD(하위 합)] [담당자]
+ * - `edit` 제공(목록): 각 셀 인라인 편집(MD 는 rollup 이라 항상 읽기전용).
  * - 키 클릭: 우측 슬라이드 상세, ↗: 새 탭 전체 페이지.
  */
 export function EpicsTable({
@@ -67,17 +68,18 @@ export function EpicsTable({
           <TableHead className="w-28">키</TableHead>
           <TableHead>제목</TableHead>
           <TableHead className="w-24">우선순위</TableHead>
-          <TableHead className="w-24 text-right">SP</TableHead>
-          <TableHead className="w-36">담당자</TableHead>
           <TableHead className="w-28">상태</TableHead>
+          <TableHead className="w-20">MD</TableHead>
+          <TableHead className="w-36 pl-5">담당자</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {epics.length === 0 ? (
           <EmptyRow colSpan={6} message={emptyMessage} />
         ) : (
-          epics.map((e) => (
-            <TableRow key={e.id}>
+          epics.map((e) => {
+            const cells = (
+              <>
               <TableCell>
                 <OpenDetailKey
                   href={`/epics/${e.id}`}
@@ -91,6 +93,7 @@ export function EpicsTable({
                     type="epic"
                     id={e.id}
                     value={e.title}
+                    href={`/epics/${e.id}`}
                     className="text-sm font-medium"
                   />
                 ) : (
@@ -106,10 +109,17 @@ export function EpicsTable({
                   <PriorityBadge priority={e.priority} />
                 )}
               </TableCell>
-              <TableCell className="text-muted-foreground text-right text-sm tabular-nums">
-                {e.storyPoints || "—"}
-              </TableCell>
               <TableCell>
+                {edit ? (
+                  <InlineStatus type="epic" id={e.id} value={e.status} />
+                ) : (
+                  <StatusBadge status={e.status} />
+                )}
+              </TableCell>
+              <TableCell className="text-muted-foreground text-sm tabular-nums">
+                {e.estimatedMd || "—"}
+              </TableCell>
+              <TableCell className="pl-5">
                 {edit ? (
                   <InlineMember
                     type="epic"
@@ -123,15 +133,16 @@ export function EpicsTable({
                   <UserBadge user={e.owner} hideName />
                 )}
               </TableCell>
-              <TableCell>
-                {edit ? (
-                  <InlineStatus type="epic" id={e.id} value={e.status} />
-                ) : (
-                  <StatusBadge status={e.status} />
-                )}
-              </TableCell>
-            </TableRow>
-          ))
+              </>
+            );
+            return edit ? (
+              <RowOpenSheet key={e.id} href={`/epics/${e.id}`}>
+                {cells}
+              </RowOpenSheet>
+            ) : (
+              <TableRow key={e.id}>{cells}</TableRow>
+            );
+          })
         )}
       </TableBody>
     </Table>

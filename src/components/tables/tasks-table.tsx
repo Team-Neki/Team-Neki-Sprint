@@ -8,6 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { RowOpenSheet } from "@/components/ui/table-row-link";
 import {
   StatusBadge,
   PriorityBadge,
@@ -42,7 +43,7 @@ export type TaskTableRow = {
   assignee: MiniUser | null;
   labels?: { label: { id: string; name: string; color: string } }[];
   assigneeId?: string | null;
-  storyPoints?: number | null;
+  estimatedMd?: number | null;
   // 미완료 blocker 가 있으면 true(차단됨 배지). 목록 쿼리(getTasks)만 제공, 하위목록은 미제공.
   blocked?: boolean;
 };
@@ -56,7 +57,7 @@ export type TaskEditContext = {
 
 /**
  * 태스크 목록/하위목록 공용 표.
- * 컬럼: [키] [제목] [우선순위] [StoryPoint] [담당자] [상태]
+ * 컬럼: [키] [제목] [우선순위] [상태] [MD] [담당자]
  * - `edit` 제공(목록): 각 셀 인라인 편집. 미제공(상세 하위목록): 읽기전용 표시.
  * - 키 클릭: 우측 슬라이드 상세(목록 세그먼트 한정), ↗: 새 탭 전체 페이지.
  */
@@ -76,17 +77,18 @@ export function TasksTable({
           <TableHead className="w-28">키</TableHead>
           <TableHead>제목</TableHead>
           <TableHead className="w-24">우선순위</TableHead>
-          <TableHead className="w-24 text-right">SP</TableHead>
-          <TableHead className="w-36">담당자</TableHead>
           <TableHead className="w-28">상태</TableHead>
+          <TableHead className="w-20">MD</TableHead>
+          <TableHead className="w-36 pl-5">담당자</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {tasks.length === 0 ? (
           <EmptyRow colSpan={6} message={emptyMessage} />
         ) : (
-          tasks.map((t) => (
-            <TableRow key={t.id}>
+          tasks.map((t) => {
+            const cells = (
+              <>
               <TableCell>
                 <OpenDetailKey
                   href={`/tasks/${t.id}`}
@@ -101,6 +103,7 @@ export function TasksTable({
                       type="task"
                       id={t.id}
                       value={t.title}
+                      href={`/tasks/${t.id}`}
                       className="text-sm font-medium"
                     />
                   ) : (
@@ -125,21 +128,28 @@ export function TasksTable({
                   <PriorityBadge priority={t.priority} />
                 )}
               </TableCell>
-              <TableCell className="text-right">
+              <TableCell>
+                {edit ? (
+                  <InlineStatus type="task" id={t.id} value={t.status} />
+                ) : (
+                  <StatusBadge status={t.status} />
+                )}
+              </TableCell>
+              <TableCell>
                 {edit ? (
                   <InlineNumber
                     type="task"
                     id={t.id}
-                    field="storyPoints"
-                    value={t.storyPoints ?? null}
+                    field="estimatedMd"
+                    value={t.estimatedMd ?? null}
                   />
                 ) : (
                   <span className="text-muted-foreground text-sm tabular-nums">
-                    {t.storyPoints ?? "—"}
+                    {t.estimatedMd ?? "—"}
                   </span>
                 )}
               </TableCell>
-              <TableCell>
+              <TableCell className="pl-5">
                 {edit ? (
                   <InlineMember
                     type="task"
@@ -153,15 +163,17 @@ export function TasksTable({
                   <UserBadge user={t.assignee} hideName />
                 )}
               </TableCell>
-              <TableCell>
-                {edit ? (
-                  <InlineStatus type="task" id={t.id} value={t.status} />
-                ) : (
-                  <StatusBadge status={t.status} />
-                )}
-              </TableCell>
-            </TableRow>
-          ))
+              </>
+            );
+            // 목록(edit): 행 클릭 → 우측 슬라이드 상세(편집 컨트롤·링크·↗ 는 가드로 제외).
+            return edit ? (
+              <RowOpenSheet key={t.id} href={`/tasks/${t.id}`}>
+                {cells}
+              </RowOpenSheet>
+            ) : (
+              <TableRow key={t.id}>{cells}</TableRow>
+            );
+          })
         )}
       </TableBody>
     </Table>

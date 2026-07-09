@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const status = z.enum(["BACKLOG", "TODO", "IN_PROGRESS", "IN_REVIEW", "DONE"]);
+const status = z.enum(["BACKLOG", "TODO", "IN_PROGRESS", "DONE"]);
 const priority = z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]);
 const sprintStatus = z.enum(["PLANNED", "ACTIVE", "DONE"]);
 
@@ -85,7 +85,6 @@ export const taskSchema = z.object({
   epicId: optionalId,
   startDate: optionalDate,
   dueDate: optionalDate,
-  storyPoints: z.coerce.number().int().min(0).max(100).optional().nullable(),
   estimatedMd: optionalMd,
   actualMd: optionalMd,
 });

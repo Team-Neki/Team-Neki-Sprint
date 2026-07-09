@@ -39,7 +39,6 @@ type Existing = {
   epicId: string | null;
   startDate: Date | string | null;
   dueDate: Date | string | null;
-  storyPoints: number | null;
   estimatedMd: number | null;
   actualMd: number | null;
 };
@@ -94,9 +93,6 @@ export function TaskDialog({
 
   const [startDate, setStartDate] = useState(toDateInput(task?.startDate));
   const [dueDate, setDueDate] = useState(toDateInput(task?.dueDate));
-  const [storyPoints, setStoryPoints] = useState(
-    task?.storyPoints != null ? String(task.storyPoints) : "",
-  );
   const [estimatedMd, setEstimatedMd] = useState(
     task?.estimatedMd != null ? String(task.estimatedMd) : "",
   );
@@ -129,7 +125,6 @@ export function TaskDialog({
       epicId,
       startDate,
       dueDate,
-      storyPoints: storyPoints === "" ? null : Number(storyPoints),
       estimatedMd: estimatedMd === "" ? null : Number(estimatedMd),
       actualMd: actualMd === "" ? null : Number(actualMd),
     };
@@ -215,16 +210,6 @@ export function TaskDialog({
                 value={assigneeId}
                 onChange={setAssigneeId}
                 members={members}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label>스토리 포인트</Label>
-              <Input
-                type="number"
-                min={0}
-                value={storyPoints}
-                onChange={(e) => setStoryPoints(e.target.value)}
-                placeholder="예: 3"
               />
             </div>
           </div>

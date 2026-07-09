@@ -19,6 +19,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { LabelBadge } from "@/components/badges";
+import { cn } from "@/lib/utils";
 import { createLabel } from "@/server/actions/labels";
 
 export type LabelItem = { id: string; name: string; color: string };
@@ -45,11 +46,14 @@ export function EntityLabels({
   allLabels,
   attach,
   detach,
+  align = "end",
 }: {
   labels: LabelItem[];
   allLabels: LabelItem[];
   attach: (labelId: string) => Promise<unknown>;
   detach: (labelId: string) => Promise<unknown>;
+  /** 배지 정렬. 상세 시트 메타행은 우측("end"), 표 셀은 헤더와 맞춰 좌측("start"). */
+  align?: "start" | "end";
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -122,7 +126,12 @@ export function EntityLabels({
   }
 
   return (
-    <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
+    <div
+      className={cn(
+        "flex min-w-0 flex-wrap items-center gap-1.5",
+        align === "end" ? "justify-end" : "justify-start",
+      )}
+    >
       {optimisticLabels.map((l) => (
         <LabelBadge
           key={l.id}

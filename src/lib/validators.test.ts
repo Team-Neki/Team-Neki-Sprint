@@ -102,7 +102,7 @@ describe("optionalMd (estimatedMd/actualMd) 정규화", () => {
   });
 });
 
-describe("taskSchema 기본값·storyPoints", () => {
+describe("taskSchema 기본값", () => {
   const base = { title: "T", teamId: "team-1" };
 
   it("status/priority 기본값", () => {
@@ -116,12 +116,6 @@ describe("taskSchema 기본값·storyPoints", () => {
     expect(() => taskSchema.parse({ ...base, title: "   " })).toThrow();
   });
 
-  it("storyPoints 범위(0~100) 및 정수 검증", () => {
-    expect(taskSchema.parse({ ...base, storyPoints: "5" }).storyPoints).toBe(5);
-    expect(taskSchema.parse({ ...base, storyPoints: null }).storyPoints).toBeNull();
-    expect(() => taskSchema.parse({ ...base, storyPoints: 101 })).toThrow();
-    expect(() => taskSchema.parse({ ...base, storyPoints: 1.5 })).toThrow();
-  });
 });
 
 describe("projectSchema", () => {

@@ -113,7 +113,6 @@ enum Status {
   BACKLOG
   TODO
   IN_PROGRESS
-  IN_REVIEW
   DONE
 }
 
@@ -209,7 +208,6 @@ model Task {
   priority    Priority  @default(MEDIUM)
   startDate   DateTime?
   dueDate     DateTime?
-  storyPoints Int?
   // 맨데이(MD) 트래킹(B7). 태스크에만 저장하고, Epic/Project는 하위 합으로 계산(읽기전용).
   estimatedMd Float?
   actualMd    Float?

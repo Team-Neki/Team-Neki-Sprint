@@ -155,19 +155,17 @@ async function main() {
         teamId: teamByKey.DESIGN.id,
         epicId: designEpic.id,
         dueDate: new Date("2026-02-20"),
-        storyPoints: 3,
       },
       {
         number: 3, // DESIGN-3
         title: "랜딩 와이어프레임 설계",
-        status: "IN_REVIEW",
+        status: "IN_PROGRESS",
         priority: "MEDIUM",
         assigneeId: minseo.id,
         reporterId: minseo.id,
         teamId: teamByKey.DESIGN.id,
         epicId: designEpic.id,
         dueDate: new Date("2026-02-25"),
-        storyPoints: 5,
       },
     ],
   });
@@ -198,7 +196,6 @@ async function main() {
       teamId: teamByKey.FRONTEND.id,
       epicId: feEpic.id,
       dueDate: new Date("2026-03-05"),
-      storyPoints: 5,
     },
   });
 
@@ -229,7 +226,6 @@ async function main() {
         teamId: teamByKey.BACKEND.id,
         epicId: beEpic.id,
         dueDate: new Date("2026-03-10"),
-        storyPoints: 8,
       },
       {
         number: 3, // BACKEND-3
@@ -240,7 +236,6 @@ async function main() {
         teamId: teamByKey.BACKEND.id,
         epicId: beEpic.id,
         dueDate: new Date("2026-04-01"),
-        storyPoints: 8,
       },
     ],
   });

@@ -174,7 +174,8 @@ function revalidateTaskPaths(id: string, epicId: string | null) {
   revalidatePath("/tasks");
   revalidatePath(`/tasks/${id}`);
   if (epicId) revalidatePath(`/epics/${epicId}`);
-  bumpTags(CACHE_TAGS.tasks, CACHE_TAGS.epics);
+  // 에픽 MD 롤업(getEpics)·스프린트 MD 합(getSprints)이 태스크 estimatedMd 에 의존.
+  bumpTags(CACHE_TAGS.tasks, CACHE_TAGS.epics, CACHE_TAGS.sprints);
 }
 
 // 인라인 편집 시 로드하는 태스크의 편집 가능 필드(diff 대상). 팀/번호는 불변이라 제외.
@@ -188,7 +189,6 @@ const TASK_EDITABLE = {
   epicId: true,
   startDate: true,
   dueDate: true,
-  storyPoints: true,
   estimatedMd: true,
   actualMd: true,
 } as const;

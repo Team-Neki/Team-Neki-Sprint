@@ -106,11 +106,24 @@ export const getTeamOptions = unstable_cache(
 // ---------- Sprint ----------
 
 export const getSprints = unstable_cache(
-  () =>
-    prisma.sprint.findMany({
+  async () => {
+    const sprints = await prisma.sprint.findMany({
       orderBy: [{ status: "asc" }, { startDate: "desc" }, { createdAt: "desc" }],
-      include: { _count: { select: { projects: true } } },
-    }),
+    });
+    // 스프린트별 예상 MD 합: Task → Epic → Project → Sprint 로 이어지는 관계를
+    // groupBy 로는 못 타므로 raw 집계(태스크 estimatedMd 합)로 계산한다.
+    const mdRows = await prisma.$queryRaw<{ sprintId: string; md: number }[]>`
+      SELECT p."sprintId" AS "sprintId",
+             COALESCE(SUM(t."estimatedMd"), 0)::float8 AS md
+      FROM "Task" t
+      JOIN "Epic" e ON e.id = t."epicId"
+      JOIN "Project" p ON p.id = e."projectId"
+      WHERE p."sprintId" IS NOT NULL
+      GROUP BY p."sprintId"
+    `;
+    const mdBySprint = new Map(mdRows.map((r) => [r.sprintId, r.md]));
+    return sprints.map((s) => ({ ...s, estimatedMd: mdBySprint.get(s.id) ?? 0 }));
+  },
   ["sprints"],
   { tags: [CACHE_TAGS.sprints], revalidate: CACHE_REVALIDATE.list },
 );
@@ -277,20 +290,19 @@ export const getEpics = unstable_cache(
       },
     });
     const ids = epics.map((e) => e.id);
-    // 스토리포인트 롤업(하위 태스크 storyPoints 합). Epic 엔 자체 SP 필드가 없어
-    // 목록의 StoryPoint 컬럼은 하위 합(읽기전용)으로 표시한다. (MD 롤업은 목록에서
-    // 안 쓰므로 계산하지 않음 — 상세 페이지만 rollup 표시.)
-    const spGroups = await prisma.task.groupBy({
+    // MD 롤업(하위 태스크 estimatedMd 합). Epic 엔 자체 MD 필드가 없어
+    // 목록의 MD 컬럼은 하위 예상 MD 합(읽기전용)으로 표시한다.
+    const mdGroups = await prisma.task.groupBy({
       by: ["epicId"],
       where: { epicId: { in: ids } },
-      _sum: { storyPoints: true },
+      _sum: { estimatedMd: true },
     });
-    const spByEpic = new Map(
-      spGroups.map((g) => [g.epicId, g._sum.storyPoints ?? 0]),
+    const mdByEpicId = new Map(
+      mdGroups.map((g) => [g.epicId, g._sum.estimatedMd ?? 0]),
     );
     return epics.map((e) => ({
       ...e,
-      storyPoints: spByEpic.get(e.id) ?? 0,
+      estimatedMd: mdByEpicId.get(e.id) ?? 0,
     }));
   },
   ["epics"],

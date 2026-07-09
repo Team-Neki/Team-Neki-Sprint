@@ -84,7 +84,9 @@ export default async function AppLayout({
           />
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 pb-12 sm:p-6 sm:pb-12">
+        {/* scrollbar-gutter:stable → 스크롤바 폭을 항상 예약해, 상세 시트(모달)
+            열릴 때 스크롤 락으로 스크롤바가 사라져도 콘텐츠가 좌우로 밀리지 않게 한다. */}
+        <main className="flex-1 overflow-y-auto p-4 pb-12 [scrollbar-gutter:stable] sm:p-6 sm:pb-12">
           {children}
         </main>
         </div>

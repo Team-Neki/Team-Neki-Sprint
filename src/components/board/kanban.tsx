@@ -64,7 +64,6 @@ function buildColumns(tasks: BoardTask[]): Columns {
     BACKLOG: [],
     TODO: [],
     IN_PROGRESS: [],
-    IN_REVIEW: [],
     DONE: [],
   };
   for (const t of tasks) cols[t.status].push(t.id);

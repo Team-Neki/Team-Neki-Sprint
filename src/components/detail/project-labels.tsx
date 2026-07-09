@@ -11,10 +11,13 @@ export function ProjectLabels({
   projectId,
   labels,
   allLabels,
+  align,
 }: {
   projectId: string;
   labels: LabelItem[];
   allLabels: LabelItem[];
+  /** 표 셀에선 "start"(헤더와 좌측 정렬), 상세 시트 메타행은 기본 "end". */
+  align?: "start" | "end";
 }) {
   return (
     <EntityLabels
@@ -22,6 +25,7 @@ export function ProjectLabels({
       allLabels={allLabels}
       attach={(labelId) => addLabelToProject(projectId, labelId)}
       detach={(labelId) => removeLabelFromProject(projectId, labelId)}
+      align={align}
     />
   );
 }

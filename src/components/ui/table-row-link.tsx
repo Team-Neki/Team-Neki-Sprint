@@ -39,3 +39,40 @@ export function TableRowLink({
     </TableRow>
   );
 }
+
+// 행 클릭이 상세로 이동하면 안 되는 인터랙티브 요소들(인라인 편집·링크·버튼 등).
+// 이들 위 클릭은 행 내비게이션에서 제외한다(편집/선택이 그대로 동작).
+const INTERACTIVE =
+  'a,button,input,textarea,select,label,[role="combobox"],[data-slot="select-trigger"],[contenteditable="true"]';
+
+/**
+ * 인라인 편집 컨트롤이 있는 목록 행용 클릭-투-오픈. 행의 빈 영역을 누르면 소프트
+ * 내비게이션(scroll:false)으로 우측 슬라이드 상세(intercepting route)를 연다. 셀 안의
+ * 편집 컨트롤(select·input·버튼·링크) 위 클릭은 가드해 행 이동을 막는다. 새 탭은
+ * 각 행의 ↗ 버튼(하드 로드)으로만 연다(여기선 cmd/ctrl+클릭만 예외 허용).
+ */
+export function RowOpenSheet({
+  href,
+  className,
+  children,
+  ...props
+}: React.ComponentProps<typeof TableRow> & { href: string }) {
+  const router = useRouter();
+  const open = (e: React.MouseEvent | React.KeyboardEvent) => {
+    if ((e.target as HTMLElement).closest(INTERACTIVE)) return;
+    if ("metaKey" in e && (e.metaKey || e.ctrlKey)) {
+      window.open(href, "_blank");
+      return;
+    }
+    router.push(href, { scroll: false });
+  };
+  return (
+    <TableRow
+      className={cn("cursor-pointer", className)}
+      onClick={open}
+      {...props}
+    >
+      {children}
+    </TableRow>
+  );
+}

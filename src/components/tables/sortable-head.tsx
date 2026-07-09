@@ -9,9 +9,10 @@ import { cn } from "@/lib/utils";
 export type SortDir = "asc" | "desc";
 
 /**
- * URL(`?sort=<field>&dir=asc|desc`) 기반 정렬 헤더. 클릭 시 방향 토글(같은 필드면
- * asc↔desc, 다른 필드면 desc 부터). 기존 쿼리(필터 등)는 보존한다. 서버 컴포넌트 표에서
- * 쓰도록 client 로 분리(useSearchParams). 실제 정렬은 서버 쿼리(orderBy)가 수행.
+ * URL(`?sort=<field>&dir=asc|desc`) 기반 정렬 헤더. 클릭 시 3단계 토글:
+ * 정렬 없음 → 내림차순(desc) → 오름차순(asc) → 정렬 없음(파라미터 제거 → 기본 정렬).
+ * 다른 필드를 누르면 그 필드의 내림차순부터 시작한다. 기존 쿼리(필터 등)는 보존한다.
+ * 서버 컴포넌트 표에서 쓰도록 client 로 분리(useSearchParams). 실제 정렬은 서버 쿼리(orderBy).
  */
 export function SortableHead({
   field,
@@ -27,18 +28,31 @@ export function SortableHead({
   const activeField = params.get("sort");
   const activeDir = (params.get("dir") as SortDir | null) ?? "desc";
   const active = activeField === field;
-  const nextDir: SortDir = active && activeDir === "desc" ? "asc" : "desc";
+
+  // 다음 상태: 미정렬/다른필드 → desc, desc → asc, asc → 정렬 없음(해제).
+  const nextSort: SortDir | "none" = !active
+    ? "desc"
+    : activeDir === "desc"
+      ? "asc"
+      : "none";
 
   const qs = new URLSearchParams(params.toString());
-  qs.set("sort", field);
-  qs.set("dir", nextDir);
+  if (nextSort === "none") {
+    qs.delete("sort");
+    qs.delete("dir");
+  } else {
+    qs.set("sort", field);
+    qs.set("dir", nextSort);
+  }
+  const query = qs.toString();
+  const href = query ? `${pathname}?${query}` : pathname;
 
   const Icon = !active ? ChevronsUpDown : activeDir === "asc" ? ChevronUp : ChevronDown;
 
   return (
     <TableHead className={className}>
       <Link
-        href={`${pathname}?${qs.toString()}`}
+        href={href}
         scroll={false}
         className={cn(
           "hover:text-foreground inline-flex items-center gap-1 select-none",

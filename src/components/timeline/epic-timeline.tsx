@@ -8,15 +8,13 @@ import {
   differenceInCalendarDays,
   eachDayOfInterval,
   format,
-  getDay,
-  isSameDay,
   max as maxDate,
   min as minDate,
   startOfDay,
 } from "date-fns";
 import { ko } from "date-fns/locale";
 import type { Status, Priority } from "@prisma/client";
-import { STATUS_META, formatIssueKey } from "@/lib/constants";
+import { formatIssueKey } from "@/lib/constants";
 import { UserBadge, type MiniUser } from "@/components/user-badge";
 import { cn } from "@/lib/utils";
 
@@ -56,8 +54,6 @@ const DAY_W_MIN = 28;
 const DAY_W_MAX = 40;
 const TARGET_RULER_PX = 900;
 const MIN_BAR_PX = 6;
-// Week-start date labels only; drop any that would collide with the leading label.
-const LABEL_MIN_GAP_PX = 44;
 
 function datesOf(epic: TimelineEpic): Date[] {
   const ds: (Date | null)[] = [epic.startDate, epic.dueDate];
@@ -98,7 +94,7 @@ export function EpicTimeline({
   const base = startOfDay(new Date(today));
 
   // Global window across every epic/task date, resolved to per-day columns.
-  const { start, totalDays, dayWidth, rulerWidth, dayList, labels } = useMemo(() => {
+  const { start, totalDays, dayWidth, rulerWidth, dayList, months } = useMemo(() => {
     const all = epics.flatMap(datesOf);
     const rangeStart = all.length
       ? minDate([...all, addDays(base, -3)])
@@ -115,17 +111,16 @@ export function EpicTimeline({
     );
     const list = eachDayOfInterval({ start: s, end: addDays(s, days - 1) });
 
-    // Labels on week starts (Mon) plus the leading day, thinned so adjacent
-    // labels never collide. Weekly spacing is >= 7 * DAY_W_MIN (196px), so only
-    // the leading-vs-first-Monday pair can ever be close enough to drop.
-    const lbls: { index: number; date: Date }[] = [];
-    let lastPx = -Infinity;
+    // 상단 월 라벨: 각 달의 첫 표시일 인덱스에 "N월"을 놓는다(월 경계마다 1개).
+    // 일(day) 숫자는 모든 셀에 표시하므로 여기선 월만 계산한다.
+    const ms: { index: number; label: string }[] = [];
+    let lastKey = "";
     list.forEach((d, i) => {
-      if (i !== 0 && getDay(d) !== 1) return;
-      const px = i * width;
-      if (px - lastPx < LABEL_MIN_GAP_PX) return;
-      lbls.push({ index: i, date: d });
-      lastPx = px;
+      const key = format(d, "yyyy-MM");
+      if (key !== lastKey) {
+        ms.push({ index: i, label: `${format(d, "M")}월` });
+        lastKey = key;
+      }
     });
 
     return {
@@ -134,7 +129,7 @@ export function EpicTimeline({
       dayWidth: width,
       rulerWidth: days * width,
       dayList: list,
-      labels: lbls,
+      months: ms,
     };
   }, [epics, base]);
 
@@ -148,16 +143,16 @@ export function EpicTimeline({
   };
   const todayIndex = dayIndex(base);
 
-  // Group epics under their project, preserving order.
+  // Group epics under their owner (담당자), preserving order.
   const groups = useMemo(() => {
     const map = new Map<
       string,
-      { title: string; epics: TimelineEpic[] }
+      { title: string; owner: MiniUser | null; epics: TimelineEpic[] }
     >();
     for (const e of epics) {
-      const key = e.project?.id ?? "__none__";
-      const title = e.project?.title ?? "프로젝트 없음";
-      if (!map.has(key)) map.set(key, { title, epics: [] });
+      const key = e.owner?.id ?? "__none__";
+      const title = e.owner?.name ?? e.owner?.email ?? "담당자 없음";
+      if (!map.has(key)) map.set(key, { title, owner: e.owner, epics: [] });
       map.get(key)!.epics.push(e);
     }
     return [...map.values()];
@@ -166,11 +161,10 @@ export function EpicTimeline({
   return (
     <div className="overflow-x-auto">
       <div className="relative" style={{ width: NAME_W + rulerWidth }}>
-        {/* Day header — week-start labels (bold), day cells act as ticks below.
-            Full width (incl. name gutter) so a sticky mask can keep labels from
-            bleeding under the frozen name column during horizontal scroll. */}
+        {/* 날짜 축(2줄): 상단=월("N월"), 하단=모든 일자 숫자. 이름 거터 위는 sticky
+            마스크로 가려 가로 스크롤 시 라벨이 거터 아래로 비치지 않게 한다. */}
         <div
-          className="text-muted-foreground relative mb-2 h-5 border-b text-[11px]"
+          className="text-muted-foreground relative mb-2 h-9 border-b text-[11px]"
           style={{ width: NAME_W + rulerWidth }}
         >
           {/* sticky gutter mask over the frozen name column */}
@@ -178,45 +172,30 @@ export function EpicTimeline({
             className="bg-card sticky left-0 z-30 h-full border-b"
             style={{ width: NAME_W }}
           />
-          {labels.map(({ index, date }) => (
+          {/* 월 라벨(상단) — 각 달의 첫 표시일 위치 */}
+          {months.map(({ index, label }) => (
             <span
-              key={index}
-              className="absolute bottom-0.5 whitespace-nowrap font-semibold"
+              key={`m${index}`}
+              className="text-foreground absolute top-1 whitespace-nowrap font-semibold"
               style={{ left: NAME_W + index * dayWidth + 2 }}
             >
-              {format(date, "M/d", { locale: ko })}
+              {label}
+            </span>
+          ))}
+          {/* 일자 숫자(하단) — 모든 날짜, 셀 폭 중앙정렬이라 겹치지 않는다 */}
+          {dayList.map((d, i) => (
+            <span
+              key={`d${i}`}
+              className="absolute bottom-1 text-center text-[10px] tabular-nums"
+              style={{ left: NAME_W + i * dayWidth, width: dayWidth }}
+            >
+              {format(d, "d")}
             </span>
           ))}
         </div>
 
         <div className="relative">
-          {/* Day-cell grid: weekend/today shading + week gridlines, spans all rows */}
-          <div
-            className="pointer-events-none absolute inset-y-0"
-            style={{ left: NAME_W, width: rulerWidth }}
-          >
-            {dayList.map((d, i) => {
-              const dow = getDay(d);
-              const isWeekend = dow === 0 || dow === 6;
-              const isWeekStart = dow === 1;
-              const isToday = isSameDay(d, base);
-              return (
-                <div
-                  key={i}
-                  className={cn(
-                    "absolute inset-y-0 border-l",
-                    isWeekStart ? "border-border" : "border-border/40",
-                    isToday
-                      ? "bg-red-500/5"
-                      : isWeekend
-                        ? "bg-muted/60"
-                        : undefined,
-                  )}
-                  style={{ left: i * dayWidth, width: dayWidth }}
-                />
-              );
-            })}
-          </div>
+          {/* 회색 세로줄(주별 그리드·주말 음영) 제거 — 오늘 마커(빨강)만 남긴다. */}
 
           {/* Today marker */}
           {todayIndex >= 0 && todayIndex < totalDays && (
@@ -226,15 +205,16 @@ export function EpicTimeline({
             />
           )}
 
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-8">
             {groups.map((g, gi) => (
               <div key={gi} className="flex flex-col gap-1">
-                <p
-                  className="bg-card text-muted-foreground sticky left-0 z-20 w-64 shrink-0 truncate pl-1 text-xs font-medium"
+                <div
+                  className="bg-card text-foreground sticky left-0 z-20 flex w-64 shrink-0 items-center gap-1.5 pl-1 text-xs font-medium"
                   title={g.title}
                 >
-                  {g.title}
-                </p>
+                  <UserBadge user={g.owner} hideName size="xs" />
+                  <span className="truncate">{g.title}</span>
+                </div>
                 {g.epics.map((epic) => {
                   const r = rangeOf(epic);
                   const isOpen = expanded.has(epic.id);
@@ -280,12 +260,21 @@ export function EpicTimeline({
                             <Link
                               href={`/epics/${epic.id}`}
                               className={cn(
-                                "absolute top-1/2 flex h-6 -translate-y-1/2 items-center overflow-hidden rounded-md px-2 text-[11px] font-medium text-white shadow-sm",
-                                STATUS_META[epic.status].dot,
+                                // overflow-clip(=clip, scroll container 아님)로 막대 밖은 잘라내되
+                                // 내부 라벨의 sticky 는 외부 가로 스크롤 컨테이너 기준으로 유지한다.
+                                // 에픽 = 옅은 회색(상태색 대신 계층 구분용).
+                                "absolute top-1/2 flex h-6 -translate-y-1/2 items-center overflow-clip rounded-md bg-neutral-300 px-2 text-[11px] font-medium text-neutral-800 shadow-sm",
                               )}
                               style={{ left: leftPx(r.start), width: spanPx(r) }}
                             >
-                              <span className="min-w-0 truncate">
+                              {/* 라벨을 이름 거터 우측(left:NAME_W)에 sticky 고정 → 가로 스크롤 시
+                                  보이는 좌측 끝에 머물다가, 막대가 지나가면 막대와 함께 밀려난다. */}
+                              <span
+                                // pl-1 + left 오프셋: sticky 로 끌려와 이름 거터에
+                                // 붙을 때 글자 좌측이 잘리지 않도록 여백을 준다.
+                                className="sticky min-w-0 truncate pl-1"
+                                style={{ left: NAME_W + 4 }}
+                              >
                                 {epic.tasks.length > 0
                                   ? `${epic.tasks.length} 태스크`
                                   : format(r.end, "M/d", { locale: ko })}
@@ -322,10 +311,8 @@ export function EpicTimeline({
                                 {tr && (
                                   <Link
                                     href={`/tasks/${t.id}`}
-                                    className={cn(
-                                      "absolute top-1/2 h-3.5 -translate-y-1/2 rounded-sm opacity-80",
-                                      STATUS_META[t.status].dot,
-                                    )}
+                                    // 태스크 = 에픽보다 조금 더 짙은 회색(개별 태스크는 색 구분 안 함).
+                                    className="absolute top-1/2 h-3.5 -translate-y-1/2 rounded-sm bg-neutral-500"
                                     style={{
                                       left: leftPx(tr.start),
                                       width: spanPx(tr),
