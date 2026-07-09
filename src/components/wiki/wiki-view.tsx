@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useEditor, EditorContent, type JSONContent } from "@tiptap/react";
 import { wikiExtensions } from "@/components/wiki/extensions";
 import { cn } from "@/lib/utils";
@@ -29,6 +30,14 @@ export function WikiView({
       attributes: { class: "tiptap focus:outline-none" },
     },
   });
+
+  // Tiptap useEditor 는 최초 content 만 반영하므로, content prop 이 바뀌면(버전
+  // 미리보기 전환·router.refresh 등) 직접 반영한다. (gotchas §10)
+  useEffect(() => {
+    if (!editor) return;
+    if (JSON.stringify(content) === JSON.stringify(editor.getJSON())) return;
+    editor.commands.setContent(content, { emitUpdate: false });
+  }, [editor, content]);
 
   return (
     <div className={cn("mx-auto max-w-3xl", className)}>

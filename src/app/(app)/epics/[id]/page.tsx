@@ -6,8 +6,10 @@ import {
   getTeamOptions,
   getMembers,
   getEntityActivity,
+  getLabelOptions,
 } from "@/server/queries";
 import { deleteEpic } from "@/server/actions/epics";
+import { EpicLabels } from "@/components/detail/epic-labels";
 import { formatIssueKey } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -36,13 +38,15 @@ export default async function EpicDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [epic, projects, teams, members, activities] = await Promise.all([
-    getEpic(id),
-    getProjectOptions(),
-    getTeamOptions(),
-    getMembers(),
-    getEntityActivity("epic", id),
-  ]);
+  const [epic, projects, teams, members, activities, labelOptions] =
+    await Promise.all([
+      getEpic(id),
+      getProjectOptions(),
+      getTeamOptions(),
+      getMembers(),
+      getEntityActivity("epic", id),
+      getLabelOptions(),
+    ]);
   if (!epic) notFound();
 
   async function handleDelete() {
@@ -180,6 +184,13 @@ export default async function EpicDetail({
               estimated={epic.md.estimated}
               actual={epic.md.actual}
               className="text-sm"
+            />
+          </MetaRow>
+          <MetaRow label="라벨" align="start">
+            <EpicLabels
+              epicId={epic.id}
+              labels={epic.labels.map((l) => l.label)}
+              allLabels={labelOptions}
             />
           </MetaRow>
         </Card>

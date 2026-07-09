@@ -22,6 +22,7 @@ import {
 import { ProjectLabels } from "@/components/detail/project-labels";
 import type { LabelItem } from "@/components/detail/entity-labels";
 import { OpenDetailIcon } from "./open-detail";
+import { SortableHead } from "./sortable-head";
 import { EmptyRow } from "./cells";
 
 /**
@@ -70,14 +71,40 @@ export function ProjectsTable({
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>제목</TableHead>
-          <TableHead className="w-28">상태</TableHead>
-          <TableHead className="w-32">담당자</TableHead>
-          <TableHead className="w-28">기한</TableHead>
-          <TableHead className="w-24">우선순위</TableHead>
-          <TableHead className="w-40">레이블</TableHead>
-          <TableHead className="w-24">생성시간</TableHead>
-          <TableHead className="w-24">수정시간</TableHead>
+          {/* 정렬 헤더는 목록(edit)에서만 — 하위목록에선 URL 정렬이 안 먹으므로 일반 헤더. */}
+          {edit ? (
+            <>
+              <SortableHead field="title">제목</SortableHead>
+              <SortableHead field="status" className="w-28">
+                상태
+              </SortableHead>
+              <TableHead className="w-32">담당자</TableHead>
+              <SortableHead field="dueDate" className="w-28">
+                기한
+              </SortableHead>
+              <SortableHead field="priority" className="w-24">
+                우선순위
+              </SortableHead>
+              <TableHead className="w-40">레이블</TableHead>
+              <SortableHead field="createdAt" className="w-24">
+                생성시간
+              </SortableHead>
+              <SortableHead field="updatedAt" className="w-24">
+                수정시간
+              </SortableHead>
+            </>
+          ) : (
+            <>
+              <TableHead>제목</TableHead>
+              <TableHead className="w-28">상태</TableHead>
+              <TableHead className="w-32">담당자</TableHead>
+              <TableHead className="w-28">기한</TableHead>
+              <TableHead className="w-24">우선순위</TableHead>
+              <TableHead className="w-40">레이블</TableHead>
+              <TableHead className="w-24">생성시간</TableHead>
+              <TableHead className="w-24">수정시간</TableHead>
+            </>
+          )}
           <TableHead className="w-16">
             <span className="sr-only">열기</span>
           </TableHead>
@@ -118,6 +145,7 @@ export function ProjectsTable({
                     field="ownerId"
                     value={p.owner}
                     members={edit.members}
+                    avatarOnly
                   />
                 ) : (
                   <UserBadge user={p.owner} hideName />

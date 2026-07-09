@@ -139,6 +139,7 @@ export function TasksTable({
                     field="assigneeId"
                     value={t.assignee}
                     members={edit.members}
+                    avatarOnly
                   />
                 ) : (
                   <UserBadge user={t.assignee} hideName />

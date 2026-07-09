@@ -19,7 +19,7 @@ import {
   renderStatusOption,
 } from "@/components/selects/option-select";
 import { STATUS_ORDER, PRIORITY_ORDER } from "@/lib/constants";
-import type { MiniUser } from "@/components/user-badge";
+import { UserBadge, type MiniUser } from "@/components/user-badge";
 import { cn } from "@/lib/utils";
 import { toDateInput } from "@/components/forms/fields";
 import { updateTaskFields } from "@/server/actions/tasks";
@@ -255,6 +255,7 @@ export function InlineMember({
   value,
   members,
   placeholder = "미지정",
+  avatarOnly = false,
 }: {
   type: DetailEntity;
   id: string;
@@ -262,6 +263,8 @@ export function InlineMember({
   value: MiniUser | null;
   members: MiniUser[];
   placeholder?: string;
+  /** 목록 셀 등 좁은 곳: 트리거를 이름 대신 담당자 아바타로(툴팁에 이름). */
+  avatarOnly?: boolean;
 }) {
   const { pending, save } = useFieldSave(type, id);
   return (
@@ -271,7 +274,9 @@ export function InlineMember({
       options={members}
       getValue={(m) => m.id}
       renderOption={renderMemberOption}
-      renderTriggerOption={memberLabel}
+      renderTriggerOption={
+        avatarOnly ? (m) => <UserBadge user={m} hideName /> : memberLabel
+      }
       placeholder={placeholder}
       leadingOption={{ value: UNASSIGNED, label: "미지정" }}
       disabled={pending}

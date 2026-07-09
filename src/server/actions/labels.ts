@@ -119,3 +119,23 @@ export async function removeLabelFromProject(projectId: string, labelId: string)
   revalidatePath(`/projects/${projectId}`);
   return { projectId, labelId };
 }
+
+export async function addLabelToEpic(epicId: string, labelId: string) {
+  await requireUser();
+  await prisma.labelsOnEpics.upsert({
+    where: { epicId_labelId: { epicId, labelId } },
+    create: { epicId, labelId },
+    update: {},
+  });
+  revalidatePath("/epics");
+  revalidatePath(`/epics/${epicId}`);
+  return { epicId, labelId };
+}
+
+export async function removeLabelFromEpic(epicId: string, labelId: string) {
+  await requireUser();
+  await prisma.labelsOnEpics.deleteMany({ where: { epicId, labelId } });
+  revalidatePath("/epics");
+  revalidatePath(`/epics/${epicId}`);
+  return { epicId, labelId };
+}

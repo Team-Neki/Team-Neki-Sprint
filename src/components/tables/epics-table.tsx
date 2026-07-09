@@ -117,6 +117,7 @@ export function EpicsTable({
                     field="ownerId"
                     value={e.owner}
                     members={edit.members}
+                    avatarOnly
                   />
                 ) : (
                   <UserBadge user={e.owner} hideName />

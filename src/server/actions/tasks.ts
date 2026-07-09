@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import type { Status } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
-import { taskSchema } from "@/lib/validators";
+import { taskSchema, taskCommentBodySchema } from "@/lib/validators";
 import { logActivity, diffFields } from "@/server/activity";
 import { notifyNewMentions } from "@/server/notify";
 import { isValueEmpty } from "@/lib/rich-content";
@@ -262,8 +262,9 @@ export async function deleteTask(id: string) {
 
 export async function addComment(taskId: string, body: string) {
   const user = await requireUser();
-  // body 는 Tiptap doc JSON 문자열(B6). 내용이 비면 무시.
-  if (isValueEmpty(body)) return;
+  // body 는 Tiptap doc JSON 문자열(B6). 크기 방어 후, 빈 문서면 무시.
+  const parsed = taskCommentBodySchema.parse(body);
+  if (isValueEmpty(parsed)) return;
 
   const task = await prisma.task.findUnique({
     where: { id: taskId },
@@ -271,7 +272,7 @@ export async function addComment(taskId: string, body: string) {
   });
 
   await prisma.comment.create({
-    data: { taskId, body, authorId: user.id },
+    data: { taskId, body: parsed, authorId: user.id },
   });
   await logActivity({
     userId: user.id,
@@ -285,7 +286,7 @@ export async function addComment(taskId: string, body: string) {
     entityType: "task",
     entityId: taskId,
     context: task?.title ?? null,
-    after: body,
+    after: parsed,
   });
   revalidatePath(`/tasks/${taskId}`);
 }

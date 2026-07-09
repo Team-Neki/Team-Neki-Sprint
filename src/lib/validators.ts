@@ -120,6 +120,12 @@ export const wikiCommentBodySchema = z
   .min(1, "댓글을 입력하세요")
   .max(2000);
 
+// 태스크 댓글 본문(B6). Tiptap doc JSON 문자열이라 평문 스키마와 별개 —
+// 구조/크기만 방어(빈 문서 여부는 isValueEmpty 로 별도 판정). 과대 페이로드 차단.
+export const taskCommentBodySchema = z
+  .string()
+  .max(100_000, "댓글이 너무 깁니다");
+
 export type SprintInput = z.infer<typeof sprintSchema>;
 export type TeamInput = z.infer<typeof teamSchema>;
 export type ProjectInput = z.infer<typeof projectSchema>;

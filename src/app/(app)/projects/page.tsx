@@ -4,6 +4,7 @@ import {
   getMembers,
   getSprintOptions,
   getLabelOptions,
+  type ProjectSortField,
 } from "@/server/queries";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -17,11 +18,23 @@ export const dynamic = "force-dynamic";
 export default async function ProjectsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ owner?: string }>;
+  searchParams: Promise<{ owner?: string; sort?: string; dir?: string }>;
 }) {
   const sp = await searchParams;
+  const SORT_FIELDS: ProjectSortField[] = [
+    "title",
+    "status",
+    "priority",
+    "dueDate",
+    "createdAt",
+    "updatedAt",
+  ];
+  const sortField = SORT_FIELDS.find((f) => f === sp.sort);
+  const sort = sortField
+    ? { field: sortField, dir: sp.dir === "asc" ? ("asc" as const) : ("desc" as const) }
+    : undefined;
   const [projects, members, sprints, labels] = await Promise.all([
-    getProjects({ ownerId: sp.owner || undefined }),
+    getProjects({ ownerId: sp.owner || undefined, sort }),
     getMembers(),
     getSprintOptions(),
     getLabelOptions(),

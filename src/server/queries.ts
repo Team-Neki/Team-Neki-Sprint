@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import type { Status } from "@prisma/client";
+import type { Prisma, Status } from "@prisma/client";
 import { formatIssueKey } from "@/lib/constants";
 
 const miniUser = {
@@ -129,10 +129,51 @@ export function getSprintOptions() {
 
 // ---------- Project (구 Initiative) ----------
 
+export type ProjectSortField =
+  | "title"
+  | "status"
+  | "priority"
+  | "dueDate"
+  | "createdAt"
+  | "updatedAt";
+
 export type ProjectFilter = {
   ownerId?: string;
   sprintId?: string;
+  sort?: { field: ProjectSortField; dir: "asc" | "desc" };
 };
+
+// 기본 정렬(정렬 지정 없을 때). 상태 오름차 → 최신 생성 우선.
+const PROJECT_DEFAULT_ORDER: Prisma.ProjectOrderByWithRelationInput[] = [
+  { status: "asc" },
+  { createdAt: "desc" },
+];
+
+function projectOrderBy(
+  sort: ProjectFilter["sort"],
+):
+  | Prisma.ProjectOrderByWithRelationInput
+  | Prisma.ProjectOrderByWithRelationInput[] {
+  if (!sort) return PROJECT_DEFAULT_ORDER;
+  const dir = sort.dir;
+  switch (sort.field) {
+    case "title":
+      return { title: dir };
+    case "status":
+      return { status: dir };
+    case "priority":
+      return { priority: dir };
+    case "dueDate":
+      // nullable — 방향과 무관하게 미설정은 항상 뒤로.
+      return { dueDate: { sort: dir, nulls: "last" } };
+    case "createdAt":
+      return { createdAt: dir };
+    case "updatedAt":
+      return { updatedAt: dir };
+    default:
+      return PROJECT_DEFAULT_ORDER;
+  }
+}
 
 export async function getProjects(filter: ProjectFilter = {}) {
   const projects = await prisma.project.findMany({
@@ -140,7 +181,7 @@ export async function getProjects(filter: ProjectFilter = {}) {
       ownerId: filter.ownerId,
       sprintId: filter.sprintId,
     },
-    orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+    orderBy: projectOrderBy(filter.sort),
     include: {
       owner: miniUser,
       sprint: { select: { id: true, name: true, status: true } },
@@ -237,6 +278,7 @@ export async function getEpic(id: string) {
       owner: miniUser,
       team: miniTeam,
       project: { select: { id: true, title: true } },
+      labels: labelInclude,
       tasks: {
         orderBy: { createdAt: "desc" },
         include: { assignee: miniUser, team: miniTeam },
