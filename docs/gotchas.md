@@ -30,6 +30,7 @@
 
 - **`<Select.Value>`는 render 함수 없이는 선택된 원시 value(cuid/enum)를 노출한다.** 라벨을 보이려면 `children={(value) => label}` render 함수 필요. → 엔티티 select는 **`src/components/selects/option-select.tsx`의 `OptionSelect` + 공용 렌더러**를 쓴다(트리거 라벨·sentinel 처리 포함). 새 select도 이걸로.
 - **`MenuGroupContext is missing`**: Base UI 메뉴 파트를 `<Menu.Group>`/`<Menu.RadioGroup>` 밖에서 쓰면 발생. 드롭다운 메뉴 구성 시 그룹 래핑 확인.
+  - **실제 재발(2026-07-09)**: `UserMenu`(헤더 우측 프로필)의 `DropdownMenuLabel`(=`Menu.GroupLabel`)이 `DropdownMenuGroup` 밖에 있어, **아바타 클릭 순간** 이 오류로 드롭다운 전체가 크래시(메뉴가 아예 안 열림, 콘솔에만 throw). 특히 `GroupLabel`·`Separator` 를 그룹 밖에 두기 쉬우니 주의 → `DropdownMenuGroup` 으로 감싸면 해결. build/tsc/lint 로는 안 잡히고 **실제 클릭 시에만** 터진다.
 
 ## 5. `Card` 컴포넌트 여백 (spacing 버그 단골)
 
@@ -76,3 +77,26 @@
 - **원인(실제 사례, A2)**: 에이전트가 sentinel 문자열로 **NUL 문자(`"\x00"`)** 를 코드에 박음(`const START = "\x00"`). NUL 1바이트만 있어도 git이 binary로 판정.
 - **탐지**: `python3 -c "print(open(f,'rb').read().count(b'\x00'))"` 또는 `git diff --stat`에 `Bin`이 뜨는지. 병렬 스트림 병합 전 **변경/신규 파일 NUL 스캔을 루틴화**(`file <f>`가 `data`로 나오면 의심).
 - **해결**: NUL을 안전한 문자열로 치환(예: `"__start__"` 등 실제 값과 충돌 안 하는 sentinel). 서브에이전트 프롬프트에 "정상 텍스트만 작성, NUL/비-UTF8 금지"를 명시.
+
+## 10. 읽기전용 Tiptap 뷰는 `content` prop 변경에 반응하지 않는다
+
+- **증상(2026-07-09)**: 위키 편집 cmd+Enter 저장 → 뷰로 전환하면 **본문이 옛 내용 그대로**, 브라우저 새로고침해야 반영됨.
+- **원인**: Tiptap `useEditor({ content })` 는 **최초 마운트 때만** content 를 반영하고 이후 prop 변경엔 반응 안 한다. 저장 후 `router.refresh()` 로 서버가 새 본문을 내려줘도, 뷰 셸(`WikiCommentsView`)이 이미 마운트돼 있어 에디터가 옛 문서를 붙들고 있음. 수동 새로고침(전체 remount)해야만 새 content 로 재초기화.
+- **해결**: `content` prop 이 바뀌면 에디터에 직접 반영하는 effect 추가 —
+  `useEffect(() => { if (!editor) return; if (JSON.stringify(content) === JSON.stringify(editor.getJSON())) return; editor.commands.setContent(content, { emitUpdate: false }); }, [editor, content])`. deps 가 `content` 참조 변경일 때만 도므로 로컬 편집(댓글 마크 등) 중에는 안 돈다.
+- **주의**: build/tsc/lint 로는 안 잡힘 — **실제 저장→뷰 전환** 을 브라우저에서 확인해야 재현/검증됨.
+
+## 11. 스크롤 컨테이너 자기 하단 패딩은 overflow 끝에서 무시될 수 있다
+
+- **증상(2026-07-09)**: 위키 본문이 길어지면 하단 "연결된 티켓"이 화면 바닥에 딱 붙음(짧을 땐 여백 큼). 앱 셸 `main` 에 `pb-12` 가 있는데도 안 먹힘.
+- **원인**: `overflow-y-auto` 컨테이너의 **자기 `padding-bottom`** 은 스크롤 가능 영역(scrollable overflow) 끝에서 브라우저가 무시할 수 있다(특히 WebKit). 화면에 다 들어오는 짧은 콘텐츠에선 남는 공간이 여백처럼 보여 문제를 못 느끼다가, overflow 나면 드러난다.
+- **해결**: 하단 여백을 **스크롤 높이에 포함되는 자식 블록**에 준다 — 스크롤 컨테이너 자신이 아니라 그 안 콘텐츠 래퍼에 `pb-*`(예: `wiki/[id]/page.tsx` 루트 `pb-16`). 자식의 패딩은 자기 박스 높이에 포함돼 `scrollHeight` 에 반영되므로 항상 렌더된다.
+
+## 12. 목록→상세 우측 슬라이드 = intercepting + parallel routes (전체 상세 재사용)
+
+- **패턴(2026-07-09)**: 목록에서 key 클릭 시 **기존 상세 페이지를 그대로** 우측 슬라이드로 띄우고, ↗ 버튼은 새 탭 전체 페이지로 여는 구조. Next 16 intercepting+parallel routes 로 구현.
+- **파일 구조(세그먼트별, tasks/epics/projects 동일)**: `{seg}/layout.tsx`(children + `detail` 슬롯 렌더) · `{seg}/@detail/default.tsx`(→ `null`) · `{seg}/@detail/(.)[id]/page.tsx`(전체 상세 `[id]/page` 를 import 해 `DetailSheet`(client Sheet)로 감쌈). `@detail` 슬롯을 **각 목록 세그먼트 안**에 두어 인터셉트를 그 목록에서만 발생시킴(보드·대시보드·위키 등 다른 곳의 상세 링크는 기존대로 전체 페이지 이동).
+- **핵심 동작**: soft-nav(목록 내 key 클릭 = `<Link>`/`router.push`)만 인터셉트 → children 슬롯은 목록 유지, `@detail` 이 시트 렌더(URL 은 `/x/[id]` 로 마스킹). hard-load/새 탭(`target=_blank`)은 인터셉트 안 되고 children 의 `[id]/page` 전체가 렌더. `default.tsx` 는 미매칭 슬롯용(→ null).
+- **전체 재사용 방법**: 상세 body 를 따로 추출하지 않고 **`[id]/page` 의 default export(async server component)를 그대로 `<TaskDetail params={params} />` 로 렌더**. React 19 타입에서 async 컴포넌트를 JSX 자식으로 써도 tsc 통과(`@ts-expect-error` 불필요).
+- **셀 인라인 편집과의 충돌**: 목록 행이 예전엔 `TableRowLink`(행 전체 클릭 이동)였는데, 셀 안에 편집 컨트롤(select/input)을 넣으면 클릭이 행 이동으로 샌다 → **행 전체 링크를 제거**하고 key 셀만 트리거(`OpenDetailKey`), 나머지 셀은 인라인 편집. (프로젝트는 key 가 없어 후행 아이콘 셀 `OpenDetailIcon` 로 연다.)
+- **검증 주의**: 인터셉트 슬라이드는 build 로는 라우트 등록만 확인됨(`/x/(.)[id]` 가 route 목록에 뜸). **실제 열림/닫힘·↗ 새 탭은 브라우저 soft-nav 로 확인**해야 함(직접 URL 진입은 hard-load 라 전체 페이지가 뜸 — 인터셉트 아님).
