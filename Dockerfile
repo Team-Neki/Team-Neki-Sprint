@@ -41,11 +41,13 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
-# Prisma schema, migrations, client + engines (needed at runtime and for migrate deploy)
+# Prisma schema, migrations, client + engines (needed at runtime and for migrate deploy).
+# Copy the FULL builder node_modules rather than cherry-picking @prisma/prisma dirs:
+# the migrate Job runs `prisma migrate deploy`, and Prisma 6.x's CLI loads @prisma/config
+# which requires hoisted sibling deps (effect, c12, ...) that live at node_modules root,
+# not under node_modules/@prisma. Cherry-picking dropped them -> "Cannot find module 'effect'".
 COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
+COPY --from=builder /app/node_modules ./node_modules
 
 USER nextjs
 EXPOSE 3000

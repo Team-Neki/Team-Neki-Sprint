@@ -77,6 +77,7 @@ export default async function AppLayout({
           <NotificationBell items={notifItems} unread={unread} />
 
           <UserMenu
+            id={user.id}
             name={user.name ?? user.email ?? "사용자"}
             email={user.email ?? ""}
             image={user.image}

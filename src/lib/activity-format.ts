@@ -139,6 +139,8 @@ export function activityDescription(
       return "수정";
     case "deleted":
       return "삭제";
+    case "mentioned":
+      return "에서 회원님을 멘션했습니다";
     default:
       return action;
   }

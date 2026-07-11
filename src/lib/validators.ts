@@ -10,6 +10,13 @@ export const priorityEnum = priority;
 export const sprintStatusEnum = sprintStatus;
 export const assigneeIdSchema = z.string().min(1).nullable();
 
+// 본인 프로필 편집(내 정보). 이름은 필수, 연락처는 옵션(빈 값은 null).
+export const profileSchema = z.object({
+  name: z.string().trim().min(1, "이름을 입력하세요").max(100),
+  phone: z.string().trim().max(30).nullish(),
+});
+export type ProfileInput = z.infer<typeof profileSchema>;
+
 // 폼은 미선택 시 null 을 보낸다(undefined 아님). null·undefined·"" 모두 null 로 정규화.
 const optionalId = z
   .string()

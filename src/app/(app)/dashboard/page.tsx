@@ -3,6 +3,7 @@ import { formatDistanceToNow, format } from "date-fns";
 import { ko } from "date-fns/locale";
 import type { Status } from "@prisma/client";
 import { getDashboardData } from "@/server/queries";
+import { requireUser } from "@/lib/session";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/badges";
@@ -37,8 +38,9 @@ function ellipsize(s: string, n: number) {
 }
 
 export default async function DashboardPage() {
+  const user = await requireUser();
   const { statusCounts, myTasks, recentActivity, projects, activityLookups } =
-    await getDashboardData();
+    await getDashboardData(user.id);
   const lookups = buildLookups(activityLookups);
 
   const countByStatus = Object.fromEntries(

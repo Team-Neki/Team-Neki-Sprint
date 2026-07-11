@@ -359,9 +359,11 @@ export const getBoardTasks = unstable_cache(
         teamId: filter.teamId,
       },
       // 칸반 컬럼 내 순서(B7-board). 재정렬로 부여한 boardOrder 우선, 미정렬(null)은 하단.
+      // id 최종 tiebreaker 로 동점(boardOrder null + 같은 createdAt) 카드의 순서 흔들림 방지.
       orderBy: [
         { boardOrder: { sort: "asc", nulls: "last" } },
         { createdAt: "asc" },
+        { id: "asc" },
       ],
       include: {
         assignee: miniUser,
@@ -406,7 +408,14 @@ export const getTasks = unstable_cache(
           ? { contains: filter.q, mode: "insensitive" }
           : undefined,
       },
-      orderBy: [{ status: "asc" }, { priority: "asc" }, { createdAt: "desc" }],
+      // id 를 마지막 tiebreaker 로 추가 → (status,priority,createdAt) 동점 행들도
+      // 결정적 순서 보장. 없으면 MD 등 수정 시 동점 구간이 재배열돼 순서가 흔들린다.
+      orderBy: [
+        { status: "asc" },
+        { priority: "asc" },
+        { createdAt: "desc" },
+        { id: "asc" },
+      ],
       include: {
         assignee: miniUser,
         team: miniTeam,
@@ -431,6 +440,8 @@ export function getTask(id: string) {
     include: {
       assignee: miniUser,
       reporter: miniUser,
+      // 참조(c.c.) 수신자 목록. 이름순.
+      ccUsers: { ...miniUser, orderBy: { name: "asc" } },
       team: miniTeam,
       labels: labelInclude,
       epic: {
@@ -1011,8 +1022,25 @@ export function getUnreadNotificationCount(userId: string) {
   return prisma.notification.count({ where: { userId, read: false } });
 }
 
-export async function getDashboardData() {
-  const [statusCounts, totalTasks, myTasks, recentActivityRaw, projects] =
+export async function getDashboardData(userId: string) {
+  // "최근 활동" 개인화(나와 관련된 것만): 내가 담당/보고자인 태스크, 내가 오너인 에픽,
+  // 내가 작성한 위키에 일어난 활동 + 나를 멘션한 알림. 먼저 내 엔티티 id 를 모은다.
+  const [myTaskRows, myEpicRows, myWikiRows] = await Promise.all([
+    prisma.task.findMany({
+      where: { OR: [{ assigneeId: userId }, { reporterId: userId }] },
+      select: { id: true },
+    }),
+    prisma.epic.findMany({ where: { ownerId: userId }, select: { id: true } }),
+    prisma.wikiPage.findMany({
+      where: { authorId: userId, deletedAt: null },
+      select: { id: true },
+    }),
+  ]);
+  const myTaskIdSet = myTaskRows.map((t) => t.id);
+  const myEpicIdSet = myEpicRows.map((e) => e.id);
+  const myWikiIdSet = myWikiRows.map((w) => w.id);
+
+  const [statusCounts, totalTasks, myTasks, myActivityRaw, mentionRaw, projects] =
     await Promise.all([
       prisma.task.groupBy({ by: ["status"], _count: true }),
       prisma.task.count(),
@@ -1025,10 +1053,25 @@ export async function getDashboardData() {
           team: { select: { key: true } },
         },
       }),
+      // 나와 관련된 엔티티에 일어난 활동(행위자 무관 — 남이 내 티켓을 수정해도 뜬다).
       prisma.activity.findMany({
+        where: {
+          OR: [
+            { entityType: "task", entityId: { in: myTaskIdSet } },
+            { entityType: "epic", entityId: { in: myEpicIdSet } },
+            { entityType: "wiki", entityId: { in: myWikiIdSet } },
+          ],
+        },
         orderBy: { createdAt: "desc" },
         take: 12,
         include: { user: miniUser },
+      }),
+      // 나를 멘션한 알림(활동 피드에 함께 노출).
+      prisma.notification.findMany({
+        where: { userId, type: "mention" },
+        orderBy: { createdAt: "desc" },
+        take: 12,
+        include: { actor: miniUser },
       }),
       prisma.project.findMany({
         where: { status: { not: "DONE" } },
@@ -1037,6 +1080,25 @@ export async function getDashboardData() {
         include: { _count: { select: { epics: true } } },
       }),
     ]);
+
+  // 멘션 알림을 활동 항목과 같은 모양으로 정규화(actor=행위자, action="mentioned",
+  // 제목=notification.context=페이지/티켓 제목). 그 뒤 활동과 병합해 최신순 12개.
+  const mentionItems = mentionRaw.map((n) => ({
+    id: `mention:${n.id}`,
+    user: n.actor,
+    entityType: n.entityType,
+    entityId: n.entityId,
+    action: "mentioned" as const,
+    meta: null as unknown,
+    createdAt: n.createdAt,
+    mentionTitle: n.context,
+  }));
+  const recentActivityRaw = [
+    ...myActivityRaw.map((a) => ({ ...a, mentionTitle: null as string | null })),
+    ...mentionItems,
+  ]
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    .slice(0, 12);
 
   // 최근 활동 enrich: 티켓 key(TEAM-n) + 엔티티 제목 + 값 해석용 lookup.
   // entityId 는 폴리모픽이라 task/epic 은 모아서 조회, 나머지 이름은 lookup 으로 해석.
@@ -1097,7 +1159,8 @@ export async function getDashboardData() {
   const recentActivity = recentActivityRaw.map((a) => ({
     ...a,
     entityKey: keyMap.get(a.entityId) ?? null,
-    entityTitle: titleMap.get(a.entityId) ?? null,
+    // 멘션 항목은 위키 제목이 lookup 에 없으므로 notification.context(mentionTitle) 로 보완.
+    entityTitle: titleMap.get(a.entityId) ?? a.mentionTitle ?? null,
   }));
 
   return {

@@ -1,6 +1,7 @@
 "use client";
 
-import { LogOut } from "lucide-react";
+import Link from "next/link";
+import { LogOut, UserRound } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,11 +15,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 export function UserMenu({
+  id,
   name,
   email,
   image,
   onSignOut,
 }: {
+  id: string;
   name: string;
   email: string;
   image?: string | null;
@@ -54,6 +57,13 @@ export function UserMenu({
             </span>
           </DropdownMenuLabel>
         </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          render={<Link href={`/users/${id}`} className="cursor-pointer" />}
+        >
+          <UserRound className="size-4" />
+          내 정보
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <form action={onSignOut}>
           <DropdownMenuItem

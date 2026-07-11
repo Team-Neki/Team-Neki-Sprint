@@ -85,6 +85,10 @@ export async function deleteTeam(id: string) {
 /** 유저-팀 배정(수동). 한 사람 = 한 팀. null이면 무소속. */
 export async function setUserTeam(userId: string, teamId: string | null) {
   const user = await requireUser();
+  // 멤버 배정은 관리자(ADMIN) 전용. UI 노출뿐 아니라 서버에서도 차단(방어).
+  if (user.role !== "ADMIN") {
+    throw new Error("관리자만 멤버 팀 배정을 변경할 수 있습니다.");
+  }
   const value = assigneeIdSchema.parse(teamId);
   await prisma.user.update({ where: { id: userId }, data: { teamId: value } });
   await logActivity({
