@@ -14,6 +14,7 @@ import {
 } from "@/server/actions/tasks";
 import { searchTasksAction } from "@/server/actions/wiki";
 import { LinkSearchPopover, type LinkItem } from "@/components/wiki/link-search";
+import { useInSheet } from "@/components/detail/in-sheet-context";
 
 export type DepTask = {
   id: string;
@@ -59,6 +60,9 @@ function DepList({
   emptyLabel: string;
 }) {
   const [pending, start] = useTransition();
+  // 상세 시트 안에서는 다른 티켓 클릭 시(소프트 내비로 시트를 덮어쓰지 않고)
+  // 전체 상세 페이지를 새 탭으로 연다.
+  const inSheet = useInSheet();
 
   if (items.length === 0) {
     return <p className="text-muted-foreground text-sm">{emptyLabel}</p>;
@@ -78,6 +82,8 @@ function DepList({
           />
           <Link
             href={`/tasks/${t.id}`}
+            target={inSheet ? "_blank" : undefined}
+            rel={inSheet ? "noopener noreferrer" : undefined}
             className="flex min-w-0 flex-1 items-center gap-2 hover:underline"
           >
             <span className="text-muted-foreground shrink-0 font-mono text-xs">

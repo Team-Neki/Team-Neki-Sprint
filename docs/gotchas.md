@@ -162,3 +162,15 @@
 - **인라인 편집 입력은 `type="text" inputMode="decimal"`**: `type="number"` 스피너(±카운트) 대신 직접 타이핑. `optionalMd` 검증은 `z.coerce.number().min(0)`(`.int()` 없음)이라 소수 허용. `InlineNumber`(`detail/inline-fields.tsx`)는 이제 MD 전용(storyPoints 제거).
 - **정렬 함정**: 우측정렬 인풋을 셀에 넣으면 헤더와 값 우측선이 인풋 패딩만큼 어긋나고, 고정폭이면 빈 박스가 좌측으로 뻗어 커 보인다 → **`[field-sizing:content]`(박스가 글자 폭만큼) + 좌측 정렬**(타이핑 시 우측 확장) + `min-w-*`(빈 값 클릭영역). 헤더/셀도 좌측 정렬로 맞춘다. MD·담당자 열이 붙으면 담당자 셀에 `pl-*` 로 간격.
 - **리뷰 상태 제거 여파**: `Status` enum 에서 `IN_REVIEW` 삭제(Postgres enum 은 값 제거 불가 → 타입 재생성 마이그레이션, 기존 행은 BACKLOG 이관). 새 상태 참조·라벨·보드 컬럼은 4개(BACKLOG/TODO/IN_PROGRESS/DONE)만.
+
+## 21. 상세 시트(우측 슬라이드) 상호작용 — 팝업 z-index · 재사용 상세 폭 · 블러 · 타임라인 고정선 (2026-07-10)
+
+- **팝오버/셀렉트/드롭다운이 시트 뒤로 숨는다**: `DetailSheet` 의 `SheetContent` 는 `z-[60]`(좌측 사이드바 위로 띄우려고). 그런데 팝업 프리미티브 positioner 는 `z-50` 이라 시트 안에서 열면 **시트 뒤에 깔려 클릭이 안 된다**(→ "시트 안에선 편집이 안 된다"로 보임). 해결: `ui/{popover,select,dropdown-menu,context-menu}` 의 Positioner z 를 **`z-[70]`**(시트보다 큼)로. 새 오버레이/시트 z 를 올릴 때 팝업 z 도 함께 검토.
+- **재사용 상세가 시트에서 우측으로 쏠린다**: 전체 상세 페이지(`tasks/[id]/page`)를 인터셉트 시트에서 그대로 재사용하는데, 루트가 `mx-auto max-w-5xl`. `InSheetProvider` 는 DOM 래퍼가 없어 이 div 가 **`flex flex-col` 시트의 직접 자식**이 되고, `mx-auto`(좌우 auto 마진)가 flex 자식의 stretch 를 막아 **콘텐츠 폭이 내용만큼 줄고 한쪽으로 쏠린다**. 해결: `SheetContent` 에 `[&>div]:mx-0 [&>div]:w-full [&>div]:max-w-none` 로 자식을 폭 전체로 펴기.
+- **배경 블러 제거**: 시트·다이얼로그 오버레이의 `supports-backdrop-filter:backdrop-blur-xs` 를 뺀다(`ui/sheet`·`ui/dialog`). 딤(`bg-black/10`)만 유지.
+- **시트 안 다른 티켓 링크는 새 탭**: 시트 안에서 `/tasks/[id]` 로 소프트 내비하면 인터셉트가 다시 걸려 시트를 덮어쓴다 → `useInSheet()` 로 감지해 `target="_blank"`(하드 로드 = 전체 페이지). `task-dependencies` 의 선행/후속 링크에 적용.
+- **타임라인 이름 열 ↔ 그래프 구분선**: 절대배치 오버레이+`onScroll` 동기화는 컴포지터 스크롤을 못 따라가 **흔들린다**. **sticky 거터의 `border-r`** 로 그리면(거터가 CSS sticky 라 프레임 지연 없음) 고정된다. 단 거터 사이 세로 틈(flex `gap`)이 있으면 선이 **끊기고** 그 틈으로 뒤 그리드(월 구분선)가 비친다 → 행 `gap-0` + 그룹 사이 **sticky 스페이서**로 이름 열을 세로 연속화. 거터 z 를 월 구분선 위로(z-30, 헤더 마스크 z-40).
+
+## 22. 목록 기본 정렬엔 고유 tiebreaker(id) 필수 (2026-07-10)
+
+- `getTasks`/`getBoardTasks` 처럼 **비고유 키로 정렬**(`[status, priority, createdAt]` 등)하면, 그 키들이 동일한 행(예: seed 로 같은 `createdAt`)의 순서가 **미정**이라 DB 가 힙 순서로 반환한다. 이 상태에서 아무 필드나 **UPDATE(예: MD 인라인 편집)** 하면 그 행의 힙 위치가 바뀌며 **동점 그룹 순서가 흔들린다**(정렬 키에 안 쓰인 MD 를 바꿔도 순서가 바뀌는 것처럼 보임). 해결: `orderBy` 맨 끝에 **`{ id: "asc" }`**(전역 고유) tiebreaker 를 추가해 결정적 순서 보장.
