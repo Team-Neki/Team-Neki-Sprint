@@ -27,7 +27,7 @@ export function DetailSheet({
     >
       <SheetContent
         side="right"
-        className="z-[60] w-full gap-0 overflow-y-auto px-4 py-6 sm:!max-w-3xl sm:px-5"
+        className="z-[60] w-full gap-0 overflow-y-auto p-6 sm:!max-w-xl [&>div]:mx-0 [&>div]:w-full [&>div]:max-w-none"
       >
         <SheetTitle className="sr-only">상세 보기</SheetTitle>
         <a

@@ -192,7 +192,7 @@ export function EpicTimeline({
         {/* 날짜 축(2줄): 상단=월("N월"), 하단=모든 일자 숫자. 이름 거터 위는 sticky
             마스크로 가려 가로 스크롤 시 라벨이 거터 아래로 비치지 않게 한다. */}
         <div
-          className="text-muted-foreground relative mb-2 h-11 border-b text-[11px]"
+          className="text-muted-foreground relative h-11 border-b text-[11px]"
           style={{ width: nameW + RULER_PAD + rulerWidth }}
         >
           {/* sticky gutter mask over the frozen name column. border-r = 이름 열 ↔
@@ -264,7 +264,9 @@ export function EpicTimeline({
                     style={{ width: nameW }}
                   />
                 )}
-                <div className="flex flex-col gap-1">
+                {/* gap 을 두지 않는다: sticky 거터가 세로로 맞닿아야 border-r(구분선)이
+                    끊기지 않고 이어진다. 행 간 여백은 각 행의 막대 컨테이너 높이로 확보. */}
+                <div className="flex flex-col">
                 <div
                   className="bg-card border-border text-foreground sticky left-0 z-30 flex shrink-0 items-center gap-1.5 border-r pr-3 pl-1 text-xs font-medium"
                   style={{ width: nameW }}

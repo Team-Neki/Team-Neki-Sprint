@@ -21,3 +21,24 @@ export async function updateProfile(input: unknown) {
   revalidatePath("/users");
   return { id: user.id };
 }
+
+/**
+ * 사용자 미리보기(팀 페이지 등에서 이름/아바타 클릭 시 중앙 팝업으로 표시). 상세 페이지의
+ * 무거운 목록 대신 요약 정보 + 담당/오너 개수만 조회한다.
+ */
+export async function getUserPreview(id: string) {
+  await requireUser();
+  return prisma.user.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      image: true,
+      phone: true,
+      role: true,
+      team: { select: { key: true, name: true, color: true } },
+      _count: { select: { assignedTasks: true, ownedEpics: true } },
+    },
+  });
+}

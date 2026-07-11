@@ -9,6 +9,7 @@ import { UserBadge } from "@/components/user-badge";
 import { TeamDialog } from "@/components/forms/team-dialog";
 import { ConfirmDelete } from "@/components/confirm-delete";
 import { MemberTeamSelect } from "@/components/teams/member-team-select";
+import { UserPreviewDialog } from "@/components/teams/user-preview-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { requireUser } from "@/lib/session";
 
@@ -121,7 +122,9 @@ export default async function TeamsPage() {
                 {t.members.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
                     {t.members.map((m) => (
-                      <UserBadge key={m.id} user={m} size="xs" />
+                      <UserPreviewDialog key={m.id} user={m}>
+                        <UserBadge user={m} size="xs" />
+                      </UserPreviewDialog>
                     ))}
                   </div>
                 )}
@@ -146,12 +149,14 @@ export default async function TeamsPage() {
                 key={m.id}
                 className="flex items-center justify-between gap-3 px-4 py-3"
               >
-                <div className="flex min-w-0 items-center gap-2">
-                  <UserBadge user={m} />
-                  <span className="text-muted-foreground truncate text-xs">
-                    {m.email}
-                  </span>
-                </div>
+                <UserPreviewDialog user={m}>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <UserBadge user={m} />
+                    <span className="text-muted-foreground truncate text-xs">
+                      {m.email}
+                    </span>
+                  </div>
+                </UserPreviewDialog>
                 <MemberTeamSelect
                   userId={m.id}
                   teamId={m.teamId ?? null}
