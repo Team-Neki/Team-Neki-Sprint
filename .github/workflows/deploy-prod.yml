@@ -7,7 +7,7 @@ on:
 
 env:
   # GitOps overlays/prod/sprint-deployment.yaml 의 image 와 일치해야 한다.
-  DOCKER_IMAGE: ${{ secrets.DOCKER_USERNAME }}/prod-sprint
+  DOCKER_IMAGE: ${{ secrets.DOCKER_USERNAME }}/sprint-prod
   GITOPS_REPO: Team-Neki/Team-Neki-GitOps
   GITOPS_PATH: overlays/prod/sprint-deployment.yaml
 
@@ -49,7 +49,7 @@ jobs:
       # ============================================================
       # GitOps: GitOps 레포의 이미지 태그 업데이트 → ArgoCD 자동 배포
       # 사전 준비: GitOps 레포에 overlays/prod/sprint-deployment.yaml 이 존재해야 하며
-      #            initContainer/컨테이너의 image 라인이 prod-sprint:<tag> 형식이어야 한다.
+      #            initContainer/컨테이너의 image 라인이 sprint-prod:<tag> 형식이어야 한다.
       # ============================================================
       - name: Checkout GitOps Repository
         uses: actions/checkout@v4
@@ -65,7 +65,7 @@ jobs:
           echo "Updating image to: $NEW_IMAGE"
 
           # sprint-deployment.yaml 의 initContainer + 컨테이너 image 두 줄 모두 갱신.
-          sed -i "s|image: .*prod-sprint:.*|image: $NEW_IMAGE|g" ${{ env.GITOPS_PATH }}
+          sed -i "s|image: .*sprint-prod:.*|image: $NEW_IMAGE|g" ${{ env.GITOPS_PATH }}
 
           echo "Updated image lines:"
           grep "image:" ${{ env.GITOPS_PATH }}
