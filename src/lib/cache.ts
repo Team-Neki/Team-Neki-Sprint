@@ -1,4 +1,4 @@
-import { revalidateTag } from "next/cache";
+import { updateTag } from "next/cache";
 
 /**
  * 데이터 레이어 캐시(D3) 태그. 공유(비유저 종속) 목록/옵션/트리 쿼리를
@@ -34,11 +34,14 @@ export const CACHE_REVALIDATE = {
 /**
  * 액션에서 변경 후 관련 태그를 한 번에 무효화한다(중복 태그는 무해).
  *
- * Next 16 의 revalidateTag 는 두 번째 인자가 필수다. 기본 권장값 "max" 는
- * stale-while-revalidate(옛 데이터 먼저 서빙)라, 사용자가 방금 편집한 내용을
- * 다음 요청에서 바로 봐야 하는 내부 툴 특성상 부적절하다. 대신 `{ expire: 0 }`
- * 으로 즉시 만료시켜 revalidatePath 와 동일하게 다음 요청에서 최신 값을 보장한다.
+ * Next 16 에선 read-your-own-writes(방금 만든/바꾼 걸 바로 보기)에 `updateTag` 를
+ * 쓴다. `revalidateTag` 는 `{ expire: 0 }` 을 줘도 태그를 stale 로만 표시해
+ * stale-while-revalidate(옛 값 먼저 서빙, 뒤에서 갱신)로 동작 → mutation 직후
+ * router.refresh() 가 옛 데이터를 받아 "한 번 더 요청해야 반영되는" off-by-one
+ * staleness 가 생긴다. `updateTag` 는 태그를 즉시 만료시켜 다음 요청이 최신 값을
+ * 기다리게 하므로 이 문제가 없다. 단 Server Action 안에서만 호출 가능(이 헬퍼의
+ * 호출부는 모두 "use server" 액션).
  */
 export function bumpTags(...tags: CacheTag[]): void {
-  for (const tag of tags) revalidateTag(tag, { expire: 0 });
+  for (const tag of tags) updateTag(tag);
 }
