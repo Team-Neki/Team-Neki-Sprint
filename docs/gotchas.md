@@ -107,7 +107,7 @@
 
 - **배경(2026-07-09)**: 공유(비유저 종속) 목록/옵션/트리 쿼리를 `unstable_cache` 로 감싸 요청 간 DB 부하를 줄였다(`src/lib/cache.ts` 태그 + `queries.ts` 래핑). 페이지는 `requireUser`(쿠키)로 어차피 동적(force-dynamic)이라 라우트 캐시는 그대로 두고 **데이터 레이어만** 캐시 — 순수 additive.
 - **`use cache` 아님**: Next 16 은 `use cache` 디렉티브를 권장하지만 `cacheComponents` 플래그가 필요하다(이 프로젝트는 미설정). 플래그를 켜면 force-dynamic·Suspense 경계 전면 재작업이라 과함 → **`unstable_cache`(구 모델)** 가 저위험 선택.
-- **함정: `revalidateTag` 두 번째 인자 필수.** Next 16 에서 `revalidateTag(tag)` 단일 인자는 **deprecated**(TS 에러 `Expected 2 arguments, but got 1`). 기본 권장값 `"max"` 는 **stale-while-revalidate**(옛 데이터 먼저 서빙)라, 사용자가 방금 편집한 내용을 다음 요청에서 바로 못 볼 수 있다 → 내부 툴엔 부적절. **`revalidateTag(tag, { expire: 0 })`** 로 즉시 만료시켜 `revalidatePath` 와 동일한 일관성을 준다. (`bumpTags` 헬퍼가 처리.)
+- **함정: mutation 직후 반영 안 되는 off-by-one staleness → `updateTag` 로 해결(2026-07-12).** 처음엔 `revalidateTag(tag, { expire: 0 })` 로 무효화했는데, 이러면 **"한 번 변경 후 다음 변경/요청이 와야 이전 변경이 반영되는"** 증상이 팀·위키·태스크 등 캐시 쿼리 전반에서 났다. 원인: `revalidateTag` 는 `{ expire: 0 }` 을 줘도 `unstable_cache` 데이터 엔트리를 **stale-while-revalidate**(옛 값 1회 서빙 + 백그라운드 갱신)로 처리 → mutation 액션이 끝나고 `router.refresh()` 가 옛 데이터를 받는다. Next 16 문서(`node_modules/next/dist/docs/.../revalidateTag.md`·`updateTag.md`)는 이 **read-your-own-writes** 케이스에 Server Action 전용 **`updateTag(tag)`** 를 명시 권장한다 — 태그를 즉시 하드 만료시켜 다음 요청이 fresh 를 **기다린다**(blocking miss). 그래서 `bumpTags` 를 `updateTag` 로 교체(`src/lib/cache.ts`). `updateTag` 는 Server Action 안에서만 호출 가능한데 `bumpTags` 호출부는 전부 `"use server"` 액션이라 안전(Route Handler 에서 쓰면 throw — 그럴 땐 `revalidateTag(tag, "max")`). 참고로 `revalidateTag(tag)` 단일 인자는 deprecated(TS 에러)라 쓰지 않는다.
 - **캐시 대상 선정 원칙**: 유저별/검색/상세 쿼리는 캐시 금지(정합성 리스크·저가치). 캐시한 목록은 **교차 엔티티 표시 의존성**을 무효화에 반영해야 한다 — 예: 팀 key 변경 → 에픽/태스크 목록에도 반영되므로 team 액션이 `epics`/`tasks` 태그도 bump. 놓쳤을 때를 대비해 `unstable_cache` 에 시간 백스톱(`revalidate`)도 함께 둔다.
 - **주의**: dev 서버에서도 `unstable_cache` 는 동작(라우트 캐시와 별개)하므로, 캐싱 관련 검증 시 태그 무효화가 실제로 도는지 확인.
 
@@ -174,3 +174,10 @@
 ## 22. 목록 기본 정렬엔 고유 tiebreaker(id) 필수 (2026-07-10)
 
 - `getTasks`/`getBoardTasks` 처럼 **비고유 키로 정렬**(`[status, priority, createdAt]` 등)하면, 그 키들이 동일한 행(예: seed 로 같은 `createdAt`)의 순서가 **미정**이라 DB 가 힙 순서로 반환한다. 이 상태에서 아무 필드나 **UPDATE(예: MD 인라인 편집)** 하면 그 행의 힙 위치가 바뀌며 **동점 그룹 순서가 흔들린다**(정렬 키에 안 쓰인 MD 를 바꿔도 순서가 바뀌는 것처럼 보임). 해결: `orderBy` 맨 끝에 **`{ id: "asc" }`**(전역 고유) tiebreaker 를 추가해 결정적 순서 보장.
+
+## 23. 상세 시트가 안 열리고 500 — Turbopack dev 의 인터셉팅 라우트 버그 (2026-07-12)
+
+- **증상**: 프로젝트/에픽/태스크 목록에서 항목을 클릭해 우측 상세 시트(인터셉트)를 열면 **500** 이 나고 시트 대신 전체 페이지로 폴백된다. 서버 방금 켰을 땐 되다가, 파일 편집(HMR) 후 **다시 깨진다**("또 발생"). dev 콘솔: `⨯ Error: Invalid interception route: /projects/(.)(.)<id>. Must be in the format ...`.
+- **원인**: 폴더 구조(`<seg>/@detail/(.)[id]`)·코드는 정상. **Next 16 Turbopack dev** 가 HMR/재컴파일 후 인터셉션 경로를 만들 때 `(.)` 마커를 **이중(`(.)(.)`)** 으로 붙인다. Next 의 `extractInterceptionRouteInformation`(`shared/lib/router/utils/interception-routes.js`) 이 `path.split('(.)', 2)` 하는데, 연속된 `(.)(.)` 탓에 두 번째 조각이 빈 문자열 → `interceptedRoute` falsy → throw. **webpack dev 에선 재현 안 됨**(항상 200). 즉 Turbopack dev 전용.
+- **해결**: `package.json` 의 `dev` 를 **`next dev --webpack`** 으로(기본값 Turbopack 회피). Turbopack 이 이 버그를 고칠 때까지 유지. 상호작용 검증은 반드시 **브라우저 실확인**(build/tsc/lint 로는 안 잡힘 — dev 런타임에서만 터짐).
+- **주의**: `next build`(프로덕션) 는 라우트를 1회 컴파일하고 HMR 이 없어 이 doubling 이 안 생기므로 배포엔 무해(빌드로 교차 확인함). 재현/QA 는 webpack dev 로.

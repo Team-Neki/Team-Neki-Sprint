@@ -38,7 +38,7 @@
 - **`.worktrees/` 는 eslint에서 ignore됨**(`eslint.config.mjs` `globalIgnores`, B6). 병렬 worktree 사본이 더 이상 lint 결과를 부풀리지 않는다. (과거엔 경로 필터가 필요했음.)
 - **병렬 서브에이전트 산출물은 병합 전 NUL/비-UTF8 스캔.** 에이전트가 sentinel 등으로 NUL(`"\x00"`)을 코드에 박으면 tsc/eslint는 통과하지만 git이 파일을 **바이너리로 인식**(`git diff --stat`에 `Bin ...`) → 실제로 물렸음. [gotchas §9](./docs/gotchas.md).
 - **위키 페이지 조회엔 항상 `where: { deletedAt: null }`**(soft-delete 휴지통 유출 방지). 전역 검색(`globalSearch`)·목록·트리 모두 해당. [gotchas §8].
-- **`unstable_cache` 로 감싼 공유 쿼리는 mutating 액션에서 `bumpTags`(=`revalidateTag(tag,{expire:0})`) 필수.** `queries.ts` 의 목록/옵션/트리 14개가 `src/lib/cache.ts` 태그로 캐시됨(D3). 새 캐시 쿼리를 추가하거나 표시 필드를 바꾸면 **교차 엔티티 의존성까지** 무효화 배선을 갱신해야 스테일이 안 남는다. Next 16 `revalidateTag` 는 2번째 인자 필수. [gotchas §13].
+- **`unstable_cache` 로 감싼 공유 쿼리는 mutating 액션에서 `bumpTags`(=Next 16 `updateTag`) 필수.** `queries.ts` 의 목록/옵션/트리 14개가 `src/lib/cache.ts` 태그로 캐시됨(D3). 새 캐시 쿼리를 추가하거나 표시 필드를 바꾸면 **교차 엔티티 의존성까지** 무효화 배선을 갱신해야 스테일이 안 남는다. `revalidateTag(tag,{expire:0})` 는 stale-while-revalidate 라 mutation 직후 "한 번 더 요청해야 반영되는" off-by-one 을 유발 → read-your-own-writes 는 `updateTag`(Server Action 전용, 즉시 하드 만료). [gotchas §13].
 
 ## 테스트
 
