@@ -37,9 +37,8 @@ export type ProjectTableRow = {
   priority: Priority;
   status: Status;
   owner: MiniUser | null;
+  startDate?: Date | null;
   dueDate?: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
   labels?: { label: { id: string; name: string; color: string } }[];
   ownerId?: string | null;
 };
@@ -56,9 +55,10 @@ const fmt = (d: Date | null | undefined) =>
 
 /**
  * 프로젝트 목록/하위목록 공용 표.
- * 컬럼: [제목] [상태] [담당자] [기한] [우선순위] [레이블] [생성시간] [수정시간] [열기]
- * - `edit` 제공(목록): 제목·상태·담당자·기한·우선순위 인라인 편집. 레이블·시간은 읽기전용.
- * - 열기 셀: 패널 아이콘 클릭 = 우측 슬라이드 상세, ↗ = 새 탭 전체 페이지.
+ * 컬럼: [제목] [담당자] [시작일] [종료일] [우선순위] [상태] [레이블] [열기]
+ * - `edit` 제공(목록): 제목·담당자·시작일·종료일·우선순위·상태 인라인 편집. 레이블은 읽기전용.
+ * - 시작일=startDate, 종료일=dueDate. (생성/수정시간 컬럼은 노출하지 않는다.)
+ * - 열기 셀: 패널 아이콘 클릭 = 우측 슬라이드 상세, 새 창 열기 = 새 탭 전체 페이지.
  */
 export function ProjectsTable({
   projects,
@@ -78,8 +78,9 @@ export function ProjectsTable({
             <>
               <SortableHead field="title">제목</SortableHead>
               <TableHead className="w-32">담당자</TableHead>
+              <TableHead className="w-28">시작일</TableHead>
               <SortableHead field="dueDate" className="w-28">
-                기한
+                종료일
               </SortableHead>
               <SortableHead field="priority" className="w-24">
                 우선순위
@@ -88,23 +89,16 @@ export function ProjectsTable({
                 상태
               </SortableHead>
               <TableHead className="w-40">레이블</TableHead>
-              <SortableHead field="createdAt" className="w-24">
-                생성시간
-              </SortableHead>
-              <SortableHead field="updatedAt" className="w-24">
-                수정시간
-              </SortableHead>
             </>
           ) : (
             <>
               <TableHead>제목</TableHead>
               <TableHead className="w-32">담당자</TableHead>
-              <TableHead className="w-28">기한</TableHead>
+              <TableHead className="w-28">시작일</TableHead>
+              <TableHead className="w-28">종료일</TableHead>
               <TableHead className="w-24">우선순위</TableHead>
               <TableHead className="w-28">상태</TableHead>
               <TableHead className="w-40">레이블</TableHead>
-              <TableHead className="w-24">생성시간</TableHead>
-              <TableHead className="w-24">수정시간</TableHead>
             </>
           )}
           <TableHead className="w-16">
@@ -114,7 +108,7 @@ export function ProjectsTable({
       </TableHeader>
       <TableBody>
         {projects.length === 0 ? (
-          <EmptyRow colSpan={9} message={emptyMessage} />
+          <EmptyRow colSpan={8} message={emptyMessage} />
         ) : (
           projects.map((p) => {
             const cells = (
@@ -146,6 +140,18 @@ export function ProjectsTable({
                   />
                 ) : (
                   <UserBadge user={p.owner} hideName />
+                )}
+              </TableCell>
+              <TableCell className="text-muted-foreground text-xs">
+                {edit ? (
+                  <InlineDate
+                    type="project"
+                    id={p.id}
+                    field="startDate"
+                    value={p.startDate ?? null}
+                  />
+                ) : (
+                  fmt(p.startDate)
                 )}
               </TableCell>
               <TableCell className="text-muted-foreground text-xs">
@@ -195,12 +201,6 @@ export function ProjectsTable({
                       : "—"}
                   </span>
                 )}
-              </TableCell>
-              <TableCell className="text-muted-foreground text-xs tabular-nums">
-                {fmt(p.createdAt)}
-              </TableCell>
-              <TableCell className="text-muted-foreground text-xs tabular-nums">
-                {fmt(p.updatedAt)}
               </TableCell>
               <TableCell>
                 <OpenDetailIcon href={`/projects/${p.id}`} />
