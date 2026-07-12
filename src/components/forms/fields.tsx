@@ -124,7 +124,9 @@ export function GenericSelect({
       onValueChange={(v) => onChange(v === UNASSIGNED ? null : v)}
       options={options}
       getValue={(o) => o.id}
-      renderOption={(o) => o.label}
+      renderOption={(o) => (
+        <span className="min-w-0 truncate">{o.label}</span>
+      )}
       placeholder={placeholder}
       leadingOption={{ value: UNASSIGNED, label: noneLabel }}
     />

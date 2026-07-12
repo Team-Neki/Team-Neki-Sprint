@@ -268,7 +268,7 @@ export function EpicTimeline({
                     끊기지 않고 이어진다. 행 간 여백은 각 행의 막대 컨테이너 높이로 확보. */}
                 <div className="flex flex-col">
                 <div
-                  className="bg-card border-border text-foreground sticky left-0 z-30 flex shrink-0 items-center gap-1.5 border-r pr-3 pl-1 text-xs font-medium"
+                  className="bg-card border-border text-foreground sticky left-0 z-30 flex shrink-0 items-center gap-1.5 border-r pr-3 pl-3 text-xs font-medium"
                   style={{ width: nameW }}
                   title={g.title}
                 >
@@ -284,7 +284,7 @@ export function EpicTimeline({
                       {/* Epic row */}
                       <div className="flex items-center">
                         <div
-                          className="bg-card border-border sticky left-0 z-30 flex shrink-0 items-center gap-1 self-stretch border-r pr-3"
+                          className="bg-card border-border sticky left-0 z-30 flex shrink-0 items-center gap-1 self-stretch border-r pr-3 pl-4"
                           style={{ width: nameW }}
                         >
                           <button
@@ -364,7 +364,7 @@ export function EpicTimeline({
                           return (
                             <div key={t.id} className="flex items-center">
                               <div
-                                className="bg-card border-border sticky left-0 z-30 flex shrink-0 items-center gap-1.5 self-stretch border-r py-0.5 pr-3 pl-7"
+                                className="bg-card border-border sticky left-0 z-30 flex shrink-0 items-center gap-1.5 self-stretch border-r py-0.5 pr-3 pl-9"
                                 style={{ width: nameW }}
                               >
                                 <Link

@@ -120,13 +120,15 @@ export function renderTeamOption(
 ): React.ReactNode {
   const showName = opts?.showName ?? true;
   return (
-    <span className="flex items-center gap-2">
+    <span className="flex min-w-0 items-center gap-2">
       <span
         className="size-2 shrink-0 rounded-full"
         style={t.color ? { backgroundColor: t.color } : undefined}
       />
-      <span className="font-mono text-xs">{t.key}</span>
-      {showName && <span className="text-muted-foreground">{t.name}</span>}
+      <span className="shrink-0 font-mono text-xs">{t.key}</span>
+      {showName && (
+        <span className="text-muted-foreground min-w-0 truncate">{t.name}</span>
+      )}
     </span>
   );
 }
@@ -139,12 +141,12 @@ export function renderTeamKey(t: TeamOption): React.ReactNode {
 /** 멤버 항목: size-5 아바타 + 이름/이메일. */
 export function renderMemberOption(m: MiniUser): React.ReactNode {
   return (
-    <span className="flex items-center gap-2">
+    <span className="flex min-w-0 items-center gap-2">
       <Avatar className="size-5">
         {m.image && <AvatarImage src={m.image} alt={m.name ?? ""} />}
         <AvatarFallback className="text-[10px]">{initialsOf(m)}</AvatarFallback>
       </Avatar>
-      {memberLabel(m)}
+      <span className="min-w-0 truncate">{memberLabel(m)}</span>
     </span>
   );
 }
