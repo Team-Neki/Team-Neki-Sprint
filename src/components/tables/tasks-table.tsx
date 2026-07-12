@@ -8,7 +8,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { RowOpenSheet } from "@/components/ui/table-row-link";
+import { RowContextMenu } from "@/components/tables/row-context-menu";
+import { deleteTask } from "@/server/actions/tasks";
 import {
   StatusBadge,
   PriorityBadge,
@@ -167,9 +168,14 @@ export function TasksTable({
             );
             // 목록(edit): 행 클릭 → 우측 슬라이드 상세(편집 컨트롤·링크·↗ 는 가드로 제외).
             return edit ? (
-              <RowOpenSheet key={t.id} href={`/tasks/${t.id}`}>
+              <RowContextMenu
+                key={t.id}
+                href={`/tasks/${t.id}`}
+                id={t.id}
+                deleteAction={deleteTask}
+              >
                 {cells}
-              </RowOpenSheet>
+              </RowContextMenu>
             ) : (
               <TableRow key={t.id}>{cells}</TableRow>
             );

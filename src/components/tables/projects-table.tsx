@@ -10,7 +10,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { RowOpenSheet } from "@/components/ui/table-row-link";
+import { RowContextMenu } from "@/components/tables/row-context-menu";
+import { deleteProject } from "@/server/actions/projects";
 import { StatusBadge, PriorityBadge, LabelBadge } from "@/components/badges";
 import { UserBadge, type MiniUser } from "@/components/user-badge";
 import {
@@ -207,9 +208,15 @@ export function ProjectsTable({
               </>
             );
             return edit ? (
-              <RowOpenSheet key={p.id} href={`/projects/${p.id}`}>
+              <RowContextMenu
+                key={p.id}
+                href={`/projects/${p.id}`}
+                id={p.id}
+                deleteAction={deleteProject}
+                deleteDescription="프로젝트가 삭제됩니다. 하위 에픽은 삭제되지 않고 프로젝트 연결만 해제됩니다."
+              >
                 {cells}
-              </RowOpenSheet>
+              </RowContextMenu>
             ) : (
               <TableRow key={p.id}>{cells}</TableRow>
             );
