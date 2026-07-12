@@ -46,6 +46,10 @@ export function RowContextMenu({
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const open = (e: React.MouseEvent) => {
+    // 포털된 오버레이(인라인 select/popover/menu 옵션 등)의 클릭은 React 이벤트
+    // 버블링으로 이 행 onClick 까지 오지만, DOM 상 행 밖(포털)이라 currentTarget 에
+    // 안 담긴다 → 내비게이션 스킵(옵션 선택이 행 이동으로 오인되던 버그 방지).
+    if (!e.currentTarget.contains(e.target as Node)) return;
     if ((e.target as HTMLElement).closest(INTERACTIVE)) return;
     if (e.metaKey || e.ctrlKey) {
       window.open(href, "_blank");
