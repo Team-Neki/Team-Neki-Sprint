@@ -166,6 +166,7 @@
 ## 21. 상세 시트(우측 슬라이드) 상호작용 — 팝업 z-index · 재사용 상세 폭 · 블러 · 타임라인 고정선 (2026-07-10)
 
 - **팝오버/셀렉트/드롭다운이 시트 뒤로 숨는다**: `DetailSheet` 의 `SheetContent` 는 `z-[60]`(좌측 사이드바 위로 띄우려고). 그런데 팝업 프리미티브 positioner 는 `z-50` 이라 시트 안에서 열면 **시트 뒤에 깔려 클릭이 안 된다**(→ "시트 안에선 편집이 안 된다"로 보임). 해결: `ui/{popover,select,dropdown-menu,context-menu}` 의 Positioner z 를 **`z-[70]`**(시트보다 큼)로. 새 오버레이/시트 z 를 올릴 때 팝업 z 도 함께 검토.
+- **다이얼로그(삭제 확인 등)도 시트 뒤로 숨었다(2026-07-12 보완)**: 위 §21 최초 수정 때 팝업(popover/select/dropdown/context)만 z-[70] 로 올리고 **`ui/dialog` 는 놓쳤다.** 그래서 상세 시트 안에서 삭제(휴지통) 버튼 → `ConfirmDelete`(=`ui/dialog`) 를 열면 다이얼로그 Overlay/Content(`z-50`)가 시트(`z-[60]`) 뒤에 깔려 "삭제" 버튼을 못 누른다. 해결: `ui/dialog` 의 Overlay·Content z 를 **`z-[65]`**(시트 `z-[60]` 위, 팝업 `z-[70]` 아래)로. 이 사다리(시트 60 < 다이얼로그 65 < 팝업 70)면 다이얼로그 안의 select/dropdown 도 다이얼로그 위에 정상적으로 뜬다.
 - **재사용 상세가 시트에서 우측으로 쏠린다**: 전체 상세 페이지(`tasks/[id]/page`)를 인터셉트 시트에서 그대로 재사용하는데, 루트가 `mx-auto max-w-5xl`. `InSheetProvider` 는 DOM 래퍼가 없어 이 div 가 **`flex flex-col` 시트의 직접 자식**이 되고, `mx-auto`(좌우 auto 마진)가 flex 자식의 stretch 를 막아 **콘텐츠 폭이 내용만큼 줄고 한쪽으로 쏠린다**. 해결: `SheetContent` 에 `[&>div]:mx-0 [&>div]:w-full [&>div]:max-w-none` 로 자식을 폭 전체로 펴기.
 - **배경 블러 제거**: 시트·다이얼로그 오버레이의 `supports-backdrop-filter:backdrop-blur-xs` 를 뺀다(`ui/sheet`·`ui/dialog`). 딤(`bg-black/10`)만 유지.
 - **시트 안 다른 티켓 링크는 새 탭**: 시트 안에서 `/tasks/[id]` 로 소프트 내비하면 인터셉트가 다시 걸려 시트를 덮어쓴다 → `useInSheet()` 로 감지해 `target="_blank"`(하드 로드 = 전체 페이지). `task-dependencies` 의 선행/후속 링크에 적용.
