@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import { Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ko } from "date-fns/locale";
 import {
@@ -11,10 +10,9 @@ import {
 } from "@/server/queries";
 import { deleteTask } from "@/server/actions/tasks";
 import { formatIssueKey } from "@/lib/constants";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { UserBadge } from "@/components/user-badge";
-import { ConfirmDelete } from "@/components/confirm-delete";
+import { SheetDeleteButton } from "@/components/detail/sheet-delete-button";
 import { CommentForm } from "@/components/tasks/comment-form";
 import { RichContent } from "@/components/rich-text/rich-editor";
 import { LinkedPages } from "@/components/wiki/linked-pages";
@@ -79,15 +77,7 @@ export default async function TaskDetail({
             </span>
             <InlineTitle type="task" id={task.id} value={task.title} />
           </div>
-          <ConfirmDelete
-            onConfirm={handleDelete}
-            redirectTo="/board"
-            trigger={
-              <Button variant="ghost" size="sm" className="text-destructive">
-                <Trash2 className="size-4" />
-              </Button>
-            }
-          />
+          <SheetDeleteButton onConfirm={handleDelete} redirectTo="/board" />
         </div>
 
         <Card className="mb-6 p-5">

@@ -94,14 +94,14 @@
 
 ## 12. 목록→상세 우측 슬라이드 = intercepting + parallel routes (전체 상세 재사용)
 
-- **패턴(2026-07-09)**: 목록에서 key 클릭 시 **기존 상세 페이지를 그대로** 우측 슬라이드로 띄우고, ↗ 버튼은 새 탭 전체 페이지로 여는 구조. Next 16 intercepting+parallel routes 로 구현.
+- **패턴(2026-07-09)**: 목록에서 key 클릭 시 **기존 상세 페이지를 그대로** 우측 슬라이드로 띄우고, 새 창 열기 버튼은 새 탭 전체 페이지로 여는 구조. Next 16 intercepting+parallel routes 로 구현.
 - **파일 구조(세그먼트별, tasks/epics/projects 동일)**: `{seg}/layout.tsx`(children + `detail` 슬롯 렌더) · `{seg}/@detail/default.tsx`(→ `null`) · `{seg}/@detail/(.)[id]/page.tsx`(전체 상세 `[id]/page` 를 import 해 `DetailSheet`(client Sheet)로 감쌈). `@detail` 슬롯을 **각 목록 세그먼트 안**에 두어 인터셉트를 그 목록에서만 발생시킴(보드·대시보드·위키 등 다른 곳의 상세 링크는 기존대로 전체 페이지 이동).
 - **핵심 동작**: soft-nav(목록 내 key 클릭 = `<Link>`/`router.push`)만 인터셉트 → children 슬롯은 목록 유지, `@detail` 이 시트 렌더(URL 은 `/x/[id]` 로 마스킹). hard-load/새 탭(`target=_blank`)은 인터셉트 안 되고 children 의 `[id]/page` 전체가 렌더. `default.tsx` 는 미매칭 슬롯용(→ null).
 - **전체 재사용 방법**: 상세 body 를 따로 추출하지 않고 **`[id]/page` 의 default export(async server component)를 그대로 `<TaskDetail params={params} />` 로 렌더**. React 19 타입에서 async 컴포넌트를 JSX 자식으로 써도 tsc 통과(`@ts-expect-error` 불필요).
-- **셀 인라인 편집 + 행 전체 클릭 (2026-07-09 갱신)**: 목록 행 어디를 눌러도 시트가 열리되, 셀 안 편집 컨트롤(select/input/버튼/링크·↗)은 그대로 동작해야 한다 → **`RowOpenSheet`**(`src/components/ui/table-row-link.tsx`)가 행 `onClick` 에서 `e.target.closest(INTERACTIVE)`(a·button·input·textarea·select·`[role=combobox]`·`[data-slot=select-trigger]` 등)면 내비게이션을 스킵하는 **인터랙티브 가드**로 처리한다. 편집(`edit`) 모드 행만 `RowOpenSheet` 로 감싸고 하위목록(non-edit)은 일반 `TableRow`(인터셉트 슬롯이 없어 소프트 인터셉트 안 됨). 제목 셀은 `InlineTitle` 의 클릭-투-에딧(글자=편집, 우측 빈공간=상세 링크)로 별도 처리. ↗ 는 `<a target=_blank>` 라 가드에 걸려 새 탭으로 연다. (예전의 "행 링크 제거 후 key 셀만 트리거" 서술은 폐기 — 지금은 행 전체 클릭이 정상.)
+- **셀 인라인 편집 + 행 전체 클릭 (2026-07-09 갱신)**: 목록 행 어디를 눌러도 시트가 열리되, 셀 안 편집 컨트롤(select/input/버튼/링크·새 창 열기)은 그대로 동작해야 한다 → **`RowOpenSheet`**(`src/components/ui/table-row-link.tsx`)가 행 `onClick` 에서 `e.target.closest(INTERACTIVE)`(a·button·input·textarea·select·`[role=combobox]`·`[data-slot=select-trigger]` 등)면 내비게이션을 스킵하는 **인터랙티브 가드**로 처리한다. 편집(`edit`) 모드 행만 `RowOpenSheet` 로 감싸고 하위목록(non-edit)은 일반 `TableRow`(인터셉트 슬롯이 없어 소프트 인터셉트 안 됨). 제목 셀은 `InlineTitle` 의 클릭-투-에딧(글자=편집, 우측 빈공간=상세 링크)로 별도 처리. 새 창 열기 버튼은 `<a target=_blank>` 라 가드에 걸려 새 탭으로 연다. (예전의 "행 링크 제거 후 key 셀만 트리거" 서술은 폐기 — 지금은 행 전체 클릭이 정상.)
 - **함정: 인터셉트 라우트를 `router.prefetch` 하면 인터셉트가 깨진다.** `RowOpenSheet` 에 `onMouseEnter={() => router.prefetch(href)}` 를 넣었더니 dev 로그에 `⨯ Invalid interception route: /tasks/(.)(.)<id>` 가 쏟아지며 **키 링크·행 클릭 모두 시트 대신 전체 페이지로 폴백**했다(인터셉트 모듈이 깨짐). `<Link>` 의 자동 prefetch 는 이 문제가 없지만 **수동 `router.prefetch(<인터셉트 대상 경로>)` 는 금지**. 이미 깨진 상태면 `rm -rf .next` + dev 재시작으로 stale 모듈 정리.
 - **깜빡임 방지(스트리밍)**: `@detail` 슬롯엔 자체 `loading.tsx` 가 없어, force-dynamic 상세가 서버 렌더되는 동안 상위 `(app)/loading.tsx` 가 **전체 화면(목록 포함)**을 스켈레톤으로 덮어 깜빡였다 → 인터셉트 `page.tsx` 에서 시트(client)는 즉시 렌더하고 **본문만 `<Suspense fallback={<DetailSkeleton/>}>` 로 감싸** 스트리밍(`src/components/detail/detail-skeleton.tsx`). 목록 유지 + 시트만 슬라이드 + 내부만 스켈레톤→콘텐츠.
-- **검증 주의**: 인터셉트 슬라이드는 build 로는 라우트 등록만 확인됨(`/x/(.)[id]` 가 route 목록에 뜸). **실제 열림/닫힘·↗ 새 탭은 브라우저 soft-nav 로 확인**해야 함(직접 URL 진입은 hard-load 라 전체 페이지가 뜸 — 인터셉트 아님). claude-in-chrome 자동화 툴은 이 소프트 내비를 구동하지 못해 시트를 못 띄우는 경우가 있으니 육안 확인 권장.
+- **검증 주의**: 인터셉트 슬라이드는 build 로는 라우트 등록만 확인됨(`/x/(.)[id]` 가 route 목록에 뜸). **실제 열림/닫힘·새 창 열기 새 탭은 브라우저 soft-nav 로 확인**해야 함(직접 URL 진입은 hard-load 라 전체 페이지가 뜸 — 인터셉트 아님). claude-in-chrome 자동화 툴은 이 소프트 내비를 구동하지 못해 시트를 못 띄우는 경우가 있으니 육안 확인 권장.
 
 ## 13. Next 16 데이터 캐시(unstable_cache) + `revalidateTag` 시그니처 (D3 캐싱)
 
@@ -167,6 +167,8 @@
 
 - **팝오버/셀렉트/드롭다운이 시트 뒤로 숨는다**: `DetailSheet` 의 `SheetContent` 는 `z-[60]`(좌측 사이드바 위로 띄우려고). 그런데 팝업 프리미티브 positioner 는 `z-50` 이라 시트 안에서 열면 **시트 뒤에 깔려 클릭이 안 된다**(→ "시트 안에선 편집이 안 된다"로 보임). 해결: `ui/{popover,select,dropdown-menu,context-menu}` 의 Positioner z 를 **`z-[70]`**(시트보다 큼)로. 새 오버레이/시트 z 를 올릴 때 팝업 z 도 함께 검토.
 - **다이얼로그(삭제 확인 등)도 시트 뒤로 숨었다(2026-07-12 보완)**: 위 §21 최초 수정 때 팝업(popover/select/dropdown/context)만 z-[70] 로 올리고 **`ui/dialog` 는 놓쳤다.** 그래서 상세 시트 안에서 삭제(휴지통) 버튼 → `ConfirmDelete`(=`ui/dialog`) 를 열면 다이얼로그 Overlay/Content(`z-50`)가 시트(`z-[60]`) 뒤에 깔려 "삭제" 버튼을 못 누른다. 해결: `ui/dialog` 의 Overlay·Content z 를 **`z-[65]`**(시트 `z-[60]` 위, 팝업 `z-[70]` 아래)로. 이 사다리(시트 60 < 다이얼로그 65 < 팝업 70)면 다이얼로그 안의 select/dropdown 도 다이얼로그 위에 정상적으로 뜬다.
+- **우상단 삭제·새 창·닫기 버튼이 겹친다 → 삭제를 크롬으로 포털(2026-07-13)**: 시트 크롬(DetailSheet 의 새 창 버튼 `right-11`, 닫기 버튼 `right-3`)과 재사용 상세 본문의 삭제 버튼(타이틀 행)이 서로 다른 컴포넌트에서 같은 우상단에 놓여 겹쳤다. 본문 루트가 `@container/detail`(=`container-type` → **abs 컨테이닝 블록**)이라 본문 안 삭제 버튼을 크롬 줄에 직접 못 맞춘다. 해결: `DetailSheet` 가 크롬에 삭제 슬롯(`<span ref>`)을 두고 그 노드를 `InSheetContext` 로 내려, 상세 페이지의 `SheetDeleteButton`(client)이 `createPortal` 로 그 슬롯에 붙인다 → 삭제·새 창·닫기 세 버튼 한 줄 정렬. 상세 페이지는 서버 컴포넌트라 `useInSheet` 를 못 쓰므로 이 client 래퍼가 감지한다.
+  - **함정**: 크롬을 `<div>` 로 감싸면 안 된다. `SheetContent` 의 `[&>div]:w-full`(아래 콘텐츠 폭 보정용)이 **그 크롬 div 까지 잡아** `w-full` 이 되어 내용(새 창 버튼)이 화면 밖으로 밀린다(닫기 버튼만 남아 보임). 크롬은 `<span>`/`<a>` 로 각각 절대배치(div 아님 → 셀렉터 미적용).
 - **재사용 상세가 시트에서 우측으로 쏠린다**: 전체 상세 페이지(`tasks/[id]/page`)를 인터셉트 시트에서 그대로 재사용하는데, 루트가 `mx-auto max-w-5xl`. `InSheetProvider` 는 DOM 래퍼가 없어 이 div 가 **`flex flex-col` 시트의 직접 자식**이 되고, `mx-auto`(좌우 auto 마진)가 flex 자식의 stretch 를 막아 **콘텐츠 폭이 내용만큼 줄고 한쪽으로 쏠린다**. 해결: `SheetContent` 에 `[&>div]:mx-0 [&>div]:w-full [&>div]:max-w-none` 로 자식을 폭 전체로 펴기.
 - **배경 블러 제거**: 시트·다이얼로그 오버레이의 `supports-backdrop-filter:backdrop-blur-xs` 를 뺀다(`ui/sheet`·`ui/dialog`). 딤(`bg-black/10`)만 유지.
 - **시트 안 다른 티켓 링크는 새 탭**: 시트 안에서 `/tasks/[id]` 로 소프트 내비하면 인터셉트가 다시 걸려 시트를 덮어쓴다 → `useInSheet()` 로 감지해 `target="_blank"`(하드 로드 = 전체 페이지). `task-dependencies` 의 선행/후속 링크에 적용.
@@ -176,9 +178,9 @@
 
 - `getTasks`/`getBoardTasks` 처럼 **비고유 키로 정렬**(`[status, priority, createdAt]` 등)하면, 그 키들이 동일한 행(예: seed 로 같은 `createdAt`)의 순서가 **미정**이라 DB 가 힙 순서로 반환한다. 이 상태에서 아무 필드나 **UPDATE(예: MD 인라인 편집)** 하면 그 행의 힙 위치가 바뀌며 **동점 그룹 순서가 흔들린다**(정렬 키에 안 쓰인 MD 를 바꿔도 순서가 바뀌는 것처럼 보임). 해결: `orderBy` 맨 끝에 **`{ id: "asc" }`**(전역 고유) tiebreaker 를 추가해 결정적 순서 보장.
 
-## 23. 상세 시트가 안 열리고 500 — Turbopack dev 의 인터셉팅 라우트 버그 (2026-07-12)
+## 23. 상세 시트가 안 열리고 500 — Next 16 dev 의 인터셉팅 라우트 마커 누적 버그 (2026-07-12, 07-13 정정)
 
 - **증상**: 프로젝트/에픽/태스크 목록에서 항목을 클릭해 우측 상세 시트(인터셉트)를 열면 **500** 이 나고 시트 대신 전체 페이지로 폴백된다. 서버 방금 켰을 땐 되다가, 파일 편집(HMR) 후 **다시 깨진다**("또 발생"). dev 콘솔: `⨯ Error: Invalid interception route: /projects/(.)(.)<id>. Must be in the format ...`.
-- **원인**: 폴더 구조(`<seg>/@detail/(.)[id]`)·코드는 정상. **Next 16 Turbopack dev** 가 HMR/재컴파일 후 인터셉션 경로를 만들 때 `(.)` 마커를 **이중(`(.)(.)`)** 으로 붙인다. Next 의 `extractInterceptionRouteInformation`(`shared/lib/router/utils/interception-routes.js`) 이 `path.split('(.)', 2)` 하는데, 연속된 `(.)(.)` 탓에 두 번째 조각이 빈 문자열 → `interceptedRoute` falsy → throw. **webpack dev 에선 재현 안 됨**(항상 200). 즉 Turbopack dev 전용.
-- **해결**: `package.json` 의 `dev` 를 **`next dev --webpack`** 으로(기본값 Turbopack 회피). Turbopack 이 이 버그를 고칠 때까지 유지. 상호작용 검증은 반드시 **브라우저 실확인**(build/tsc/lint 로는 안 잡힘 — dev 런타임에서만 터짐).
-- **주의**: `next build`(프로덕션) 는 라우트를 1회 컴파일하고 HMR 이 없어 이 doubling 이 안 생기므로 배포엔 무해(빌드로 교차 확인함). 재현/QA 는 webpack dev 로.
+- **원인**: 폴더 구조(`<seg>/@detail/(.)[id]`)·코드는 정상. **Next 16 Turbopack dev** 가 HMR/재컴파일 후 인터셉션 경로를 만들 때 `(.)` 마커를 **이중(`(.)(.)`)** 으로 붙인다. Next 의 `extractInterceptionRouteInformation`(`shared/lib/router/utils/interception-routes.js`) 이 `path.split('(.)', 2)` 하는데, 연속된 `(.)(.)` 탓에 두 번째 조각이 빈 문자열 → `interceptedRoute` falsy → throw. **주의(정정): webpack dev 도 HMR 을 충분히 반복하면 동일하게 재현된다**(마커가 `(.)(.)` → `(.)(.)(.)…` 로 누적, 관측상 11개까지). webpack 이 더 오래 버틸 뿐 면역이 아니며 **Next 16 dev(HMR) 공통 버그**(번들러 무관)다.
+- **완화**: (1) `package.json` `dev` 를 `next dev --webpack` 으로(Turbopack 보다 덜 자주 깨짐). (2) **깨지면 dev 서버 재시작** → 마커 상태 초기화로 즉시 복구(진짜 해법은 Next 패치 대기). (3) 시트/인터셉트 UI 검증은 **fresh dev 또는 프로덕션 빌드**에서 HMR 을 많이 돌리기 전에 한다. build/tsc/lint 로는 안 잡히니 **브라우저 실확인** 필수.
+- **프로덕션은 무해**: `next build` 는 라우트를 1회 컴파일하고 HMR 이 없어 doubling 이 안 생긴다(빌드 산출물에서 `(.)[id]` 단일 마커 확인). 배포엔 영향 없음.

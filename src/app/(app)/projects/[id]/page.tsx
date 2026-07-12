@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus } from "lucide-react";
 import {
   getProject,
   getMembers,
@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EpicsTable } from "@/components/tables/epics-table";
 import { EpicDialog } from "@/components/forms/epic-dialog";
-import { ConfirmDelete } from "@/components/confirm-delete";
+import { SheetDeleteButton } from "@/components/detail/sheet-delete-button";
 import { BackButton } from "@/components/detail/back-button";
 import { HistoryPanel } from "@/components/detail/history-panel";
 import { MdRollupText } from "@/components/detail/md-rollup";
@@ -62,15 +62,7 @@ export default async function ProjectDetail({
           <div className="min-w-0 flex-1">
             <InlineTitle type="project" id={project.id} value={project.title} />
           </div>
-          <ConfirmDelete
-            onConfirm={handleDelete}
-            redirectTo="/projects"
-            trigger={
-              <Button variant="ghost" size="sm" className="text-destructive">
-                <Trash2 className="size-4" />
-              </Button>
-            }
-          />
+          <SheetDeleteButton onConfirm={handleDelete} redirectTo="/projects" />
         </div>
 
         <Card className="mb-6 p-5">

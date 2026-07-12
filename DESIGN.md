@@ -734,3 +734,4 @@ The brand uses STACKED shadows — multiple small offsets layered to fake natura
 - Don't promote the geometric sans to weight 700. The brand's display ceiling is 600.
 - Don't pair the marketing 100-px pill CTA shape with the 6-px nav radius on the same screen — pick a scale and stay there.
 - Don't set body paragraphs in the mono face. The mono is for code + technical labels only.
+- Don't use emoji — not in product UI, labels, or copy, and not in code comments, docs, or commit messages. The system's voice is typographic, not decorative; use text prefixes (`주의:`, `핵심:`) for emphasis instead of icon-emoji. Refer to UI controls by name ("삭제 버튼", "새 창 열기") rather than glyphs.
