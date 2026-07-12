@@ -8,7 +8,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { RowOpenSheet } from "@/components/ui/table-row-link";
+import { RowContextMenu } from "@/components/tables/row-context-menu";
+import { deleteEpic } from "@/server/actions/epics";
 import { StatusBadge, PriorityBadge } from "@/components/badges";
 import { UserBadge, type MiniUser } from "@/components/user-badge";
 import type { TeamOption } from "@/components/forms/fields";
@@ -136,9 +137,15 @@ export function EpicsTable({
               </>
             );
             return edit ? (
-              <RowOpenSheet key={e.id} href={`/epics/${e.id}`}>
+              <RowContextMenu
+                key={e.id}
+                href={`/epics/${e.id}`}
+                id={e.id}
+                deleteAction={deleteEpic}
+                deleteDescription="에픽이 삭제됩니다. 하위 태스크는 삭제되지 않고 에픽 연결만 해제됩니다."
+              >
                 {cells}
-              </RowOpenSheet>
+              </RowContextMenu>
             ) : (
               <TableRow key={e.id}>{cells}</TableRow>
             );

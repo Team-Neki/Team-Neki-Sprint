@@ -9,7 +9,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { TableRowLink } from "@/components/ui/table-row-link";
+import { RowContextMenu } from "@/components/tables/row-context-menu";
+import { deleteSprint } from "@/server/actions/sprints";
 import { SprintStatusBadge } from "@/components/badges";
 import { EmptyRow } from "./cells";
 
@@ -58,7 +59,13 @@ export function SprintsTable({
           <EmptyRow colSpan={4} message={emptyMessage} />
         ) : (
           sprints.map((s) => (
-            <TableRowLink key={s.id} href={`/sprints/${s.id}`}>
+            <RowContextMenu
+              key={s.id}
+              href={`/sprints/${s.id}`}
+              id={s.id}
+              deleteAction={deleteSprint}
+              deleteDescription="스프린트가 삭제됩니다. 하위 프로젝트는 삭제되지 않고 스프린트 연결만 해제됩니다."
+            >
               <TableCell className="font-medium">{s.name}</TableCell>
               <TableCell className="text-muted-foreground text-xs">
                 {dateRange(s.startDate, s.endDate)}
@@ -69,7 +76,7 @@ export function SprintsTable({
               <TableCell>
                 <SprintStatusBadge status={s.status} />
               </TableCell>
-            </TableRowLink>
+            </RowContextMenu>
           ))
         )}
       </TableBody>
