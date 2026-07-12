@@ -5,18 +5,6 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { teamSchema, assigneeIdSchema } from "@/lib/validators";
 import { logActivity } from "@/server/activity";
-import { bumpTags, CACHE_TAGS } from "@/lib/cache";
-
-// 팀 key·이름·색과 소속 유저의 팀 툴팁은 에픽/태스크/프로젝트 목록 전반에
-// 표시되므로 팀 변경 시 관련 캐시를 함께 무효화한다.
-function bumpTeamSurfaces() {
-  bumpTags(
-    CACHE_TAGS.teams,
-    CACHE_TAGS.epics,
-    CACHE_TAGS.tasks,
-    CACHE_TAGS.projects,
-  );
-}
 
 export async function createTeam(input: unknown) {
   const user = await requireUser();
@@ -35,7 +23,6 @@ export async function createTeam(input: unknown) {
   });
 
   revalidatePath("/teams");
-  bumpTags(CACHE_TAGS.teams);
   return { id: team.id };
 }
 
@@ -56,9 +43,7 @@ export async function updateTeam(id: string, input: unknown) {
     action: "updated",
   });
 
-  revalidatePath("/teams");
-  bumpTeamSurfaces();
-  return { id };
+  revalidatePath("/teams");  return { id };
 }
 
 export async function deleteTeam(id: string) {
@@ -78,9 +63,7 @@ export async function deleteTeam(id: string) {
     entityId: id,
     action: "deleted",
   });
-  revalidatePath("/teams");
-  bumpTeamSurfaces();
-}
+  revalidatePath("/teams");}
 
 /** 유저-팀 배정(수동). 한 사람 = 한 팀. null이면 무소속. */
 export async function setUserTeam(userId: string, teamId: string | null) {
@@ -98,7 +81,5 @@ export async function setUserTeam(userId: string, teamId: string | null) {
     action: "updated",
     meta: { userId, teamId: value },
   });
-  revalidatePath("/teams");
-  bumpTeamSurfaces();
-  return { id: userId };
+  revalidatePath("/teams");  return { id: userId };
 }

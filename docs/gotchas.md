@@ -103,13 +103,16 @@
 - **깜빡임 방지(스트리밍)**: `@detail` 슬롯엔 자체 `loading.tsx` 가 없어, force-dynamic 상세가 서버 렌더되는 동안 상위 `(app)/loading.tsx` 가 **전체 화면(목록 포함)**을 스켈레톤으로 덮어 깜빡였다 → 인터셉트 `page.tsx` 에서 시트(client)는 즉시 렌더하고 **본문만 `<Suspense fallback={<DetailSkeleton/>}>` 로 감싸** 스트리밍(`src/components/detail/detail-skeleton.tsx`). 목록 유지 + 시트만 슬라이드 + 내부만 스켈레톤→콘텐츠.
 - **검증 주의**: 인터셉트 슬라이드는 build 로는 라우트 등록만 확인됨(`/x/(.)[id]` 가 route 목록에 뜸). **실제 열림/닫힘·새 창 열기 새 탭은 브라우저 soft-nav 로 확인**해야 함(직접 URL 진입은 hard-load 라 전체 페이지가 뜸 — 인터셉트 아님). claude-in-chrome 자동화 툴은 이 소프트 내비를 구동하지 못해 시트를 못 띄우는 경우가 있으니 육안 확인 권장.
 
-## 13. Next 16 데이터 캐시(unstable_cache) + `revalidateTag` 시그니처 (D3 캐싱)
+## 13. `unstable_cache` 는 멀티 replica 에서 pod-local → 제거함 (D3 캐싱 롤백, 2026-07-13)
 
-- **배경(2026-07-09)**: 공유(비유저 종속) 목록/옵션/트리 쿼리를 `unstable_cache` 로 감싸 요청 간 DB 부하를 줄였다(`src/lib/cache.ts` 태그 + `queries.ts` 래핑). 페이지는 `requireUser`(쿠키)로 어차피 동적(force-dynamic)이라 라우트 캐시는 그대로 두고 **데이터 레이어만** 캐시 — 순수 additive.
-- **`use cache` 아님**: Next 16 은 `use cache` 디렉티브를 권장하지만 `cacheComponents` 플래그가 필요하다(이 프로젝트는 미설정). 플래그를 켜면 force-dynamic·Suspense 경계 전면 재작업이라 과함 → **`unstable_cache`(구 모델)** 가 저위험 선택.
-- **함정: mutation 직후 반영 안 되는 off-by-one staleness → `updateTag` 로 해결(2026-07-12).** 처음엔 `revalidateTag(tag, { expire: 0 })` 로 무효화했는데, 이러면 **"한 번 변경 후 다음 변경/요청이 와야 이전 변경이 반영되는"** 증상이 팀·위키·태스크 등 캐시 쿼리 전반에서 났다. 원인: `revalidateTag` 는 `{ expire: 0 }` 을 줘도 `unstable_cache` 데이터 엔트리를 **stale-while-revalidate**(옛 값 1회 서빙 + 백그라운드 갱신)로 처리 → mutation 액션이 끝나고 `router.refresh()` 가 옛 데이터를 받는다. Next 16 문서(`node_modules/next/dist/docs/.../revalidateTag.md`·`updateTag.md`)는 이 **read-your-own-writes** 케이스에 Server Action 전용 **`updateTag(tag)`** 를 명시 권장한다 — 태그를 즉시 하드 만료시켜 다음 요청이 fresh 를 **기다린다**(blocking miss). 그래서 `bumpTags` 를 `updateTag` 로 교체(`src/lib/cache.ts`). `updateTag` 는 Server Action 안에서만 호출 가능한데 `bumpTags` 호출부는 전부 `"use server"` 액션이라 안전(Route Handler 에서 쓰면 throw — 그럴 땐 `revalidateTag(tag, "max")`). 참고로 `revalidateTag(tag)` 단일 인자는 deprecated(TS 에러)라 쓰지 않는다.
-- **캐시 대상 선정 원칙**: 유저별/검색/상세 쿼리는 캐시 금지(정합성 리스크·저가치). 캐시한 목록은 **교차 엔티티 표시 의존성**을 무효화에 반영해야 한다 — 예: 팀 key 변경 → 에픽/태스크 목록에도 반영되므로 team 액션이 `epics`/`tasks` 태그도 bump. 놓쳤을 때를 대비해 `unstable_cache` 에 시간 백스톱(`revalidate`)도 함께 둔다.
-- **주의**: dev 서버에서도 `unstable_cache` 는 동작(라우트 캐시와 별개)하므로, 캐싱 관련 검증 시 태그 무효화가 실제로 도는지 확인.
+**결론 먼저**: 공유 목록/옵션/트리 쿼리를 캐시하지 않는다. `queries.ts` 14개는 이제 매 렌더 **DB 직접 조회**(plain 함수). `src/lib/cache.ts`·`bumpTags`·`CACHE_TAGS` 는 삭제됨. 아래는 왜 도입했다가 걷어냈는지의 전말 — **재도입 금지 근거**.
+
+- **도입(2026-07-09, D3)**: 공유(비유저 종속) 쿼리를 `unstable_cache` 로 감싸 요청 간 DB 부하 절감. `cacheComponents` 플래그가 필요한 `use cache` 대신 구 모델 `unstable_cache` 를 저위험으로 택함.
+- **1차 함정 → `updateTag`(2026-07-12)**: `revalidateTag(tag, { expire: 0 })` 는 `unstable_cache` 를 **stale-while-revalidate** 로 처리해 mutation 직후 `router.refresh()` 가 옛 값을 받는 off-by-one 이 났다. Server Action 전용 `updateTag(tag)`(즉시 하드 만료, blocking miss)로 교체해 **같은 인스턴스 내** read-your-own-writes 는 고쳤다.
+- **2차 함정(근본) → 캐시 제거(2026-07-13)**: `updateTag` 로도 **"위키 저장 후 좌측 사이드바 제목이 간헐적으로 안 바뀌는"** 버그가 prod 에서만 남았다. 원인은 **멀티 인스턴스 캐시 비정합**: prod 는 `replicas: 2` 인데 `next.config` 에 공유 `cacheHandler` 가 없어 `unstable_cache` 가 **pod 별 인메모리/파일 캐시**다. mutation 은 요청을 처리한 pod 만 `updateTag` 로 무효화하고, 이어지는 `router.refresh()`(별도 HTTP 요청)가 로드밸런서에 의해 **다른 pod 로 가면 stale**(~50%, 최대 `revalidate` 백스톱까지). dev·단일 인스턴스에선 절대 재현 안 됨.
+  - **실측 증명**: 같은 DB 에 각자 캐시를 가진 프로덕션 인스턴스 2개를 띄우고 → B 사이드바 워밍 → A 에서 제목 변경 저장 → B 는 옛 제목 유지. (재현 레시피는 이 커밋 세션 참조.)
+- **왜 "캐시 제거"를 택했나**: 대안은 (a) Redis 등 공유 `cacheHandler`, (b) `replicas: 1`, (c) sticky sessions. 20인 내부 툴에선 캐시 이득이 미미하고 DB 부하 무시가능 → **HA(2 replica) 유지 + 전 쿼리 정합성 확보 + 인프라 무추가**인 캐시 제거가 최선. `revalidatePath`/`router.refresh()` + force-dynamic + 클라이언트 라우터 캐시 `staleTime` 0 이면 read-your-own-writes·교차목록 반영 모두 보장된다(캐시가 없으니 애초에 stale 될 것이 없음).
+- **재도입 금지**: 멀티 replica 인 채로 `unstable_cache`(또는 `use cache`)를 다시 쓰려면 **반드시 공유 `cacheHandler`(Redis 등)** 를 먼저 설정한다. 안 그러면 이 버그가 재발한다.
 
 ## 14. 아이콘 전용 인터랙티브 요소엔 접근 가능한 이름 필수 (D9 a11y)
 
