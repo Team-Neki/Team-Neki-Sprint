@@ -192,13 +192,13 @@ export function EpicTimeline({
         {/* 날짜 축(2줄): 상단=월("N월"), 하단=모든 일자 숫자. 이름 거터 위는 sticky
             마스크로 가려 가로 스크롤 시 라벨이 거터 아래로 비치지 않게 한다. */}
         <div
-          className="text-muted-foreground relative h-11 border-b text-[11px]"
+          className="text-muted-foreground relative h-11 text-[11px]"
           style={{ width: nameW + RULER_PAD + rulerWidth }}
         >
           {/* sticky gutter mask over the frozen name column. border-r = 이름 열 ↔
               타임라인 구분선(sticky 라 스크롤에 안 흔들림). 우측 끝에 드래그 리사이즈 핸들. */}
           <div
-            className="bg-card border-border sticky left-0 z-40 h-full border-r border-b"
+            className="bg-card border-border sticky left-0 z-40 h-full border-r"
             style={{ width: nameW }}
           >
             <div
@@ -209,6 +209,10 @@ export function EpicTimeline({
               className="hover:bg-link/30 absolute inset-y-0 -right-1 z-40 w-2 cursor-col-resize"
             />
           </div>
+          {/* 축 하단 가로 구분선 — 전폭 단일 라인(z-50)으로 가터 마스크 위에 그려
+              가터/그래프 양쪽 두께가 동일하게 보이게 한다. 축·마스크에 각각 border-b
+              를 주면 가터 쪽에서 이중으로 겹쳐 더 두껍게 보인다(그래서 여기 한 줄로 통일). */}
+          <div className="bg-border pointer-events-none absolute inset-x-0 bottom-0 z-50 h-px" />
           {/* 월 라벨(상단)·일자 숫자(하단) 모두 셀 좌측(시작) 정렬 + 동일한 CELL_PAD
               오프셋 → 각 달 첫날의 "N월"과 그 아래 일 숫자의 시작 글자가 세로로 맞는다. */}
           {months.map(({ index, label }) => (
@@ -254,6 +258,12 @@ export function EpicTimeline({
           )}
 
           <div className="flex flex-col">
+            {/* 최상단 여백: 날짜 축(가로선) 아래 ~ 첫 그룹(이민서) 사이. sticky 거터로
+                border-r 을 이어 구분선이 끊기지 않게 한다(그룹 간 스페이서와 동일 패턴). */}
+            <div
+              className="bg-card border-border sticky left-0 z-30 h-3 border-r"
+              style={{ width: nameW }}
+            />
             {groups.map((g, gi) => (
               <div key={gi}>
                 {/* 그룹 간 간격을 이름 열에서도 이어지게 하는 sticky 스페이서 —
