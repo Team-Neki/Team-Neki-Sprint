@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { newWikiImageKey, putWikiImage } from "@/lib/s3";
 
 export const dynamic = "force-dynamic";
 
@@ -40,9 +41,22 @@ export async function POST(request: Request) {
   }
 
   const bytes = Buffer.from(await file.arrayBuffer());
+
+  // 먼저 S3 에 올린 뒤 DB 에 키를 기록한다. S3 실패 시 DB 행이 안 생기고,
+  // DB 실패 시 S3 객체만 고아로 남지만(무해, GC 대상) 사용자에겐 실패로 응답한다.
+  const s3Key = newWikiImageKey();
+  try {
+    await putWikiImage(s3Key, bytes, file.type);
+  } catch {
+    return NextResponse.json(
+      { error: "이미지 저장에 실패했습니다" },
+      { status: 502 },
+    );
+  }
+
   const image = await prisma.wikiImage.create({
     data: {
-      data: bytes,
+      s3Key,
       mimeType: file.type,
       name: typeof file.name === "string" ? file.name.slice(0, 200) : null,
       size: file.size,

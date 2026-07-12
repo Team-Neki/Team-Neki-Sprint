@@ -8,6 +8,7 @@
 
 | 날짜 | 세션 | 상태 |
 |---|---|---|
+| 2026-07-13 | 위키 본문 이미지 저장 DB(BYTEA) → S3 이관 | `DONE`\* |
 | 2026-07-10 | 프로필 상세·타임라인 구분선·위키 DnD·티켓 CC·상세 시트 정련 등 in-product UX 다수 (커밋 `66f8eb5` + 후속) | `DONE`\* |
 | 2026-07-09 | 추정 단위 MD 일원화 · 목록/상세/타임라인 UX 개선 · 리뷰 상태 제거 (커밋 `0984416`) | `DONE`\* |
 | 2026-07-09 | 위키 리치 렌더링(표·코드 구문강조·mermaid, D13) | `DONE`\* |
@@ -20,6 +21,19 @@
 | ~2026-07-08 | Phase 1~4 + 로드맵 v2 8건 (이하 15개 세션) | `DONE` |
 
 \* 코드·빌드·테스트 검증 완료. 실렌더(mermaid/표/강조)는 로그인 게이트라 브라우저 확인 필요.
+
+---
+
+## 2026-07-13 — 위키 본문 이미지 저장 DB(BYTEA) → S3 이관
+
+위키 에디터 첨부 이미지를 DB `WikiImage.data`(BYTEA)에 인라인 저장하던 것을 S3(또는 S3 호환 스토리지) 오브젝트로 이관. 검증: tsc 0 · vitest 106 pass · eslint clean(변경 3파일). DB 스키마 변경 1건 — 타 환경 `prisma migrate deploy` 필요. 스키마 변경 후 dev 서버 재시작 필수([gotchas §1]). **기존 이미지 데이터 없음 전제**로 하드 컷오버(`data` 컬럼 제거).
+
+- **왜**: DB 비대화(바이너리 인라인) 해소 + 저장소 분리. presigned 대신 애플리케이션이 SDK 로 직접 저장/서빙하는 서버 프록시 방식 채택 — 트래픽이 낮아 서버 경유 오버헤드가 무의미하고, **"로그인 유저만 이미지 접근" 인증 게이트를 그대로 유지**할 수 있어서(presigned 는 이 보안 모델 재설계가 필요). URL 구조(`/api/wiki/image/<id>`)를 보존해 에디터·TipTap·`WikiPage.content` 는 무변경.
+- **스키마**: `WikiImage.data Bytes` → `s3Key String`. `mimeType`/`name`/`size`/`uploaderId` 유지(마이그레이션 `20260713000000_wiki_image_s3`, `DROP COLUMN data` + `ADD COLUMN s3Key NOT NULL`). URL PK 는 여전히 cuid 라 content-addressed·immutable.
+- **S3 래퍼**(`src/lib/s3.ts`): 지연 생성 싱글턴 `S3Client`(빌드 타임 env 부재로 안 터지게). 자격증명은 **코드에 두지 않고 AWS SDK 기본 credential provider chain**(k8s IRSA/IAM Role, 로컬 `~/.aws`/env) 사용. env 는 버킷·리전만(`S3_BUCKET`/`S3_REGION`), `S3_ENDPOINT`/`S3_FORCE_PATH_STYLE` 로 MinIO 등 S3 호환도 지원. `put`/`get`(웹 스트림)/`delete`(고아 정리용) 제공.
+- **업로드**(`POST /api/wiki/upload`): 형식(PNG·JPEG·GIF·WebP)·5MB·SVG 차단·인증 검증은 그대로. S3 `Put` 성공 후 DB 에 `s3Key` 기록(S3 실패→502, DB 실패→S3 고아만 남고 사용자엔 실패 응답).
+- **서빙**(`GET /api/wiki/image/[id]`): DB 에서 `s3Key`→S3 `Get` 스트림. 인증 게이트·`Cache-Control: private, immutable`·`nosniff`·`Content-Type`(DB `mimeType`) 그대로.
+- **운영 주의**: 실행 환경에 `S3_BUCKET`/`S3_REGION` + S3 접근 권한(IAM Role) 주입 필요. 앱과 버킷을 **같은 AWS 리전**에 두면 S3→서버 전송비 0(egress 절감). 이미지 삭제 경로는 원래 없었음(영구 보존 설계) — GC 미배선, 필요 시 `deleteWikiImage` 활용.
 
 ---
 
