@@ -8,6 +8,7 @@
 
 | 날짜 | 세션 | 상태 |
 |---|---|---|
+| 2026-07-13 | 위키 저장 후 사이드바 제목 stale 버그 근본원인 = `unstable_cache` 가 멀티 replica 에서 pod-local → **데이터 캐시 레이어 제거** | `DONE` |
 | 2026-07-10 | 프로필 상세·타임라인 구분선·위키 DnD·티켓 CC·상세 시트 정련 등 in-product UX 다수 (커밋 `66f8eb5` + 후속) | `DONE`\* |
 | 2026-07-09 | 추정 단위 MD 일원화 · 목록/상세/타임라인 UX 개선 · 리뷰 상태 제거 (커밋 `0984416`) | `DONE`\* |
 | 2026-07-09 | 위키 리치 렌더링(표·코드 구문강조·mermaid, D13) | `DONE`\* |
@@ -20,6 +21,25 @@
 | ~2026-07-08 | Phase 1~4 + 로드맵 v2 8건 (이하 15개 세션) | `DONE` |
 
 \* 코드·빌드·테스트 검증 완료. 실렌더(mermaid/표/강조)는 로그인 게이트라 브라우저 확인 필요.
+
+---
+
+## 2026-07-13 — 위키 사이드바 stale 버그: `unstable_cache` 멀티 replica pod-local → 캐시 제거
+
+**증상**: "위키에 문서를 저장했을 때 좌측 사이드바의 문서 제목 변경이 간헐적으로 반영 안 됨."
+
+**근본원인(멀티 인스턴스 캐시 비정합)**: `updateWikiContent`/`renameWikiPage` 의 무효화 배선(`updateTag`+`revalidatePath`+`router.refresh()`)은 정상이었다. 진짜 원인은 prod 가 `replicas: 2` 인데 `next.config` 에 공유 `cacheHandler` 가 없어 `unstable_cache`(`getWikiTree` 등 14개 쿼리)가 **pod 별 로컬 캐시**라는 것. mutation 은 처리한 pod 만 `updateTag` 로 무효화되고, 이어지는 `router.refresh()` 가 로드밸런서로 다른 pod 에 가면 stale 트리를 받는다(~50%, 최대 `revalidate` 백스톱까지). **dev·단일 인스턴스에선 재현 불가** → 팀의 dev 실확인이 이 버그를 못 걸렀음.
+
+**진단 방법**: 같은 DB 에 각자 캐시를 가진 프로덕션 인스턴스 2개(격리 `distDir`)를 띄워 → B 사이드바 워밍 → A 에서 제목 저장 → **B 가 옛 제목 유지**를 확인(재현). 수정 후 같은 절차에서 **B 가 새 제목 즉시 반영**(fix 검증).
+
+**수정(캐시 레이어 제거)**: 대안(Redis 공유 `cacheHandler`·`replicas:1`·sticky sessions) 중, 20인 내부 툴엔 캐시 이득이 미미하므로 **HA 유지 + 전 쿼리 정합 + 인프라 무추가**인 캐시 제거를 택함(사용자 결정).
+- `src/server/queries.ts`: 14개 `unstable_cache` 래퍼 제거 → 순수 함수(매 렌더 DB 직접 조회). 공유 DB라 항상 fresh.
+- `src/lib/cache.ts` 삭제. 8개 액션 파일에서 `bumpTags`/`CACHE_TAGS` 호출·import 제거(teams 의 `bumpTeamSurfaces` 헬퍼 포함). `revalidatePath`/`router.refresh()` 는 유지 — force-dynamic + 클라이언트 라우터 캐시 `staleTime` 0 이라 read-your-own-writes·교차목록 반영 보장.
+- 문서: [gotchas §13](./gotchas.md) 재작성(재도입 금지 근거), CLAUDE.md 캐시 항목 갱신.
+
+**검증**: tsc 0 · eslint 0 · vitest 106 pass · **2-인스턴스 prod 브라우저 실확인**(교차 pod fresh 반영).
+
+**주의(재도입 금지)**: 멀티 replica 인 채로 `unstable_cache`/`use cache` 를 다시 쓰려면 반드시 공유 `cacheHandler`(Redis 등)를 먼저 설정. 안 그러면 이 버그가 재발한다.
 
 ---
 

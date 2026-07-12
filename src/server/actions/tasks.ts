@@ -12,7 +12,6 @@ import { wouldCreateCycle } from "@/lib/task-deps";
 import { formatIssueKey } from "@/lib/constants";
 import { nextTeamNumber } from "@/server/keys";
 import { assertCanManage } from "@/lib/authz";
-import { bumpTags, CACHE_TAGS } from "@/lib/cache";
 
 export async function createTask(input: unknown) {
   const user = await requireUser();
@@ -53,7 +52,6 @@ export async function createTask(input: unknown) {
   revalidatePath("/tasks");
   if (task.epicId) revalidatePath(`/epics/${task.epicId}`);
   // 태스크 캐시 + 에픽 캐시(하위 태스크 수·SP 롤업이 목록에 표시됨).
-  bumpTags(CACHE_TAGS.tasks, CACHE_TAGS.epics);
   return { id: task.id };
 }
 
@@ -76,7 +74,6 @@ export async function updateTask(id: string, input: unknown) {
   revalidatePath("/tasks");
   revalidatePath(`/tasks/${id}`);
   if (task.epicId) revalidatePath(`/epics/${task.epicId}`);
-  bumpTags(CACHE_TAGS.tasks, CACHE_TAGS.epics);
   return { id };
 }
 
@@ -166,7 +163,6 @@ export async function reorderBoardTask(
 
   revalidatePath("/board");
   revalidatePath("/tasks");
-  bumpTags(CACHE_TAGS.tasks);
 }
 
 function revalidateTaskPaths(id: string, epicId: string | null) {
@@ -175,7 +171,6 @@ function revalidateTaskPaths(id: string, epicId: string | null) {
   revalidatePath(`/tasks/${id}`);
   if (epicId) revalidatePath(`/epics/${epicId}`);
   // 에픽 MD 롤업(getEpics)·스프린트 MD 합(getSprints)이 태스크 estimatedMd 에 의존.
-  bumpTags(CACHE_TAGS.tasks, CACHE_TAGS.epics, CACHE_TAGS.sprints);
 }
 
 // 인라인 편집 시 로드하는 태스크의 편집 가능 필드(diff 대상). 팀/번호는 불변이라 제외.
@@ -266,7 +261,6 @@ export async function deleteTask(id: string) {
   });
   revalidatePath("/board");
   revalidatePath("/tasks");
-  bumpTags(CACHE_TAGS.tasks, CACHE_TAGS.epics);
 }
 
 export async function addComment(taskId: string, body: string) {
@@ -365,7 +359,6 @@ function revalidateDepPaths(blockerId: string, blockedId: string) {
   revalidatePath(`/tasks/${blockedId}`);
   revalidatePath("/tasks");
   revalidatePath("/board");
-  bumpTags(CACHE_TAGS.tasks);
 }
 
 export async function addTaskDependency(blockerId: string, blockedId: string) {
@@ -454,6 +447,5 @@ export async function setTaskCc(taskId: string, userIds: string[]) {
     meta: { field: "cc" },
   });
   revalidatePath(`/tasks/${taskId}`);
-  bumpTags(CACHE_TAGS.tasks);
   return { id: taskId };
 }

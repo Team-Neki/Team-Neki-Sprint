@@ -5,7 +5,6 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { labelSchema } from "@/lib/validators";
-import { bumpTags, CACHE_TAGS } from "@/lib/cache";
 
 // schema.prisma 의 Label.color @default 와 일치. color 미지정 create 시 폴백.
 const DEFAULT_COLOR = "#94a3b8";
@@ -28,12 +27,6 @@ function revalidateLabelSurfaces() {
   revalidatePath("/epics");
   revalidatePath("/projects");
   // 라벨 배지는 태스크/에픽/프로젝트 목록에, 사용 카운트는 라벨 목록에 표시됨.
-  bumpTags(
-    CACHE_TAGS.labels,
-    CACHE_TAGS.tasks,
-    CACHE_TAGS.epics,
-    CACHE_TAGS.projects,
-  );
 }
 
 export async function createLabel(input: unknown): Promise<LabelResult> {
@@ -94,7 +87,6 @@ export async function addLabelToTask(taskId: string, labelId: string) {
   revalidatePath("/tasks");
   revalidatePath(`/tasks/${taskId}`);
   revalidatePath("/board");
-  bumpTags(CACHE_TAGS.tasks, CACHE_TAGS.labels);
   return { taskId, labelId };
 }
 
@@ -105,7 +97,6 @@ export async function removeLabelFromTask(taskId: string, labelId: string) {
   revalidatePath("/tasks");
   revalidatePath(`/tasks/${taskId}`);
   revalidatePath("/board");
-  bumpTags(CACHE_TAGS.tasks, CACHE_TAGS.labels);
   return { taskId, labelId };
 }
 
@@ -119,7 +110,6 @@ export async function addLabelToProject(projectId: string, labelId: string) {
   });
   revalidatePath("/projects");
   revalidatePath(`/projects/${projectId}`);
-  bumpTags(CACHE_TAGS.projects, CACHE_TAGS.labels);
   return { projectId, labelId };
 }
 
@@ -128,7 +118,6 @@ export async function removeLabelFromProject(projectId: string, labelId: string)
   await prisma.labelsOnProjects.deleteMany({ where: { projectId, labelId } });
   revalidatePath("/projects");
   revalidatePath(`/projects/${projectId}`);
-  bumpTags(CACHE_TAGS.projects, CACHE_TAGS.labels);
   return { projectId, labelId };
 }
 
@@ -141,7 +130,6 @@ export async function addLabelToEpic(epicId: string, labelId: string) {
   });
   revalidatePath("/epics");
   revalidatePath(`/epics/${epicId}`);
-  bumpTags(CACHE_TAGS.epics, CACHE_TAGS.labels);
   return { epicId, labelId };
 }
 
@@ -150,6 +138,5 @@ export async function removeLabelFromEpic(epicId: string, labelId: string) {
   await prisma.labelsOnEpics.deleteMany({ where: { epicId, labelId } });
   revalidatePath("/epics");
   revalidatePath(`/epics/${epicId}`);
-  bumpTags(CACHE_TAGS.epics, CACHE_TAGS.labels);
   return { epicId, labelId };
 }
