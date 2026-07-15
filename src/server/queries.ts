@@ -31,16 +31,29 @@ const labelInclude = {
 export type MdRollup = { estimated: number; actual: number };
 const ZERO_MD: MdRollup = { estimated: 0, actual: 0 };
 
+/**
+ * MD 는 Float 라 합산하면 이진 부동소수점 노이즈가 생긴다(예: 0.1+0.2=
+ * 0.30000000000000004 → 표에 그대로 노출). 표시용 롤업 출력에만 반올림해 노이즈만
+ * 없앤다 — 6자리면 실제 입력값(0.5·2.25 등)은 보존되고 1e-15 수준 오차만 사라진다.
+ */
+const roundMd = (n: number) => Math.round(n * 1e6) / 1e6;
+const roundRollup = (r: MdRollup): MdRollup => ({
+  estimated: roundMd(r.estimated),
+  actual: roundMd(r.actual),
+});
+
 /** 태스크 배열의 estimated/actual MD 합. */
 function sumMd(
   tasks: { estimatedMd: number | null; actualMd: number | null }[],
 ): MdRollup {
-  return tasks.reduce<MdRollup>(
-    (acc, t) => ({
-      estimated: acc.estimated + (t.estimatedMd ?? 0),
-      actual: acc.actual + (t.actualMd ?? 0),
-    }),
-    { estimated: 0, actual: 0 },
+  return roundRollup(
+    tasks.reduce<MdRollup>(
+      (acc, t) => ({
+        estimated: acc.estimated + (t.estimatedMd ?? 0),
+        actual: acc.actual + (t.actualMd ?? 0),
+      }),
+      { estimated: 0, actual: 0 },
+    ),
   );
 }
 
@@ -55,10 +68,13 @@ async function mdByEpic(epicIds: string[]): Promise<Map<string, MdRollup>> {
   });
   for (const r of rows) {
     if (!r.epicId) continue;
-    map.set(r.epicId, {
-      estimated: r._sum.estimatedMd ?? 0,
-      actual: r._sum.actualMd ?? 0,
-    });
+    map.set(
+      r.epicId,
+      roundRollup({
+        estimated: r._sum.estimatedMd ?? 0,
+        actual: r._sum.actualMd ?? 0,
+      }),
+    );
   }
   return map;
 }
@@ -110,7 +126,7 @@ export const getSprints = async () => {
       WHERE p."sprintId" IS NOT NULL
       GROUP BY p."sprintId"
     `;
-    const mdBySprint = new Map(mdRows.map((r) => [r.sprintId, r.md]));
+    const mdBySprint = new Map(mdRows.map((r) => [r.sprintId, roundMd(r.md)]));
     return sprints.map((s) => ({ ...s, estimatedMd: mdBySprint.get(s.id) ?? 0 }));
   };
 
@@ -225,12 +241,14 @@ export async function getProject(id: string) {
     ...e,
     md: perEpic.get(e.id) ?? ZERO_MD,
   }));
-  const md = epics.reduce<MdRollup>(
-    (a, e) => ({
-      estimated: a.estimated + e.md.estimated,
-      actual: a.actual + e.md.actual,
-    }),
-    { estimated: 0, actual: 0 },
+  const md = roundRollup(
+    epics.reduce<MdRollup>(
+      (a, e) => ({
+        estimated: a.estimated + e.md.estimated,
+        actual: a.actual + e.md.actual,
+      }),
+      { estimated: 0, actual: 0 },
+    ),
   );
   return { ...project, epics, md };
 }
@@ -272,7 +290,7 @@ export const getEpics = async (filter: EpicFilter = {}) => {
       _sum: { estimatedMd: true },
     });
     const mdByEpicId = new Map(
-      mdGroups.map((g) => [g.epicId, g._sum.estimatedMd ?? 0]),
+      mdGroups.map((g) => [g.epicId, roundMd(g._sum.estimatedMd ?? 0)]),
     );
     return epics.map((e) => ({
       ...e,
