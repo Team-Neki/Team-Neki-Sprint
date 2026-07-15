@@ -12,9 +12,8 @@ export async function createProject(input: unknown) {
   const user = await requireUser();
   const data = projectSchema.parse(input);
 
-  const project = await prisma.project.create({
-    data: { ...data, ownerId: data.ownerId ?? user.id },
-  });
+  // 담당자(ownerId)는 미지정 시 null 로 둔다 — 만든 사람으로 자동 지정하지 않는다.
+  const project = await prisma.project.create({ data });
 
   await logActivity({
     userId: user.id,
