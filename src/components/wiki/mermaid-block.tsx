@@ -23,6 +23,34 @@ function MermaidView({ node, updateAttributes, editor, selected }: NodeViewProps
   const [error, setError] = useState<string | null>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const seq = useRef(0);
+  // 코드 textarea 는 controlled(value=code) 라 updateAttributes 후 caret 이 끝으로
+  // 튀므로, Enter 들여쓰기 삽입 위치를 pending 으로 두고 재렌더 후 복원한다.
+  const taRef = useRef<HTMLTextAreaElement>(null);
+  const pendingCaret = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (pendingCaret.current != null && taRef.current) {
+      taRef.current.selectionStart = pendingCaret.current;
+      taRef.current.selectionEnd = pendingCaret.current;
+      pendingCaret.current = null;
+    }
+  });
+
+  // Enter 시 현재 줄의 선행 공백을 유지(들여쓰기 연속). 들여쓰기 없으면 기본 동작.
+  function onCodeKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
+    const ta = e.currentTarget;
+    const { selectionStart, selectionEnd, value } = ta;
+    if (selectionStart !== selectionEnd) return; // 선택 영역이면 기본 처리.
+    const lineStart = value.lastIndexOf("\n", selectionStart - 1) + 1;
+    const indent = value.slice(lineStart, selectionStart).match(/^[ \t]*/)?.[0] ?? "";
+    if (!indent) return; // 들여쓰기 없으면 기본 줄바꿈.
+    e.preventDefault();
+    const insert = `\n${indent}`;
+    const next = value.slice(0, selectionStart) + insert + value.slice(selectionEnd);
+    pendingCaret.current = selectionStart + insert.length;
+    updateAttributes({ code: next });
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -91,9 +119,11 @@ function MermaidView({ node, updateAttributes, editor, selected }: NodeViewProps
 
       {editor.isEditable && editing && (
         <textarea
+          ref={taRef}
           className="wiki-mermaid-code"
           value={code}
           onChange={(e) => updateAttributes({ code: e.target.value })}
+          onKeyDown={onCodeKeyDown}
           spellCheck={false}
           rows={Math.max(3, code.split("\n").length + 1)}
           placeholder="mermaid 문법 (예: flowchart TD; A --> B)"
