@@ -10,6 +10,8 @@ import Image from "@tiptap/extension-image";
 import { createLowlight, common } from "lowlight";
 // 코드블록 NodeView(우측 상단 복사 버튼). 구문강조는 CodeBlockLowlight 가 담당.
 import { CodeBlockView } from "@/components/wiki/code-block";
+// 코드블록 안 괄호/따옴표 자동 닫기(편집 모드).
+import { codeBlockAutoPairs } from "@/components/wiki/code-block-pairs";
 // '#' 티켓 멘션(#4) / '@' 사람 멘션(B5). 각각 자기완결 모듈, 여기 한 줄씩만 추가.
 import { TicketMention } from "@/components/wiki/ticket-mention";
 import { PersonMention } from "@/components/wiki/person-mention";
@@ -45,10 +47,18 @@ export function wikiExtensions(opts?: { placeholder?: string }) {
     Link.configure({ openOnClick: false, autolink: true }),
     TaskList,
     TaskItem.configure({ nested: true }),
-    // 구문 강조 코드블록 + 우측 상단 복사 버튼 NodeView. 언어는 자동 감지(``` 뒤 언어 우선).
+    // 구문 강조 코드블록 + 우측 상단 복사 버튼 NodeView + 괄호/따옴표 자동 닫기.
+    // 언어는 자동 감지(``` 뒤 언어 우선).
     CodeBlockLowlight.extend({
       addNodeView() {
         return ReactNodeViewRenderer(CodeBlockView);
+      },
+      addProseMirrorPlugins() {
+        // this.parent?.() = lowlight 구문강조 플러그인 보존 + 자동 닫기 추가.
+        return [
+          ...(this.parent?.() ?? []),
+          codeBlockAutoPairs(this.name),
+        ];
       },
     }).configure({ lowlight }),
     // 표(header row 있는 리사이즈 가능 테이블).
