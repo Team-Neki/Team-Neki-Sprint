@@ -181,6 +181,10 @@ export function WikiEditor({
   }, [dirty, title, pageId, cloneContent]);
 
   // Cmd/Ctrl+S, Cmd/Ctrl+Enter 로 저장(커밋).
+  // 주의: 캡처 단계(3번째 인자 true)로 등록한다. 버블 단계로 두면 ProseMirror 가
+  // 에디터 DOM 에서 먼저 Enter 를 처리해 줄바꿈을 삽입한 뒤 이 리스너가 실행돼,
+  // preventDefault 를 해도 줄바꿈이 이미 들어간다. 캡처 단계에서 가로채
+  // stopPropagation 으로 이벤트가 에디터까지 닿지 못하게 막아 줄바꿈 없이 저장만 한다.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const mod = e.metaKey || e.ctrlKey;
@@ -188,11 +192,12 @@ export function WikiEditor({
       const k = e.key.toLowerCase();
       if (k === "s" || k === "enter") {
         e.preventDefault();
+        e.stopPropagation();
         commit();
       }
     }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
   }, [commit]);
 
   // 이미지 붙여넣기/드롭 → 업로드 후 본문에 삽입. editorProps 대신 DOM 리스너로
