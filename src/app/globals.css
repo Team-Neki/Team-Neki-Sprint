@@ -267,6 +267,17 @@
   overflow-x: auto;
 }
 
+/* 표 열 리사이즈 시 표 전체 폭이 커지지 않게 고정(T18). 리사이즈 가능한 표는
+   TableView 가 열 너비 합으로 table 의 inline width/min-width 를 세팅해 표가 통째로
+   커진다. 이 inline 값을 !important 로 무시하고 컨테이너 폭(100%)에 고정하면,
+   table-layout:fixed 상 드래그한 경계선만 이동하고 인접 열이 폭을 나눠 가진다
+   (표 크기 자체는 불변). 읽기 표는 애초에 inline width 가 없어 영향 없음. */
+.tiptap .tableWrapper table,
+.tiptap table {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
 /* 표 가장자리 hover 열/행 추가 버튼(T17). 표 우측/하단에 겹쳐 그리는 오버레이 —
    스트립에 hover 하면 + 버튼이 나타난다. 편집기 좌표 컨테이너(.relative) 기준 절대배치. */
 .wiki-table-add {
