@@ -1,4 +1,4 @@
-import { Plus, ListTodo } from "lucide-react";
+import { Plus } from "lucide-react";
 import type { Status } from "@prisma/client";
 import {
   getTasks,
@@ -13,7 +13,6 @@ import { Card } from "@/components/ui/card";
 import { TasksTable } from "@/components/tables/tasks-table";
 import { TaskDialog } from "@/components/forms/task-dialog";
 import { TaskFilters } from "@/components/tasks/task-filters";
-import { EmptyState } from "@/components/empty-state";
 
 export const dynamic = "force-dynamic";
 
@@ -74,37 +73,18 @@ export default async function TasksPage({
 
       <TaskFilters members={members} teams={teams} labels={labels} />
 
-      {tasks.length === 0 ? (
-        hasFilter ? (
-          <EmptyState
-            icon={ListTodo}
-            title="조건에 맞는 태스크가 없습니다"
-            description="필터를 조정하거나 초기화해 보세요."
-          />
-        ) : (
-          <EmptyState
-            icon={ListTodo}
-            title="아직 태스크가 없습니다"
-            description="첫 태스크를 만들어 작업을 시작하세요."
-            action={
-              <TaskDialog
-                members={members}
-                teams={teams}
-                epics={epicOptions}
-                trigger={
-                  <Button variant="outline">
-                    <Plus className="size-4" /> 첫 태스크 만들기
-                  </Button>
-                }
-              />
-            }
-          />
-        )
-      ) : (
-        <Card className="overflow-hidden py-0">
-          <TasksTable tasks={tasks} edit={{ members, teams, epics: epicOptions }} />
-        </Card>
-      )}
+      {/* 항목이 없어도 컬럼 헤더가 보이도록 항상 표를 렌더한다(빈 안내는 표 안 EmptyRow). */}
+      <Card className="overflow-hidden py-0">
+        <TasksTable
+          tasks={tasks}
+          emptyMessage={
+            hasFilter
+              ? "조건에 맞는 태스크가 없습니다. 필터를 조정하거나 초기화해 보세요."
+              : "아직 태스크가 없습니다. 상단 ‘새 태스크’로 만들어보세요."
+          }
+          edit={{ members, teams, epics: epicOptions, labels }}
+        />
+      </Card>
     </div>
   );
 }

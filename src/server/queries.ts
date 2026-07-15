@@ -259,6 +259,7 @@ export const getEpics = async (filter: EpicFilter = {}) => {
         owner: miniUser,
         team: miniTeam,
         project: { select: { id: true, title: true } },
+        labels: labelInclude,
         _count: { select: { tasks: true } },
       },
     });
