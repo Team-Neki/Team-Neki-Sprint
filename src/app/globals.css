@@ -267,6 +267,46 @@
   overflow-x: auto;
 }
 
+/* 표 가장자리 hover 열/행 추가 버튼(T17). 표 우측/하단에 겹쳐 그리는 오버레이 —
+   스트립에 hover 하면 + 버튼이 나타난다. 편집기 좌표 컨테이너(.relative) 기준 절대배치. */
+.wiki-table-add {
+  position: absolute;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.wiki-table-add-col {
+  width: 20px;
+}
+.wiki-table-add-row {
+  height: 20px;
+}
+.wiki-table-add > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 18px;
+  width: 18px;
+  border: 1px solid var(--border);
+  border-radius: 9999px;
+  background: var(--card);
+  color: var(--muted-foreground);
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 0.12s ease,
+    color 0.12s ease,
+    background 0.12s ease;
+}
+.wiki-table-add:hover > button {
+  opacity: 1;
+}
+.wiki-table-add > button:hover {
+  color: var(--foreground);
+  background: var(--accent);
+}
+
 /* highlight.js(lowlight) 라이트 테마 토큰 색 — near-white 배경에 대비되는 최소 팔레트. */
 .tiptap pre code .hljs-comment,
 .tiptap pre code .hljs-quote {
