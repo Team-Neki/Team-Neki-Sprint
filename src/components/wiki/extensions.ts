@@ -22,6 +22,8 @@ import { PersonMention } from "@/components/wiki/person-mention";
 import { CommentMark } from "@/components/wiki/comment-mark";
 // mermaid 다이어그램 블록(atom + NodeView, mermaid 는 지연 로드).
 import { MermaidBlock } from "@/components/wiki/mermaid-block";
+// 표 편집 보조 키맵(경계에서 표 선택·삭제).
+import { TableControls } from "@/components/wiki/table-controls";
 
 // 코드블록 구문 강조용 lowlight(highlight.js common 언어 세트). 모듈 1회 생성.
 const lowlight = createLowlight(common);
@@ -79,6 +81,8 @@ export function wikiExtensions(opts?: { placeholder?: string }) {
     }).configure({ lowlight }),
     // 표(header row 있는 리사이즈 가능 테이블).
     TableKit.configure({ table: { resizable: true } }),
+    // 표 경계 키맵(ArrowLeft 로 표 선택 → 삭제).
+    TableControls,
     // mermaid 다이어그램 블록.
     MermaidBlock,
     // 본문 이미지. base64 금지(업로드→URL 만 허용), 서빙 URL 은 same-origin.
