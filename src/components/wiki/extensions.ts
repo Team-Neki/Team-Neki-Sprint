@@ -5,8 +5,11 @@ import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import { TableKit } from "@tiptap/extension-table";
 import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
+import { ReactNodeViewRenderer } from "@tiptap/react";
 import Image from "@tiptap/extension-image";
 import { createLowlight, common } from "lowlight";
+// 코드블록 NodeView(우측 상단 복사 버튼). 구문강조는 CodeBlockLowlight 가 담당.
+import { CodeBlockView } from "@/components/wiki/code-block";
 // '#' 티켓 멘션(#4) / '@' 사람 멘션(B5). 각각 자기완결 모듈, 여기 한 줄씩만 추가.
 import { TicketMention } from "@/components/wiki/ticket-mention";
 import { PersonMention } from "@/components/wiki/person-mention";
@@ -42,8 +45,12 @@ export function wikiExtensions(opts?: { placeholder?: string }) {
     Link.configure({ openOnClick: false, autolink: true }),
     TaskList,
     TaskItem.configure({ nested: true }),
-    // 구문 강조 코드블록. 언어는 자동 감지(``` 뒤 언어 지정 시 우선).
-    CodeBlockLowlight.configure({ lowlight }),
+    // 구문 강조 코드블록 + 우측 상단 복사 버튼 NodeView. 언어는 자동 감지(``` 뒤 언어 우선).
+    CodeBlockLowlight.extend({
+      addNodeView() {
+        return ReactNodeViewRenderer(CodeBlockView);
+      },
+    }).configure({ lowlight }),
     // 표(header row 있는 리사이즈 가능 테이블).
     TableKit.configure({ table: { resizable: true } }),
     // mermaid 다이어그램 블록.

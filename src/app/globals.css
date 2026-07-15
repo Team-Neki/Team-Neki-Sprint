@@ -171,6 +171,44 @@
   background: none;
   padding: 0;
 }
+/* 코드블록 복사 버튼(NodeView). 세로 여백을 래퍼로 옮기고 pre 는 flush 로 붙여
+   버튼을 pre 우측 상단 패딩 위에 고정한다(pre 의 가로 스크롤에 안 흔들림).
+   평소 숨김 → 블록 hover(또는 키보드 포커스) 시 노출. */
+.tiptap .wiki-codeblock {
+  position: relative;
+  margin: 0.75em 0;
+}
+.tiptap .wiki-codeblock pre {
+  margin: 0;
+}
+.tiptap .wiki-codeblock-copy {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.45rem;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  padding: 0.15rem 0.4rem;
+  font-size: 0.7rem;
+  line-height: 1;
+  color: var(--muted-foreground);
+  background: var(--card);
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 0.12s ease,
+    color 0.12s ease;
+}
+.tiptap .wiki-codeblock:hover .wiki-codeblock-copy,
+.tiptap .wiki-codeblock-copy:focus-visible {
+  opacity: 1;
+}
+.tiptap .wiki-codeblock-copy:hover {
+  color: var(--foreground);
+}
 
 /* 표(TableKit). hairline 보더 + header row 인셋 배경(surface ladder 정합). */
 .tiptap table {
