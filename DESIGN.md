@@ -122,11 +122,11 @@ typography:
 
 rounded:
   none: 0px
-  xs: 4px
-  sm: 6px
-  md: 8px
-  lg: 12px
-  xl: 16px
+  xs: 3px
+  sm: 5px
+  md: 6px
+  lg: 8px
+  xl: 11px
   pill-sm: 64px
   pill: 100px
   full: 9999px
@@ -525,7 +525,7 @@ The `button-primary` pill renders at ~32 px tall in nav and ~48 px tall in marke
 #### Collapsing Strategy
 - **Nav**: full link row + Ask AI / Log In / Sign Up pills at desktop. Collapses to logo + hamburger at mobile with the menu opening as a full-overlay.
 - **Hero**: mesh gradient stays centred; headline + body stack vertically at all breakpoints (the brand doesn't use a split-hero pattern).
-- **Three-feature row**: 3-up → 2-up → 1-up at the breakpoints above; cards keep their `{rounded.md}` 8 px shape across all viewports.
+- **Three-feature row**: 3-up → 2-up → 1-up at the breakpoints above; cards keep their `{rounded.md}` 6 px shape across all viewports.
 - **Pricing card grid**: 3-up at desktop, vertical stack at mobile with `pricing-card-featured` always sitting in the middle.
 - **Template grid**: 5-up → 3-up → 2-up → 1-up. Each `template-card` keeps its 16:9 aspect on the image.
 
@@ -560,11 +560,11 @@ The brand uses STACKED shadows — multiple small offsets layered to fake natura
 | Token | Value | Use |
 |---|---|---|
 | `{rounded.none}` | 0px | Full-bleed hero / footer bands. |
-| `{rounded.xs}` | 4px | Tightest inline pill — the `nav-cta-signup` 6-px-radius button (mapped to `xs/sm`). |
-| `{rounded.sm}` | 6px | The brand's `--geist-radius` token — base UI radius for in-app buttons, form inputs, dropdown menus. |
-| `{rounded.md}` | 8px | The brand's `--geist-marketing-radius` token — feature cards, template cards. |
-| `{rounded.lg}` | 12px | Slightly larger card chrome (pricing-card variants). |
-| `{rounded.xl}` | 16px | Largest card chrome — when a card hosts a hero image cap. |
+| `{rounded.xs}` | 3px | Tightest inline pill (mapped to `xs/sm`). |
+| `{rounded.sm}` | 5px | Base UI radius for in-app buttons, form inputs, dropdown menus. |
+| `{rounded.md}` | 6px | Feature cards, template cards. |
+| `{rounded.lg}` | 8px | In-product card chrome (기본 카드 반경). round 는 살짝만. |
+| `{rounded.xl}` | 11px | Largest card chrome — when a card hosts a hero image cap. |
 | `{rounded.pill-sm}` | 64px | Tab-ghost pills inside the "AI Apps / Web Apps / Ecommerce / Marketing / Platforms" row. |
 | `{rounded.pill}` | 100px | The marketing CTA pill — `button-primary`, `button-secondary`, "Start Deploying" pill. |
 | `{rounded.full}` | 9999px | Icon-button circular containers, nav-link ghost pills. |

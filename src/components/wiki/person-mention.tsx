@@ -205,6 +205,9 @@ export const PersonMention = Node.create({
         char: "@",
         pluginKey: personSuggestionKey,
         debounce: 150,
+        // 코드블록 안에서는 '@' 를 사람 멘션 트리거로 쓰지 않는다(팝업 미표시).
+        allow: ({ state, range }) =>
+          state.doc.resolve(range.from).parent.type.name !== "codeBlock",
         items: async ({ query }) => {
           const rows = await searchMembersAction(query);
           return rows.map((u) => ({

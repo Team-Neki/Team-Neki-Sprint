@@ -11,7 +11,7 @@
   - 잉크(`#171717`)가 **단일 primary/CTA**. 링크 블루(`#0070f3`)는 인라인 링크 강조에만 희소하게.
   - 깊이는 그림자가 아니라 **surface ladder(#fafafa→#ffffff→#f5f5f5) + inset hairline ring**으로 표현. 무거운 단일 drop-shadow 금지.
   - 여섯 번째 채도 높은 액센트를 새로 도입하지 않는다. (상태/우선순위 태그 색은 in-product 예외)
-  - 카드는 `rounded.lg`(12px), 버튼/인풋은 작은 반경(6–8px). 마케팅 100px pill CTA 형태는 in-product 화면에 쓰지 않는다.
+  - 카드는 `rounded.lg`(8px), 버튼/인풋은 작은 반경(5–6px). round 는 살짝만 준다(과거 12px 카드에서 축소). 마케팅 100px pill CTA 형태는 in-product 화면에 쓰지 않는다.
   - 라이트 전용(다크 모드는 만들지 않는다). `<html>`에 `.dark` 클래스를 붙이지 않는다.
 
 ## 프로젝트 문서(docs) 라우팅
@@ -48,7 +48,9 @@
 
 - **전역 검색/⌘K**: `command-palette.tsx`(토픽바 마운트, `queries.globalSearch` + `globalSearchAction`). 새 엔티티 추가 시 검색 그룹에 반영 고려.
 - **라벨**: `Label` 스키마를 태스크에 표면화(`/labels` 관리, 부여 팝오버, `?label=` 필터, 색 뱃지). 에픽·프로젝트 라벨 부여는 스키마만 있고 UI 미구현(후속).
-- **위키 리치 렌더링**: `wikiExtensions()`(에디터·뷰 공유)에 표(`TableKit`)·구문강조 코드(`CodeBlockLowlight`)·mermaid(`MermaidBlock` atom NodeView, 지연 로드) 포함. 확장은 이 한 곳에만 추가. 함정은 [gotchas §18].
+- **위키 리치 렌더링**: `wikiExtensions()`(에디터·뷰 공유)에 표(`TableKit`+`TableControls`)·구문강조 코드(`CodeBlockLowlight`)·mermaid(`MermaidBlock` atom NodeView, 지연 로드) 포함. 확장은 이 한 곳에만 추가. 함정은 [gotchas §18].
+  - **코드블록**(`code-block.tsx` NodeView + `code-block-pairs.ts`): 우측 상단 복사 버튼·언어 select(Plain/Kotlin/Java/JSON/YAML/iOS-Swift, lowlight `common`), 괄호·따옴표 자동 닫기, Enter 자동 들여쓰기(`{`·`[` +1단, 그 외 유지). 코드블록 안 `#`/`@` 는 멘션 트리거 안 됨(Suggestion `allow`). `extend` 시 `this.parent` 로 lowlight·베이스 단축키 보존 필수. [gotchas §27]
+  - **표 편집**: 표 아래 맨 앞 `ArrowLeft`→표 선택→`Backspace`로 삭제(`TableControls`), 표 안이면 우측/하단 hover 로 열/행 추가 버튼(`editor.tsx` `TableHoverControls`), 리사이즈는 표 폭 고정(경계선만 이동, CSS `!important`). [gotchas §29]
 - **목록 행 우클릭 메뉴**: `tables/row-context-menu.tsx`의 `RowContextMenu`가 목록 표 행(tasks/epics/projects/sprints)에 좌클릭=상세 열기 + 우클릭=컨텍스트 메뉴(열기·새 창에서 열기·삭제)를 준다. 삭제는 controlled `ConfirmDelete`로 확인 후 실행. 삭제 서버 액션은 표(서버 컴포넌트)에서 `deleteAction` prop으로 주입해 `deleteAction(id)`로 호출한다. 기존 `RowOpenSheet`/`TableRowLink`를 대체.
 - **알림 벨**: `notification-bell.tsx`가 45s 폴링(`getBellNotifications`). 실시간 소켓 아님.
 - **태스크 의존성**: `TaskDependency`(blocker→blocked 방향). 상세 사이드바 `task-dependencies.tsx`에서 '차단됨/차단함' 편집. 순환은 `lib/task-deps.wouldCreateCycle`로 서버에서 거부. 방향/함정은 [gotchas §17].

@@ -1,4 +1,4 @@
-import { Plus, Target } from "lucide-react";
+import { Plus } from "lucide-react";
 import {
   getProjects,
   getMembers,
@@ -12,7 +12,6 @@ import { Card } from "@/components/ui/card";
 import { ProjectsTable } from "@/components/tables/projects-table";
 import { OwnerFilter } from "@/components/filters/owner-filter";
 import { ProjectDialog } from "@/components/forms/project-dialog";
-import { EmptyState } from "@/components/empty-state";
 
 export const dynamic = "force-dynamic";
 
@@ -60,31 +59,14 @@ export default async function ProjectsPage({
 
       <OwnerFilter members={members} />
 
-      {projects.length === 0 ? (
-        <EmptyState
-          icon={Target}
-          title="아직 프로젝트가 없습니다"
-          description="첫 프로젝트를 만들어 에픽을 묶어보세요."
-          action={
-            <ProjectDialog
-              members={members}
-              sprints={sprints}
-              trigger={
-                <Button variant="outline">
-                  <Plus className="size-4" /> 첫 프로젝트 만들기
-                </Button>
-              }
-            />
-          }
+      {/* 항목이 없어도 컬럼 헤더가 보이도록 항상 표를 렌더한다(빈 안내는 표 안 EmptyRow). */}
+      <Card className="overflow-hidden py-0">
+        <ProjectsTable
+          projects={projects}
+          emptyMessage="아직 프로젝트가 없습니다. 상단 ‘새 프로젝트’로 만들어보세요."
+          edit={{ members, sprints, labels }}
         />
-      ) : (
-        <Card className="overflow-hidden py-0">
-          <ProjectsTable
-            projects={projects}
-            edit={{ members, sprints, labels }}
-          />
-        </Card>
-      )}
+      </Card>
     </div>
   );
 }

@@ -5,8 +5,16 @@ import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import { TableKit } from "@tiptap/extension-table";
 import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
+import { ReactNodeViewRenderer } from "@tiptap/react";
 import Image from "@tiptap/extension-image";
 import { createLowlight, common } from "lowlight";
+// 코드블록 NodeView(우측 상단 복사 버튼). 구문강조는 CodeBlockLowlight 가 담당.
+import { CodeBlockView } from "@/components/wiki/code-block";
+// 코드블록 안 괄호/따옴표 자동 닫기 + Enter 자동 들여쓰기(편집 모드).
+import {
+  codeBlockAutoPairs,
+  codeBlockEnterIndent,
+} from "@/components/wiki/code-block-pairs";
 // '#' 티켓 멘션(#4) / '@' 사람 멘션(B5). 각각 자기완결 모듈, 여기 한 줄씩만 추가.
 import { TicketMention } from "@/components/wiki/ticket-mention";
 import { PersonMention } from "@/components/wiki/person-mention";
@@ -14,6 +22,8 @@ import { PersonMention } from "@/components/wiki/person-mention";
 import { CommentMark } from "@/components/wiki/comment-mark";
 // mermaid 다이어그램 블록(atom + NodeView, mermaid 는 지연 로드).
 import { MermaidBlock } from "@/components/wiki/mermaid-block";
+// 표 편집 보조 키맵(경계에서 표 선택·삭제).
+import { TableControls } from "@/components/wiki/table-controls";
 
 // 코드블록 구문 강조용 lowlight(highlight.js common 언어 세트). 모듈 1회 생성.
 const lowlight = createLowlight(common);
@@ -42,10 +52,37 @@ export function wikiExtensions(opts?: { placeholder?: string }) {
     Link.configure({ openOnClick: false, autolink: true }),
     TaskList,
     TaskItem.configure({ nested: true }),
-    // 구문 강조 코드블록. 언어는 자동 감지(``` 뒤 언어 지정 시 우선).
-    CodeBlockLowlight.configure({ lowlight }),
+    // 구문 강조 코드블록 + 우측 상단 복사 버튼 NodeView + 괄호/따옴표 자동 닫기.
+    // 언어는 자동 감지(``` 뒤 언어 우선).
+    CodeBlockLowlight.extend({
+      addNodeView() {
+        return ReactNodeViewRenderer(CodeBlockView);
+      },
+      addProseMirrorPlugins() {
+        // this.parent?.() = lowlight 구문강조 플러그인 보존 + 자동 닫기 추가.
+        return [
+          ...(this.parent?.() ?? []),
+          codeBlockAutoPairs(this.name),
+        ];
+      },
+      addKeyboardShortcuts() {
+        // 베이스 단축키(Tab 들여쓰기·Backspace·triple-Enter 종료 등) 보존 후
+        // Enter 만 확장: 베이스 Enter(triple-enter 종료) 먼저 시도 → { , [ 뒤
+        // 자동 들여쓰기. 둘 다 아니면 false 로 기본 줄바꿈에 넘긴다.
+        const parent = this.parent?.() ?? {};
+        return {
+          ...parent,
+          Enter: () => {
+            if (parent.Enter?.({ editor: this.editor })) return true;
+            return codeBlockEnterIndent(this.editor, this.name);
+          },
+        };
+      },
+    }).configure({ lowlight }),
     // 표(header row 있는 리사이즈 가능 테이블).
     TableKit.configure({ table: { resizable: true } }),
+    // 표 경계 키맵(ArrowLeft 로 표 선택 → 삭제).
+    TableControls,
     // mermaid 다이어그램 블록.
     MermaidBlock,
     // 본문 이미지. base64 금지(업로드→URL 만 허용), 서빙 URL 은 same-origin.

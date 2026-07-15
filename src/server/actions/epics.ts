@@ -16,8 +16,9 @@ export async function createEpic(input: unknown) {
   // 팀 시퀀스를 원자적으로 증가시켜 number를 부여한다(epic·task 공유).
   const epic = await prisma.$transaction(async (tx) => {
     const number = await nextTeamNumber(tx, data.teamId);
+    // 담당자(ownerId)는 미지정 시 null 로 둔다 — 만든 사람으로 자동 지정하지 않는다.
     return tx.epic.create({
-      data: { ...data, number, ownerId: data.ownerId ?? user.id },
+      data: { ...data, number },
     });
   });
 

@@ -187,3 +187,41 @@
 - **원인**: 폴더 구조(`<seg>/@detail/(.)[id]`)·코드는 정상. **Next 16 Turbopack dev** 가 HMR/재컴파일 후 인터셉션 경로를 만들 때 `(.)` 마커를 **이중(`(.)(.)`)** 으로 붙인다. Next 의 `extractInterceptionRouteInformation`(`shared/lib/router/utils/interception-routes.js`) 이 `path.split('(.)', 2)` 하는데, 연속된 `(.)(.)` 탓에 두 번째 조각이 빈 문자열 → `interceptedRoute` falsy → throw. **주의(정정): webpack dev 도 HMR 을 충분히 반복하면 동일하게 재현된다**(마커가 `(.)(.)` → `(.)(.)(.)…` 로 누적, 관측상 11개까지). webpack 이 더 오래 버틸 뿐 면역이 아니며 **Next 16 dev(HMR) 공통 버그**(번들러 무관)다.
 - **완화**: (1) `package.json` `dev` 를 `next dev --webpack` 으로(Turbopack 보다 덜 자주 깨짐). (2) **깨지면 dev 서버 재시작** → 마커 상태 초기화로 즉시 복구(진짜 해법은 Next 패치 대기). (3) 시트/인터셉트 UI 검증은 **fresh dev 또는 프로덕션 빌드**에서 HMR 을 많이 돌리기 전에 한다. build/tsc/lint 로는 안 잡히니 **브라우저 실확인** 필수.
 - **프로덕션은 무해**: `next build` 는 라우트를 1회 컴파일하고 HMR 이 없어 doubling 이 안 생긴다(빌드 산출물에서 `(.)[id]` 단일 마커 확인). 배포엔 영향 없음.
+
+## 24. 다이얼로그 폼 리셋은 필드 state 를 popup 하위에 둬야 한다 (Base UI, 2026-07-15)
+
+- **증상**: 만들기 다이얼로그에서 입력→저장(닫힘)→다시 열면 **이전 입력이 그대로 남는다**(만들기인데 빈 폼이 아님). 수정 후 취소→재열기도 편집중 값이 남음.
+- **원인**: 필드 `useState` 초기화는 **마운트 1회만** 실행된다. 폼 필드 state 를 `XDialog`(open 을 소유, Trigger+Dialog 를 감쌈) **최상위**에 두면, 다이얼로그가 닫혀도 그 컴포넌트는 계속 마운트돼 있어 state 가 안 사라진다.
+- **핵심**: Base UI `Dialog.Portal` 은 `keepMounted=false`(기본)라 **닫히면 popup 하위(DialogContent 자식)를 언마운트**한다(`shouldRender = mounted || keepMounted`). 따라서 **필드 state 를 `DialogContent` 하위의 자식 폼 컴포넌트로 내리면** 닫힐 때 언마운트되고 다시 열 때 초기값으로 새로 마운트 → 폼이 항상 리셋된다(닫힘 애니메이션 동안엔 값 유지 후 언마운트 → 깜빡임 없음). 만들기=빈 폼, 수정=원본 값.
+- 적용: `forms/{project,epic,task,sprint,team}-dialog.tsx` = 바깥 `XDialog`(open 소유) + 안쪽 `XForm`(필드 state, `onClose` 로 닫음).
+- 곁들여: **생성 액션은 미지정 담당자에 `?? user.id` 폴백 금지**. `optionalId`(nullish) 스키마가 이미 null 로 정규화하므로 `data` 를 그대로 넘긴다. 태스크 `reporterId=user.id` 는 작성자라 예외(폼 필드 없음).
+
+## 25. auto-layout 표에서 셀 폭은 `w-*` 헤더만으론 안 잡힌다 — 내용 `max-w-*` 필요 (2026-07-15)
+
+- `ui/table` 은 `table-auto`(기본)라 `<th class="w-40">` 은 **힌트일 뿐**, 셀 내용의 max-content 가 더 넓으면 컬럼이 그만큼 커진다. 라벨 배지(줄바꿈/truncate 없음)를 여러 개 붙이면 레이블 컬럼이 가로로 **밀려 다른 컬럼을 찌그러뜨린다**("라벨 추가 시 UI 깨짐").
+- 해결: 셀 **내용**을 고정폭 컨테이너로 감싼다(`<div class="max-w-40">…</div>` 또는 `flex max-w-40 flex-wrap`). td 는 auto 라 max-width 를 무시하지만, td 안의 블록 요소는 max-width 를 존중 → 내용이 그 폭에서 줄바꿈되고 td 가 거기에 맞춰 커지지 않는다. projects/epics/tasks 표 레이블 셀 공통.
+
+## 26. 타임라인 가로 무한 스크롤 — 하루 폭 고정 + prepend scrollLeft 보정 (2026-07-15)
+
+- 데이터 범위에 스크롤이 묶여 에픽이 없거나 범위 밖으로는 스크롤이 안 되던 문제. 표시 창(range)을 **state** 로 두고 스크롤이 가장자리(EDGE_PX)에 오면 `CHUNK_DAYS` 만큼 과거/미래로 확장한다.
+- **하루 셀 폭은 상수(DAY_W)로 고정**해야 한다. 폭을 `TARGET/days` 로 계산하면 창을 넓힐 때마다 재스케일돼 스크롤 위치 보정 계산(`CHUNK*dayWidth`)이 어긋난다.
+- **prepend(과거 확장) 시 삽입된 폭만큼 `scrollLeft += CHUNK*DAY_W` 를 `useLayoutEffect`(pre-paint)로 보정**해야 화면이 안 튄다. 재진입 방지 `pending` ref, 마운트 시 오늘을 거터 옆에 위치시키는 초기 scrollLeft 도 같은 effect 에서. 에픽 0건도 축·그리드를 렌더해 스크롤 가능.
+
+## 27. 코드블록 편집 동작(NodeView·자동닫기·들여쓰기·언어·멘션차단) 위치 (2026-07-15)
+
+- 코드블록은 `CodeBlockLowlight.extend(...)` 한 곳(`extensions.ts`)에서 확장한다. `addNodeView`(복사·언어 select = `code-block.tsx` React NodeView), `addProseMirrorPlugins`(자동 닫기 = `code-block-pairs.ts`), `addKeyboardShortcuts`(Enter 들여쓰기).
+- **베이스 동작 보존 필수**: `addProseMirrorPlugins`/`addKeyboardShortcuts` 를 override 하면 부모가 **교체**된다 → 반드시 `...(this.parent?.() ?? [])` / `...this.parent?.()` 로 lowlight 하이라이트 플러그인·Tab 들여쓰기·triple-Enter 종료를 이어붙인다.
+- `NodeViewContent as="code"` 는 타입 인자를 명시해야 한다(`<NodeViewContent<"code"> as="code" />`) — `as` 가 `NoInfer` 제네릭이라 추론이 기본값 `'div'` 로 고정돼 `"code"` 대입 에러가 난다.
+- 언어 하이라이트는 lowlight `common` 세트에 kotlin·java·json·yaml·swift 가 이미 포함 → 등록 불필요, `node.attrs.language` 만 바꾸면 됨.
+- 코드블록 안 `#`/`@` 멘션 차단은 Suggestion `allow` 콜백(`state.doc.resolve(range.from).parent.type.name !== "codeBlock"`). mermaid 코드 textarea 의 Enter 들여쓰기는 controlled 라 `updateAttributes` 후 caret 이 끝으로 튀므로 pendingCaret ref + 재렌더 후 복원 effect 필요.
+
+## 28. MD(맨데이)는 `Float` — 합산 롤업은 반드시 반올림 (2026-07-15)
+
+- `Task.estimatedMd`/`actualMd` 가 Prisma `Float?` 라 **합산하면 이진 부동소수점 노이즈**가 생긴다(`0.1+0.2=0.30000000000000004`). 단일 값 표시는 무해하나 **롤업 합(에픽/스프린트/프로젝트)** 이 표에 긴 소수로 노출된다.
+- 해결: `queries.ts` 의 모든 롤업 출력(`sumMd`·`mdByEpic`·`getEpics`·`getSprints`·`getProject`)에 `roundMd = n => Math.round(n*1e6)/1e6`(6자리) 적용. 6자리면 실제 입력값(0.5·2.25 등)은 보존하고 1e-15 수준 오차만 사라진다. **저장값은 안 건드리고 표시용 계산만** 반올림.
+
+## 29. 위키 표 편집 — 삭제 키맵·hover 추가버튼·리사이즈 폭 고정 (2026-07-15)
+
+- **삭제**(`table-controls.ts` Extension): 표 아래 블록 맨 앞에서 `ArrowLeft` → 앞 형제가 표면 `setNodeSelection` 으로 표 선택 → `Backspace`/`Delete` 로 삭제. TableKit 내부는 안 건드리는 별도 키맵 확장.
+- **hover 열/행 추가**(`editor.tsx` `TableHoverControls`): 커서가 표 안일 때 `nodeDOM(tablePos)` 로 표 사각형을 읽어 우측/하단 스트립을 **오버레이**(좌표만 읽고 표 내부 로직 미변경). `selectionUpdate`/`transaction`/`scroll`/`resize` 에 위치 갱신. 편집 컨테이너가 `position:relative` 여야 좌표 기준이 맞다.
+- **리사이즈 폭 고정**: 리사이즈 가능한 표는 `TableView` 가 열 너비 합으로 `<table>` 의 **inline `width`/`min-width`** 를 세팅해 드래그 시 표가 통째로 커진다. CSS `.tiptap table { width:100% !important; min-width:0 !important }` 로 inline 을 무시해 컨테이너 폭에 고정 → `table-layout:fixed` 상 경계선만 이동, 인접 열이 폭을 나눈다(엄밀한 인접-only 재분배가 필요하면 커스텀 리사이즈 플러그인 필요 — 현재는 비례 재분배).

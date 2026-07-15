@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 import { useRouter } from "next/navigation";
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import { wikiExtensions } from "@/components/wiki/extensions";
@@ -23,6 +29,7 @@ import {
   Undo,
   Redo,
   RotateCcw,
+  Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { JSONContent } from "@tiptap/react";
@@ -84,6 +91,8 @@ export function WikiEditor({
   const [dirty, setDirty] = useState(false);
   const [usingDraft, setUsingDraft] = useState(startedFromDraft);
   const dirtyRef = useRef(false);
+  // 표 hover 열/행 추가 버튼(T17)의 좌표 기준 컨테이너.
+  const editorAreaRef = useRef<HTMLDivElement>(null);
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -300,8 +309,117 @@ export function WikiEditor({
 
       {editor && <Toolbar editor={editor} />}
 
-      <EditorContent editor={editor} className="mt-4" />
+      <div ref={editorAreaRef} className="relative mt-4">
+        <EditorContent editor={editor} />
+        {editor && (
+          <TableHoverControls editor={editor} containerRef={editorAreaRef} />
+        )}
+      </div>
     </div>
+  );
+}
+
+/**
+ * 표 가장자리 hover 열/행 추가 버튼(T17). 커서가 표 안에 있을 때, 그 표의 DOM
+ * 사각형을 추적해 우측(열 추가)·하단(행 추가) 스트립을 오버레이한다. 스트립에
+ * hover 하면 + 버튼이 나타나고, 클릭 시 addColumnAfter/addRowAfter. 표 내부 로직은
+ * 건드리지 않고 좌표만 읽어 겹쳐 그리므로 리사이즈/편집 동작과 독립적이다.
+ */
+function TableHoverControls({
+  editor,
+  containerRef,
+}: {
+  editor: Editor;
+  containerRef: RefObject<HTMLDivElement | null>;
+}) {
+  const [rect, setRect] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    height: number;
+  } | null>(null);
+
+  useEffect(() => {
+    function update() {
+      const container = containerRef.current;
+      if (!container || editor.isDestroyed) {
+        setRect(null);
+        return;
+      }
+      const { $from } = editor.state.selection;
+      let tablePos = -1;
+      for (let d = $from.depth; d > 0; d -= 1) {
+        if ($from.node(d).type.name === "table") {
+          tablePos = $from.before(d);
+          break;
+        }
+      }
+      if (tablePos < 0) {
+        setRect(null);
+        return;
+      }
+      const dom = editor.view.nodeDOM(tablePos) as HTMLElement | null;
+      const tableEl = dom?.querySelector("table") ?? dom;
+      if (!tableEl) {
+        setRect(null);
+        return;
+      }
+      const tr = tableEl.getBoundingClientRect();
+      const cr = container.getBoundingClientRect();
+      setRect({
+        top: tr.top - cr.top,
+        left: tr.left - cr.left,
+        width: tr.width,
+        height: tr.height,
+      });
+    }
+    update();
+    editor.on("selectionUpdate", update);
+    editor.on("transaction", update);
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      editor.off("selectionUpdate", update);
+      editor.off("transaction", update);
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [editor, containerRef]);
+
+  if (!rect) return null;
+  return (
+    <>
+      {/* 우측: 열 추가 */}
+      <div
+        className="wiki-table-add wiki-table-add-col"
+        style={{ top: rect.top, left: rect.left + rect.width, height: rect.height }}
+      >
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => editor.chain().focus().addColumnAfter().run()}
+          aria-label="열 추가"
+          title="열 추가"
+        >
+          <Plus className="size-3.5" />
+        </button>
+      </div>
+      {/* 하단: 행 추가 */}
+      <div
+        className="wiki-table-add wiki-table-add-row"
+        style={{ top: rect.top + rect.height, left: rect.left, width: rect.width }}
+      >
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => editor.chain().focus().addRowAfter().run()}
+          aria-label="행 추가"
+          title="행 추가"
+        >
+          <Plus className="size-3.5" />
+        </button>
+      </div>
+    </>
   );
 }
 
