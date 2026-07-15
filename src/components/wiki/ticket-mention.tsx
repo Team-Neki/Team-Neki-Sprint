@@ -212,6 +212,9 @@ export const TicketMention = Node.create({
         char: "#",
         pluginKey: ticketSuggestionKey,
         debounce: 150,
+        // 코드블록 안에서는 '#' 를 티켓 멘션 트리거로 쓰지 않는다(팝업 미표시).
+        allow: ({ state, range }) =>
+          state.doc.resolve(range.from).parent.type.name !== "codeBlock",
         // '#' 뒤에서 검색. 제목/키(TEAM-n)로 조회.
         items: async ({ query }) => {
           const rows = await searchTasksAction(query);

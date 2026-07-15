@@ -181,30 +181,46 @@
 .tiptap .wiki-codeblock pre {
   margin: 0;
 }
-.tiptap .wiki-codeblock-copy {
+/* 우측 상단 도구 묶음(언어 선택 + 복사). 평소 숨김 → 블록 hover/포커스 시 노출. */
+.tiptap .wiki-codeblock-tools {
   position: absolute;
-  top: 0.45rem;
-  right: 0.45rem;
+  top: 0.4rem;
+  right: 0.4rem;
   z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.tiptap .wiki-codeblock:hover .wiki-codeblock-tools,
+.tiptap .wiki-codeblock:focus-within .wiki-codeblock-tools {
+  opacity: 1;
+}
+.tiptap .wiki-codeblock-lang,
+.tiptap .wiki-codeblock-lang-label,
+.tiptap .wiki-codeblock-copy {
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  padding: 0.12rem 0.4rem;
+  font-size: 0.7rem;
+  line-height: 1.4;
+  color: var(--muted-foreground);
+  background: var(--card);
+}
+.tiptap .wiki-codeblock-lang {
+  cursor: pointer;
+  font-family: inherit;
+}
+.tiptap .wiki-codeblock-lang-label {
+  pointer-events: none;
+}
+.tiptap .wiki-codeblock-copy {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  border: 1px solid var(--border);
-  border-radius: 0.375rem;
-  padding: 0.15rem 0.4rem;
-  font-size: 0.7rem;
-  line-height: 1;
-  color: var(--muted-foreground);
-  background: var(--card);
   cursor: pointer;
-  opacity: 0;
-  transition:
-    opacity 0.12s ease,
-    color 0.12s ease;
-}
-.tiptap .wiki-codeblock:hover .wiki-codeblock-copy,
-.tiptap .wiki-codeblock-copy:focus-visible {
-  opacity: 1;
+  transition: color 0.12s ease;
 }
 .tiptap .wiki-codeblock-copy:hover {
   color: var(--foreground);
