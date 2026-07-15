@@ -8,6 +8,7 @@
 
 | 날짜 | 세션 | 상태 |
 |---|---|---|
+| 2026-07-15 | 폼/목록/타임라인/위키 UX 다수: 담당자 기본값·폼 리셋 버그, 목록 컬럼 통일+빈 헤더, 타임라인 무한스크롤·2색, round 축소, 위키 코드블록(복사·언어·자동닫기·들여쓰기)·표 편집(삭제·추가버튼·리사이즈), 스프린트 컬럼·MD 소수점 | `DONE`\* |
 | 2026-07-13 | 위키 저장 후 사이드바 제목 stale 버그 근본원인 = `unstable_cache` 가 멀티 replica 에서 pod-local → **데이터 캐시 레이어 제거** | `DONE` |
 | 2026-07-10 | 프로필 상세·타임라인 구분선·위키 DnD·티켓 CC·상세 시트 정련 등 in-product UX 다수 (커밋 `66f8eb5` + 후속) | `DONE`\* |
 | 2026-07-09 | 추정 단위 MD 일원화 · 목록/상세/타임라인 UX 개선 · 리뷰 상태 제거 (커밋 `0984416`) | `DONE`\* |
@@ -21,6 +22,47 @@
 | ~2026-07-08 | Phase 1~4 + 로드맵 v2 8건 (이하 15개 세션) | `DONE` |
 
 \* 코드·빌드·테스트 검증 완료. 실렌더(mermaid/표/강조)는 로그인 게이트라 브라우저 확인 필요.
+
+---
+
+## 2026-07-15 — 폼/목록/타임라인/위키 UX 다수 (브랜치 `fix/dialog-form-reset-owner-default`)
+
+한 세션에서 사용자 요청을 순차 처리(요청 완료마다 커밋). 모두 tsc 0 · eslint 0 · `next build` OK · vitest 106 pass. **상호작용/시각 동작(타임라인 무한스크롤, 표 편집, 코드블록 편집, round 룩)은 브라우저 실확인 미완** — 로그인 게이트라 후속 QA 필요.
+
+### 폼 버그 2건 (커밋 `0d0137d`)
+- **담당자 미지정인데 만든 사람으로 지정**: `createProject`/`createEpic` 의 `ownerId: data.ownerId ?? user.id` 폴백 제거 → 미지정은 null 유지. 태스크는 해당 없음(assignee 는 null 유지, `reporterId=user.id` 는 작성자라 의도된 동작). 다른 필드엔 숨은 기본값 주입 없음(grep 확인).
+- **다이얼로그 재열림 시 이전 입력 잔존**: 필드 `useState` 가 항상 마운트된 최상위 다이얼로그에 있어 초기화가 1회뿐이었음. Base UI 는 닫히면 popup 하위를 언마운트(`keepMounted=false`)하므로, **필드 state 를 `DialogContent` 하위 자식 폼 컴포넌트로 분리** → 매 열림마다 새 마운트로 리셋. project/epic/task/sprint/team 5개 다이얼로그. [gotchas §24]
+
+### 목록 컬럼 통일 + 빈 목록 헤더 (커밋 `4a9515f`)
+- 에픽/태스크 표를 프로젝트와 동일 순서(`제목·담당자·시작일·종료일·우선순위·상태·레이블`)로 재정렬. 키는 맨 앞, MD 맨 뒤 유지. 시작일/종료일/레이블 컬럼 신설. `getEpics` 에 labels include 추가.
+- 목록 3종이 count 0 일 때 `EmptyState` 카드 대신 항상 표 렌더(헤더 노출, 빈 안내는 표 내부 EmptyRow).
+- **라벨 셀 폭 깨짐**: auto-layout 표는 헤더 `w-40` 이 힌트라 라벨 추가 시 컬럼이 가로로 밀렸음 → 셀 내용을 `max-w-40` 로 감싸 줄바꿈. [gotchas §25]
+
+### 타임라인 개편 (커밋 `f52394c`)
+- **좌우 무한 스크롤**: 표시 창(range)을 state 로, 스크롤이 가장자리에 오면 CHUNK 만큼 과거/미래 확장. prepend 시 삽입 폭만큼 scrollLeft 보정(useLayoutEffect, pre-paint). 하루 셀 폭 고정(DAY_W)으로 확장 시 재스케일 없이 위치 보정 정확. 에픽/태스크 0건도 축·그리드 렌더로 스크롤 가능. [gotchas §26]
+- 연도 전환 월은 `1월'27` 표기. 상태 2색 체계(완료=emerald, 그 외=blue, 에픽·태스크 공통). 에픽/태스크 막대 두께 통일(h-5). 범례 진행중/완료로 교체·확대.
+
+### round 축소 (커밋 `3342621`)
+- 전역 `--radius` 12px→8px(0.5rem). 모든 Tailwind `rounded-*` 파생 비례 축소. DESIGN.md rounded 토큰(정본)·docs/design-system.md·CLAUDE.md 동기화. pill/full 유지.
+
+### 위키 코드블록 (커밋 `8ddd4ac` `c170af7` `ea4360b` `5ce884a` `0c607e0`)
+- **복사 버튼**: CodeBlockLowlight 에 React NodeView(`code-block.tsx`) 를 붙여 우측 상단 복사. 코드 본문은 `NodeViewContent as="code"`(NoInfer 제네릭이라 타입인자 명시). [gotchas §27]
+- **괄호/따옴표 자동 닫기**(`code-block-pairs.ts` ProseMirror 플러그인): 여는 문자 → 닫는 짝 삽입, 선택 감싸기, type-over. codeBlock 안에서만.
+- **Enter 자동 들여쓰기**: `{`/`[` 뒤 +1단(빈 짝이면 세 줄 펼침), 그 외 들여쓰기 줄은 현재 들여쓰기 유지. `addKeyboardShortcuts` 에서 `this.parent` 로 베이스 단축키(Tab·Backspace·triple-Enter) 보존.
+- **언어 지정+하이라이트**: NodeView 에 언어 select(Plain·Kotlin·Java·JSON·YAML·iOS/Swift — lowlight `common` 포함). `updateAttributes({language})`.
+- **코드블록 내 #/@ 멘션 차단**: TicketMention/PersonMention Suggestion 에 `allow` 콜백(parent 가 codeBlock 이면 false).
+
+### mermaid Enter 들여쓰기 (커밋 `08cce48`)
+- mermaid textarea(controlled)에서 Enter 시 선행 공백 유지. `updateAttributes` 후 caret 이 끝으로 튀므로 pendingCaret ref + 재렌더 후 복원 effect.
+
+### 스프린트 컬럼 + MD 소수점 (커밋 `93f4cf3`)
+- 스프린트 표 `기간`(start–end) 단일 컬럼을 `시작일`/`종료일` 로 분리.
+- **MD 부동소수점 노이즈**: `estimatedMd`/`actualMd` 가 `Float?` 라 합산 롤업에서 `0.1+0.2=0.30000000000000004` 노출. queries.ts 롤업 출력(sumMd·mdByEpic·getEpics·getSprints·getProject)에 `roundMd`(6자리) 적용 — 노이즈만 제거, 입력·저장값 보존. [gotchas §28]
+
+### 위키 표 편집 (커밋 `af8f99a` `8e62b94` `9813b98`)
+- **삭제**: 표 아래 블록 맨 앞에서 ArrowLeft → 표를 NodeSelection 선택 → Backspace/Delete 삭제(별도 `TableControls` 확장).
+- **hover 열/행 추가**: 커서가 표 안이면 표 DOM rect 추적해 우측(열)·하단(행) 스트립 오버레이, hover 시 + 버튼. 표 내부 로직 미변경(좌표만 읽음).
+- **리사이즈 폭 고정**: TableView 가 리사이즈로 세팅하는 table inline `width`/`min-width` 를 CSS `!important` 로 무시해 표를 컨테이너 100% 에 고정 → `table-layout:fixed` 상 경계선만 이동, 인접 열이 폭 나눔. [gotchas §29]
 
 ---
 
