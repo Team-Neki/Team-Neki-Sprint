@@ -40,7 +40,7 @@ flowchart LR
 | `--link` | `#0070f3` | link |
 | `--chart-1..5` | `#007cf0` `#7928ca` `#ff0080` `#f9cb28` `#00dfd8` | 브랜드 그라디언트(develop/preview/highlight/ship) |
 
-`--radius` = `0.75rem`(12px) — 카드는 `rounded.lg`(12px), 버튼/인풋은 `@theme inline`의 `--radius-md/sm` 파생값으로 더 작게.
+`--radius` = `0.5rem`(8px) — 카드는 `rounded.lg`(8px), 버튼/인풋은 `@theme inline`의 `--radius-md/sm` 파생값으로 더 작게. round 는 살짝만(과거 12px 에서 축소).
 
 ## 타이포그래피
 

@@ -78,7 +78,7 @@
   --chart-3: #ff0080; /* brand highlight (pink) */
   --chart-4: #f9cb28; /* brand gradient — ship (amber) */
   --chart-5: #00dfd8; /* brand gradient — develop (cyan) */
-  --radius: 0.75rem; /* 12px cards (rounded.lg); buttons/inputs derive smaller */
+  --radius: 0.5rem; /* 8px cards (rounded.lg); 버튼/인풋은 --radius-sm/md 파생값으로 더 작게. round 는 살짝만 */
   --sidebar: #fafafa; /* canvas-soft */
   --sidebar-foreground: #171717;
   --sidebar-primary: #171717;
