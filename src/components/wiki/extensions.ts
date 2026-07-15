@@ -53,7 +53,8 @@ export function wikiExtensions(opts?: { placeholder?: string }) {
     TaskList,
     TaskItem.configure({ nested: true }),
     // 구문 강조 코드블록 + 우측 상단 복사 버튼 NodeView + 괄호/따옴표 자동 닫기.
-    // 언어는 자동 감지(``` 뒤 언어 우선).
+    // 언어 미지정(Plain) 시 defaultLanguage=plaintext 로 하이라이트 자동 감지를
+    // 끈다(감지 오검출로 Plain 코드에 색이 입던 문제 방지). ``` 뒤 언어는 우선 적용.
     CodeBlockLowlight.extend({
       addNodeView() {
         return ReactNodeViewRenderer(CodeBlockView);
@@ -78,7 +79,7 @@ export function wikiExtensions(opts?: { placeholder?: string }) {
           },
         };
       },
-    }).configure({ lowlight }),
+    }).configure({ lowlight, defaultLanguage: "plaintext" }),
     // 표(header row 있는 리사이즈 가능 테이블).
     TableKit.configure({ table: { resizable: true } }),
     // 표 경계 키맵(ArrowLeft 로 표 선택 → 삭제).

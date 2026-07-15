@@ -14,6 +14,7 @@ import { Check, Copy } from "lucide-react";
  */
 const LANGUAGES: { value: string; label: string }[] = [
   { value: "", label: "Plain" },
+  { value: "bash", label: "Bash" },
   { value: "kotlin", label: "Kotlin" },
   { value: "java", label: "Java" },
   { value: "json", label: "JSON" },
