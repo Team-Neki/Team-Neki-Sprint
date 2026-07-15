@@ -10,8 +10,11 @@ import Image from "@tiptap/extension-image";
 import { createLowlight, common } from "lowlight";
 // 코드블록 NodeView(우측 상단 복사 버튼). 구문강조는 CodeBlockLowlight 가 담당.
 import { CodeBlockView } from "@/components/wiki/code-block";
-// 코드블록 안 괄호/따옴표 자동 닫기(편집 모드).
-import { codeBlockAutoPairs } from "@/components/wiki/code-block-pairs";
+// 코드블록 안 괄호/따옴표 자동 닫기 + Enter 자동 들여쓰기(편집 모드).
+import {
+  codeBlockAutoPairs,
+  codeBlockEnterIndent,
+} from "@/components/wiki/code-block-pairs";
 // '#' 티켓 멘션(#4) / '@' 사람 멘션(B5). 각각 자기완결 모듈, 여기 한 줄씩만 추가.
 import { TicketMention } from "@/components/wiki/ticket-mention";
 import { PersonMention } from "@/components/wiki/person-mention";
@@ -59,6 +62,19 @@ export function wikiExtensions(opts?: { placeholder?: string }) {
           ...(this.parent?.() ?? []),
           codeBlockAutoPairs(this.name),
         ];
+      },
+      addKeyboardShortcuts() {
+        // 베이스 단축키(Tab 들여쓰기·Backspace·triple-Enter 종료 등) 보존 후
+        // Enter 만 확장: 베이스 Enter(triple-enter 종료) 먼저 시도 → { , [ 뒤
+        // 자동 들여쓰기. 둘 다 아니면 false 로 기본 줄바꿈에 넘긴다.
+        const parent = this.parent?.() ?? {};
+        return {
+          ...parent,
+          Enter: () => {
+            if (parent.Enter?.({ editor: this.editor })) return true;
+            return codeBlockEnterIndent(this.editor, this.name);
+          },
+        };
       },
     }).configure({ lowlight }),
     // 표(header row 있는 리사이즈 가능 테이블).
