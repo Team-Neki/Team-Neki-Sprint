@@ -79,13 +79,13 @@ export function codeBlockAutoPairs(codeBlockName: string) {
 }
 
 /**
- * 코드블록 Enter 자동 들여쓰기(편집 모드). 커서 바로 앞 글자가 여는 블록 괄호
- * ({ 또는 [) 일 때만 관여한다:
- * - 여는 괄호 바로 뒤 + 닫는 짝 바로 앞(빈 짝 사이, 예: {|}) 에서 Enter →
- *   세 줄로 펼치고 가운데 줄을 한 단계 더 들여쓴 뒤 커서를 그 줄에 둔다.
- * - 여는 괄호로 줄이 끝난 경우(닫는 짝 없음) → 다음 줄을 한 단계 들여쓴다.
- * 그 외(직전 글자가 {,[ 가 아님)엔 관여하지 않는다(false 반환 → 기본 줄바꿈).
- * codeBlock 노드 안에서만 동작.
+ * 코드블록 Enter 자동 들여쓰기(편집 모드). codeBlock 노드 안에서만 동작.
+ * - 커서 앞 글자가 여는 블록 괄호({ 또는 [) 이면 한 단계 더 들여쓴다.
+ *   - 빈 짝 사이(예: {|}) 에서 Enter → 세 줄로 펼치고 가운데 줄을 한 단계 더
+ *     들여쓴 뒤 커서를 그 줄에 둔다(닫는 괄호는 아래 줄 원 들여쓰기).
+ *   - 여는 괄호로 줄이 끝난 경우 → 다음 줄을 한 단계 들여쓴다.
+ * - 그 외: 현재 줄의 선행 공백을 그대로 유지(들여쓰기 연속). 들여쓰기가 없으면
+ *   기본 줄바꿈에 맡긴다(false).
  */
 export function codeBlockEnterIndent(
   editor: Editor,
@@ -99,29 +99,39 @@ export function codeBlockEnterIndent(
 
   const content = $from.parent.textContent;
   const offset = $from.parentOffset;
-  const charBefore = content.slice(offset - 1, offset);
-  const close = BLOCK_OPEN_TO_CLOSE[charBefore];
-  if (!close) return false; // 직전 글자가 { , [ 가 아니면 기본 처리.
 
   // 현재 줄의 선행 공백(들여쓰기 기준).
   const before = content.slice(0, offset);
   const lineStart = before.lastIndexOf("\n") + 1;
   const baseIndent = before.slice(lineStart).match(/^[ \t]*/)?.[0] ?? "";
-  const innerIndent = baseIndent + INDENT;
+
+  const charBefore = content.slice(offset - 1, offset);
   const charAfter = content.slice(offset, offset + 1);
   const pos = $from.pos;
+  const close = BLOCK_OPEN_TO_CLOSE[charBefore];
 
-  if (charAfter === close) {
-    // 빈 짝 사이: 세 줄로 펼치고 커서를 가운데(들여쓴) 줄에 둔다.
-    const tr = state.tr.insertText(`\n${innerIndent}\n${baseIndent}`, pos);
+  // { , [ 뒤: 한 단계 더 들여쓰기.
+  if (close) {
+    const innerIndent = baseIndent + INDENT;
+    if (charAfter === close) {
+      // 빈 짝 사이: 세 줄로 펼치고 커서를 가운데(들여쓴) 줄에 둔다.
+      const tr = state.tr.insertText(`\n${innerIndent}\n${baseIndent}`, pos);
+      tr.setSelection(
+        TextSelection.create(tr.doc, pos + 1 + innerIndent.length),
+      );
+      editor.view.dispatch(tr.scrollIntoView());
+      return true;
+    }
+    const tr = state.tr.insertText(`\n${innerIndent}`, pos);
     tr.setSelection(TextSelection.create(tr.doc, pos + 1 + innerIndent.length));
     editor.view.dispatch(tr.scrollIntoView());
     return true;
   }
 
-  // 여는 괄호로 끝난 줄: 다음 줄만 한 단계 들여쓴다.
-  const tr = state.tr.insertText(`\n${innerIndent}`, pos);
-  tr.setSelection(TextSelection.create(tr.doc, pos + 1 + innerIndent.length));
+  // 그 외: 현재 줄의 들여쓰기 유지. 들여쓰기가 없으면 기본 줄바꿈에 맡긴다.
+  if (!baseIndent) return false;
+  const tr = state.tr.insertText(`\n${baseIndent}`, pos);
+  tr.setSelection(TextSelection.create(tr.doc, pos + 1 + baseIndent.length));
   editor.view.dispatch(tr.scrollIntoView());
   return true;
 }
