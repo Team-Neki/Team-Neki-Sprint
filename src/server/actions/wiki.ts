@@ -15,7 +15,7 @@ import { logActivity } from "@/server/activity";
 import { extractMentionUserIds } from "@/lib/mentions";
 import { docToPlainText } from "@/lib/rich-content";
 import type { JSONContent } from "@tiptap/core";
-import { assertCanManage } from "@/lib/authz";
+import { assertCanManage, type Actor } from "@/lib/authz";
 
 const EMPTY_DOC: Prisma.InputJsonValue = {
   type: "doc",
@@ -24,6 +24,11 @@ const EMPTY_DOC: Prisma.InputJsonValue = {
 
 export async function createWikiPage(input: unknown) {
   const user = await requireUser();
+  return createWikiPageCore(user, input);
+}
+
+/** createWikiPage의 actor 주입 코어. 서버 액션과 MCP API 라우트가 공유한다. */
+export async function createWikiPageCore(actor: Actor, input: unknown) {
   const data = wikiPageSchema.parse(input);
 
   // position은 같은 컨테이너(부모 페이지 + 폴더) 안에서만 순서를 맞춘다.
@@ -39,13 +44,13 @@ export async function createWikiPage(input: unknown) {
       content: EMPTY_DOC,
       searchText: "",
       position: siblingCount,
-      authorId: user.id,
-      editorId: user.id,
+      authorId: actor.id,
+      editorId: actor.id,
     },
   });
 
   await logActivity({
-    userId: user.id,
+    userId: actor.id,
     entityType: "wiki",
     entityId: page.id,
     action: "created",
@@ -62,7 +67,16 @@ export async function updateWikiContent(
   content: unknown,
 ) {
   const user = await requireUser();
+  return updateWikiContentCore(user, id, title, content);
+}
 
+/** updateWikiContent의 actor 주입 코어. 서버 액션과 MCP API 라우트가 공유한다. */
+export async function updateWikiContentCore(
+  actor: Actor,
+  id: string,
+  title: string,
+  content: unknown,
+) {
   const current = await prisma.wikiPage.findUnique({ where: { id } });
   if (!current) throw new Error("페이지를 찾을 수 없습니다");
 
@@ -95,12 +109,12 @@ export async function updateWikiContent(
       content: content as Prisma.InputJsonValue,
       // 전역 검색 본문 매칭용 순수 텍스트 사본(gotchas §16 참조).
       searchText: docToPlainText(content as JSONContent),
-      editorId: user.id,
+      editorId: actor.id,
     },
   });
 
   await logActivity({
-    userId: user.id,
+    userId: actor.id,
     entityType: "wiki",
     entityId: id,
     action: "updated",
@@ -110,12 +124,12 @@ export async function updateWikiContent(
   // 저장 전/후 doc 의 멘션 차집합만 → 재저장마다 중복 알림 방지. 자기멘션 제외.
   const before = extractMentionUserIds(current.content);
   const after = extractMentionUserIds(content);
-  const added = [...after].filter((uid) => !before.has(uid) && uid !== user.id);
+  const added = [...after].filter((uid) => !before.has(uid) && uid !== actor.id);
   if (added.length > 0) {
     await prisma.notification.createMany({
       data: added.map((uid) => ({
         userId: uid,
-        actorId: user.id,
+        actorId: actor.id,
         type: "mention",
         entityType: "wiki",
         entityId: id,
@@ -126,7 +140,7 @@ export async function updateWikiContent(
 
   // 저장(커밋)했으니 이 유저의 임시저장본은 정리(있으면).
   await prisma.wikiDraft
-    .delete({ where: { pageId_userId: { pageId: id, userId: user.id } } })
+    .delete({ where: { pageId_userId: { pageId: id, userId: actor.id } } })
     .catch(() => {});
 
   revalidatePath("/wiki", "layout");
