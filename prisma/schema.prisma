@@ -238,6 +238,8 @@ model Task {
   blocking  TaskDependency[] @relation("BlockerTask")
   blockedBy TaskDependency[] @relation("BlockedTask")
 
+  githubLinks GithubBranchLink[]
+
   @@unique([teamId, number])
 }
 
@@ -463,4 +465,30 @@ model Activity {
   createdAt  DateTime @default(now())
 
   @@index([entityType, entityId])
+}
+
+model GithubInstallation {
+  id             String   @id @default(cuid())
+  installationId Int      @unique // GitHub 설치 ID
+  accountLogin   String // org/user 로그인명(빈 값 허용, webhook 로 보강)
+  createdAt      DateTime @default(now())
+}
+
+model GithubBranchLink {
+  id           String   @id @default(cuid())
+  taskId       String
+  task         Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  repoFullName String // "owner/repo"
+  branchName   String
+  branchUrl    String
+  prNumber     Int?
+  prState      String? // OPEN | CLOSED | MERGED
+  prUrl        String?
+  prTitle      String?
+  createdById  String? // 앱으로 만든 사람(자동연결은 null)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([repoFullName, branchName]) // webhook 재전송 멱등 upsert 키
+  @@index([taskId])
 }
