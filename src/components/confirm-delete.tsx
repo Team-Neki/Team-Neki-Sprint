@@ -52,10 +52,19 @@ export function ConfirmDelete({
     });
   }
 
+  // Enter 로 삭제 확정: 포커스가 취소 버튼에 있어도 항상 삭제가 눌리도록, 팝업
+  // 컨테이너에서 Enter 를 잡아 기본 동작(포커스된 버튼의 활성화)을 막고 confirm().
+  // IME 조합 중이거나 이미 처리 중이면 무시.
+  function onKeyDown(e: React.KeyboardEvent) {
+    if (e.key !== "Enter" || e.nativeEvent.isComposing || pending) return;
+    e.preventDefault();
+    confirm();
+  }
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       {trigger && <DialogTrigger render={trigger} />}
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent className="sm:max-w-sm" onKeyDown={onKeyDown}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
