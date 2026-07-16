@@ -362,6 +362,18 @@ function FolderItem({
   const hasChildren = subFolders.length > 0 || folderPages.length > 0;
   const impact = maps.detachImpact.get(folder.id) ?? 0;
 
+  // 하위 항목 추가 시 이 폴더를 펼쳐(setOpen(true)) 새 항목이 바로 보이게 한다.
+  // 접힌 폴더(open=false)에 추가하면 아래 `hasChildren && open` 게이트에 막혀
+  // 새로 만든 폴더/페이지가 렌더되지 않던 버그를 막는다.
+  const addSubPage = () => {
+    setOpen(true);
+    addPage({ folderId: folder.id });
+  };
+  const addSubFolder = () => {
+    setOpen(true);
+    addFolder(folder.id);
+  };
+
   function submitRename() {
     const next = name.trim();
     if (!next || next === folder.name) {
@@ -479,22 +491,22 @@ function FolderItem({
                 {
                   icon: <FilePlus className="size-4" />,
                   label: "하위 페이지",
-                  onClick: () => addPage({ folderId: folder.id }),
+                  onClick: addSubPage,
                 },
                 {
                   icon: <FolderPlus className="size-4" />,
                   label: "하위 폴더",
-                  onClick: () => addFolder(folder.id),
+                  onClick: addSubFolder,
                 },
               ]}
             />
           </span>
         </ContextMenuTrigger>
         <ContextMenuContent>
-          <ContextMenuItem onClick={() => addPage({ folderId: folder.id })}>
+          <ContextMenuItem onClick={addSubPage}>
             <FilePlus className="size-4" /> 하위 페이지 추가
           </ContextMenuItem>
-          <ContextMenuItem onClick={() => addFolder(folder.id)}>
+          <ContextMenuItem onClick={addSubFolder}>
             <FolderPlus className="size-4" /> 하위 폴더 추가
           </ContextMenuItem>
           <ContextMenuSeparator />
@@ -571,6 +583,13 @@ function PageItem({
     sibIdx >= 0 && sibIdx + 1 < siblings.length ? siblings[sibIdx + 1].id : null;
 
   const isDragging = dragId === page.id;
+
+  // 하위 페이지 추가 시 이 페이지를 펼쳐(setOpen(true)) 새 페이지가 바로 보이게 한다.
+  // 접힌 상태(open=false)에선 아래 `hasChildren && open` 게이트에 막혀 안 보이던 버그 방지.
+  const addSubPage = () => {
+    setOpen(true);
+    addPage({ parentId: page.id });
+  };
 
   function onDragOver(e: React.DragEvent) {
     if (!dragId || dragId === page.id) return;
@@ -746,14 +765,14 @@ function PageItem({
                 {
                   icon: <FilePlus className="size-4" />,
                   label: "하위 페이지",
-                  onClick: () => addPage({ parentId: page.id }),
+                  onClick: addSubPage,
                 },
               ]}
             />
           </span>
         </ContextMenuTrigger>
         <ContextMenuContent>
-          <ContextMenuItem onClick={() => addPage({ parentId: page.id })}>
+          <ContextMenuItem onClick={addSubPage}>
             <FilePlus className="size-4" /> 하위 페이지 추가
           </ContextMenuItem>
           <ContextMenuItem onClick={toggleStar}>
