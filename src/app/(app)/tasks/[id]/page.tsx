@@ -7,6 +7,7 @@ import {
   getMembers,
   getEntityActivity,
   getLabelOptions,
+  getTaskGithubLinks,
 } from "@/server/queries";
 import { deleteTask } from "@/server/actions/tasks";
 import { formatIssueKey } from "@/lib/constants";
@@ -22,6 +23,7 @@ import { EpicField } from "@/components/detail/epic-field";
 import { TaskLabels } from "@/components/detail/task-labels";
 import { TaskCc } from "@/components/detail/task-cc";
 import { TaskDependencies } from "@/components/detail/task-dependencies";
+import { TaskGithub } from "@/components/detail/task-github";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   MetaRow,
@@ -43,13 +45,15 @@ export default async function TaskDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [task, epics, members, activities, labelOptions] = await Promise.all([
-    getTask(id),
-    getEpicOptions(),
-    getMembers(),
-    getEntityActivity("task", id),
-    getLabelOptions(),
-  ]);
+  const [task, epics, members, activities, labelOptions, githubLinks] =
+    await Promise.all([
+      getTask(id),
+      getEpicOptions(),
+      getMembers(),
+      getEntityActivity("task", id),
+      getLabelOptions(),
+      getTaskGithubLinks(id),
+    ]);
   if (!task) notFound();
 
   const epicPickOptions = epics.map((e) => ({
@@ -273,6 +277,15 @@ export default async function TaskDetail({
               status: d.blocked.status,
               teamKey: d.blocked.team?.key ?? null,
             }))}
+          />
+        </Card>
+
+        <Card className="p-5">
+          <TaskGithub
+            taskId={task.id}
+            issueKey={formatIssueKey(task.team?.key, task.number)}
+            title={task.title}
+            links={githubLinks}
           />
         </Card>
 
