@@ -8,6 +8,7 @@
 
 | 날짜 | 세션 | 상태 |
 |---|---|---|
+| 2026-07-17 | MCP 서버 추가(`mcp/`, `@team-neki/sprint-mcp`): 티켓 생성/수정/조회/검색 + 위키 생성/수정/조회/검색 도구. 앱에 `/api/mcp/v1/*` HTTP API + 개인 API 토큰(설정 페이지 발급, sha-256 해시 저장) 추가, mutation core를 actor 주입형으로 리팩터링. 팀 배포: 레포 `.mcp.json`(Claude Code) + npm(Desktop/Cursor). 설계·계획은 `docs/superpowers/{specs,plans}`. 병합 후 main에서 `prisma migrate`(ApiToken)+`prisma generate` 필요 | worktree 검증 완료, 병합·마이그레이션 대기 |
 | 2026-07-15 | 폼/목록/타임라인/위키 UX 다수: 담당자 기본값·폼 리셋 버그, 목록 컬럼 통일+빈 헤더, 타임라인 무한스크롤·2색, round 축소, 위키 코드블록(복사·언어·자동닫기·들여쓰기)·표 편집(삭제·추가버튼·리사이즈), 스프린트 컬럼·MD 소수점 | `DONE`\* |
 | 2026-07-13 | 위키 저장 후 사이드바 제목 stale 버그 근본원인 = `unstable_cache` 가 멀티 replica 에서 pod-local → **데이터 캐시 레이어 제거** | `DONE` |
 | 2026-07-10 | 프로필 상세·타임라인 구분선·위키 DnD·티켓 CC·상세 시트 정련 등 in-product UX 다수 (커밋 `66f8eb5` + 후속) | `DONE`\* |

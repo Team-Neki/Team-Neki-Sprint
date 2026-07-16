@@ -11,6 +11,7 @@ Sprint(Jira + Wiki 통합 워크스페이스) 프로젝트의 문서 인덱스. 
 | [`roadmap-v2.md`](./roadmap-v2.md) | Phase 1~4 종료 후 신규 개선 백로그(D1~D13 + 그룹 D 감사) + 이후 UX 개선 이력 | 다음 작업 착수·우선순위 합의 |
 | [`adr/`](./adr/) | 아키텍처 결정 기록(ADR) — [0001 이니셔티브 부모](./adr/0001-initiative-parent.md), [0002 스프린트·프로젝트·팀 재구성](./adr/0002-sprint-project-team-restructure.md) | 구조 결정의 배경·트레이드오프 |
 | [`specs/`](./specs/) | 개별 작업 스펙(스코핑·수용조건). 타임라인·계층 재구성·상태바·유저필터·위키·상세 개편 등 | 특정 기능의 원래 요구/설계 확인 |
+| [`../mcp/README.md`](../mcp/README.md) | MCP 서버(`@team-neki/sprint-mcp`) — 티켓/위키 도구, 개인 토큰 HTTP API, 팀 배포(Claude Code/Desktop/Cursor) | MCP 연동·팀 배포 시. 설계·계획: [specs](./superpowers/specs/2026-07-17-sprint-mcp-server-design.md)·[plans](./superpowers/plans/2026-07-17-sprint-mcp-server.md) |
 
 ## 관련 정본
 
