@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { ZodError } from "zod";
+import { ZodError, flattenError } from "zod";
 import type { Actor } from "@/lib/authz";
 import { authenticateBearer } from "@/lib/api-token";
 
@@ -30,7 +30,8 @@ export function withMcpAuth(handler: AuthedHandler): RouteHandler {
     try {
       return await handler(actor, req, ctx);
     } catch (e) {
-      if (e instanceof ZodError) return fail("validation_error", 400, e.flatten());
+      if (e instanceof ZodError)
+        return fail("validation_error", 400, flattenError(e));
       const message = e instanceof Error ? e.message : "internal_error";
       return fail(message, 400);
     }
