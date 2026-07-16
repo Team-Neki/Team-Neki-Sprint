@@ -5,9 +5,12 @@ import { ChevronLeft } from "lucide-react";
 import { useInSheet } from "@/components/detail/in-sheet-context";
 
 /**
- * 뒤로가기 버튼(B3 back). 브라우저 히스토리가 있으면 `router.back()`으로 직전 화면
- * (예: 타임라인)으로 돌아가고, 없으면(새 탭·직접 진입) `fallback` 목록으로 이동한다.
- * 상세 페이지의 하드코딩 `<Link href="/epics">` 등을 대체한다.
+ * 뒤로가기 버튼(B3 back). 라벨이 가리키는 목적지(`fallback`, 예: 에픽 목록)로 이동한다.
+ * 과거엔 히스토리가 있으면 `router.back()`(stack pop)으로 직전 화면으로 돌아갔으나,
+ * 라벨은 특정 목록("에픽")을 가리키는데 실제로는 직전 화면(타임라인 등)으로 튀어
+ * 사용자 기대와 어긋났다(예: 타임라인→에픽 상세에서 "<에픽" 클릭 시 에픽 목록이
+ * 아니라 타임라인으로 돌아감). 이제 항상 라벨이 지시하는 목적지로 이동한다.
+ * (원래 하드코딩 `<Link href="/epics">` 이던 동작으로 복귀.)
  */
 export function BackButton({
   fallback,
@@ -23,13 +26,7 @@ export function BackButton({
   return (
     <button
       type="button"
-      onClick={() => {
-        if (typeof window !== "undefined" && window.history.length > 1) {
-          router.back();
-        } else {
-          router.push(fallback);
-        }
-      }}
+      onClick={() => router.push(fallback)}
       className="text-muted-foreground hover:text-foreground mb-3 inline-flex items-center gap-1 text-sm"
     >
       <ChevronLeft className="size-4" /> {label}
