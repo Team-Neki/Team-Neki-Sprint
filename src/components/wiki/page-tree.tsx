@@ -39,6 +39,12 @@ import {
 } from "@/components/ui/context-menu";
 import { ConfirmDelete } from "@/components/confirm-delete";
 import {
+  folderKey,
+  pageKey,
+  parseCollapsed,
+  serializeCollapsed,
+} from "@/components/wiki/wiki-collapsed";
+import {
   createWikiPage,
   createWikiFolder,
   renameWikiFolder,
@@ -99,7 +105,10 @@ function buildMaps(folders: FolderNode[], pages: PageNode[]): Maps {
   const pagesByFolderId = new Map<string, number>();
   for (const p of pages) {
     if (p.folderId) {
-      pagesByFolderId.set(p.folderId, (pagesByFolderId.get(p.folderId) ?? 0) + 1);
+      pagesByFolderId.set(
+        p.folderId,
+        (pagesByFolderId.get(p.folderId) ?? 0) + 1,
+      );
     }
     const hasParent = !!p.parentId && pageIds.has(p.parentId);
     if (hasParent) {
@@ -127,7 +136,12 @@ function buildMaps(folders: FolderNode[], pages: PageNode[]): Maps {
     detachImpact.set(f.id, count);
   }
 
-  return { foldersByParent, topPagesByFolder, pageChildrenByParent, detachImpact };
+  return {
+    foldersByParent,
+    topPagesByFolder,
+    pageChildrenByParent,
+    detachImpact,
+  };
 }
 
 /** 페이지 하위(재귀) 페이지 수. 삭제 경고 문구용. */
@@ -145,7 +159,10 @@ function countPageDescendants(maps: Maps, pageId: string): number {
 
 // 생성 액션 + 즐겨찾기 집합 + 드래그 이동 상태를 트리 전역에서 공유(프롭 드릴링 방지).
 type TreeCtx = {
-  addPage: (opts: { parentId?: string | null; folderId?: string | null }) => void;
+  addPage: (opts: {
+    parentId?: string | null;
+    folderId?: string | null;
+  }) => void;
   addFolder: (parentId: string | null) => void;
   favSet: Set<string>;
   dragId: string | null;
@@ -163,20 +180,13 @@ type TreeCtx = {
   expand: (key: string) => void;
 };
 
-/** 폴더/페이지 id 충돌 방지용 접힘 key 네임스페이스. */
-const folderKey = (id: string) => `f:${id}`;
-const pageKey = (id: string) => `p:${id}`;
-
-// 접힘 상태 localStorage 키. JSON 문자열 배열로 저장한다.
+// 접힘 상태 localStorage 키. JSON 문자열 배열로 저장한다(파싱/직렬화는 wiki-collapsed).
 const COLLAPSED_STORAGE_KEY = "wiki:collapsed";
 
 function readCollapsedFromStorage(): Set<string> {
   if (typeof window === "undefined") return new Set();
   try {
-    const raw = window.localStorage.getItem(COLLAPSED_STORAGE_KEY);
-    if (!raw) return new Set();
-    const arr = JSON.parse(raw);
-    return Array.isArray(arr) ? new Set(arr.filter((v) => typeof v === "string")) : new Set();
+    return parseCollapsed(window.localStorage.getItem(COLLAPSED_STORAGE_KEY));
   } catch {
     return new Set();
   }
@@ -206,14 +216,16 @@ export function PageTree({
   // 사용자가 명시적으로 접은 항목의 key 집합. 기본은 펼침이므로 여기 없는 항목은 open.
   // 최상위에서 소유하므로 자식 <ul> 언마운트/재마운트에도 접힘 상태가 유지된다.
   // SSR 에선 localStorage 접근 불가 → initializer 에서 window 존재할 때만 복원한다.
-  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(readCollapsedFromStorage);
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(
+    readCollapsedFromStorage,
+  );
 
   const persistCollapsed = (next: Set<string>) => {
     if (typeof window === "undefined") return;
     try {
       window.localStorage.setItem(
         COLLAPSED_STORAGE_KEY,
-        JSON.stringify([...next]),
+        serializeCollapsed(next),
       );
     } catch {
       // localStorage 쓰기 실패(용량/프라이버시 모드)는 무시 — 접힘은 메모리로도 동작.
@@ -366,7 +378,13 @@ export function PageTree({
             <FolderItem key={f.id} folder={f} depth={0} maps={maps} />
           ))}
           {rootPages.map((p) => (
-            <PageItem key={p.id} page={p} depth={0} maps={maps} siblings={rootPages} />
+            <PageItem
+              key={p.id}
+              page={p}
+              depth={0}
+              maps={maps}
+              siblings={rootPages}
+            />
           ))}
         </ul>
       )}
@@ -377,7 +395,8 @@ export function PageTree({
           aria-label="여기에 추가 · 루트로 이동"
           className={cn(
             "mt-1 block min-h-10 w-full rounded-md transition-colors",
-            dragId && "outline-border/70 outline-2 -outline-offset-2 outline-dashed",
+            dragId &&
+              "outline-border/70 outline-2 -outline-offset-2 outline-dashed",
           )}
           onDragOver={(e) => {
             if (dragId) e.preventDefault();
@@ -537,7 +556,11 @@ function FolderItem({
             e.preventDefault();
             setDropInto(false);
             // 폴더로 이동: 최상위(부모 페이지 해제) + 이 폴더 소속 맨 끝에 배치.
-            move(dragId, { parentId: null, folderId: folder.id, beforeId: null });
+            move(dragId, {
+              parentId: null,
+              folderId: folder.id,
+              beforeId: null,
+            });
             setDragId(null);
             expand(key);
           }}
@@ -711,7 +734,9 @@ function PageItem({
   // after 드롭 = 이 페이지 "뒤"에 삽입 = 다음 형제 앞(없으면 맨 끝).
   const sibIdx = siblings.findIndex((s) => s.id === page.id);
   const nextSiblingId =
-    sibIdx >= 0 && sibIdx + 1 < siblings.length ? siblings[sibIdx + 1].id : null;
+    sibIdx >= 0 && sibIdx + 1 < siblings.length
+      ? siblings[sibIdx + 1].id
+      : null;
 
   const isDragging = dragId === page.id;
 
@@ -728,7 +753,11 @@ function PageItem({
     const rect = e.currentTarget.getBoundingClientRect();
     const y = e.clientY - rect.top;
     const z: DropZone =
-      y < rect.height * 0.3 ? "before" : y > rect.height * 0.7 ? "after" : "into";
+      y < rect.height * 0.3
+        ? "before"
+        : y > rect.height * 0.7
+          ? "after"
+          : "into";
     setZone(z);
   }
 
@@ -742,7 +771,11 @@ function PageItem({
       // 하위 페이지로 중첩: 이 페이지의 자식 맨 끝. folderId 는 부모를 따른다.
       move(id, { parentId: page.id, folderId: page.folderId, beforeId: null });
     } else if (z === "before") {
-      move(id, { parentId: page.parentId, folderId: page.folderId, beforeId: page.id });
+      move(id, {
+        parentId: page.parentId,
+        folderId: page.folderId,
+        beforeId: page.id,
+      });
     } else {
       move(id, {
         parentId: page.parentId,
