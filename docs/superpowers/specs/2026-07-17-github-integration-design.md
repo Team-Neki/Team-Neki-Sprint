@@ -160,9 +160,11 @@ model GithubBranchLink {
 
 ## 11. 의존성 & 인프라 (사전 준비)
 
-- **npm 추가**: `@octokit/auth-app`, `@octokit/rest`, `@octokit/webhooks`.
-  - 워크트리 함정: 워크트리에선 물리 설치가 누락되므로 `tsc --noEmit`+`eslint`로만 검증하고,
-    물리 `npm install`과 통합 빌드는 병합 후 main에서 수행한다.
+- **npm 의존성 없음**: GitHub 호출은 `fetch` + Node `crypto`로 처리한다(App JWT는 RS256
+  서명, installation token 교환, webhook은 HMAC-SHA256 검증). 필요한 GitHub API 표면이
+  5개 호출뿐이라 octokit 없이 충분하고, 이러면 워크트리의 symlink node_modules 함정을 피해
+  `tsc`/`eslint`/`vitest`로 전부 검증된다. (초안은 `@octokit/*` 사용을 전제했으나 워크트리
+  검증성을 위해 무의존 방식으로 전환.)
 - **env 추가**(`.env.example`에도 반영): `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`,
   `GITHUB_WEBHOOK_SECRET`.
 - **GitHub App 등록**(org 관리자 필요):
