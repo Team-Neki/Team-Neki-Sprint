@@ -3,6 +3,8 @@ import Placeholder from "@tiptap/extension-placeholder";
 import Link from "@tiptap/extension-link";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
+import { TextStyle } from "@tiptap/extension-text-style";
+import { Color } from "@tiptap/extension-color";
 import { TableKit } from "@tiptap/extension-table";
 import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
 import { ReactNodeViewRenderer } from "@tiptap/react";
@@ -24,6 +26,8 @@ import { CommentMark } from "@/components/wiki/comment-mark";
 import { MermaidBlock } from "@/components/wiki/mermaid-block";
 // 표 편집 보조 키맵(경계에서 표 선택·삭제).
 import { TableControls } from "@/components/wiki/table-controls";
+// 슬래시 커맨드(/) — 블록 삽입 메뉴. 자기완결 모듈, 여기 한 줄만 추가.
+import { SlashCommand } from "@/components/wiki/slash-command";
 
 // 코드블록 구문 강조용 lowlight(highlight.js common 언어 세트). 모듈 1회 생성.
 const lowlight = createLowlight(common);
@@ -42,7 +46,7 @@ export function wikiExtensions(opts?: { placeholder?: string }) {
     // autolink 를 지정해 따로, CodeBlock 은 구문 강조되는 CodeBlockLowlight 로 대체한다
     // (중복 확장 경고 방지).
     StarterKit.configure({
-      heading: { levels: [1, 2, 3] },
+      heading: { levels: [1, 2, 3, 4, 5, 6] },
       link: false,
       codeBlock: false,
     }),
@@ -52,6 +56,12 @@ export function wikiExtensions(opts?: { placeholder?: string }) {
     Link.configure({ openOnClick: false, autolink: true }),
     TaskList,
     TaskItem.configure({ nested: true }),
+    // 글자 색상(Color 는 TextStyle 마크에 color 속성을 얹는다). 뷰도 동일 스키마로
+    // 색을 렌더해야 하므로 편집/뷰 공통으로 등록한다.
+    TextStyle,
+    Color,
+    // 슬래시 커맨드(/) — 입력 시에만 동작(읽기전용 뷰에선 트리거 없음).
+    SlashCommand,
     // 구문 강조 코드블록 + 우측 상단 복사 버튼 NodeView + 괄호/따옴표 자동 닫기.
     // 언어 미지정(Plain) 시 defaultLanguage=plaintext 로 하이라이트 자동 감지를
     // 끈다(감지 오검출로 Plain 코드에 색이 입던 문제 방지). ``` 뒤 언어는 우선 적용.
@@ -61,10 +71,7 @@ export function wikiExtensions(opts?: { placeholder?: string }) {
       },
       addProseMirrorPlugins() {
         // this.parent?.() = lowlight 구문강조 플러그인 보존 + 자동 닫기 추가.
-        return [
-          ...(this.parent?.() ?? []),
-          codeBlockAutoPairs(this.name),
-        ];
+        return [...(this.parent?.() ?? []), codeBlockAutoPairs(this.name)];
       },
       addKeyboardShortcuts() {
         // 베이스 단축키(Tab 들여쓰기·Backspace·triple-Enter 종료 등) 보존 후
