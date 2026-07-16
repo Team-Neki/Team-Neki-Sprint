@@ -135,7 +135,8 @@ export async function getSprint(id: string) {
     where: { id },
     include: {
       projects: {
-        orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+        // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO→BACKLOG) → 최신 생성 우선.
+        orderBy: [{ status: "desc" }, { createdAt: "desc" }],
         include: {
           owner: miniUser,
           _count: { select: { epics: true } },
@@ -169,9 +170,9 @@ export type ProjectFilter = {
   sort?: { field: ProjectSortField; dir: "asc" | "desc" };
 };
 
-// 기본 정렬(정렬 지정 없을 때). 상태 오름차 → 최신 생성 우선.
+// 기본 정렬(정렬 지정 없을 때). 상태 내림차(DONE→IN_PROGRESS→TODO→BACKLOG) → 최신 생성 우선.
 const PROJECT_DEFAULT_ORDER: Prisma.ProjectOrderByWithRelationInput[] = [
-  { status: "asc" },
+  { status: "desc" },
   { createdAt: "desc" },
 ];
 
@@ -272,7 +273,8 @@ export const getEpics = async (filter: EpicFilter = {}) => {
         ownerId: filter.ownerId,
         teamId: filter.teamId,
       },
-      orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+      // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO→BACKLOG) → 최신 생성 우선.
+      orderBy: [{ status: "desc" }, { createdAt: "desc" }],
       include: {
         owner: miniUser,
         team: miniTeam,
@@ -388,10 +390,11 @@ export const getTasks = async (filter: TaskFilter = {}) => {
           ? { contains: filter.q, mode: "insensitive" }
           : undefined,
       },
+      // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO→BACKLOG) 우선.
       // id 를 마지막 tiebreaker 로 추가 → (status,priority,createdAt) 동점 행들도
       // 결정적 순서 보장. 없으면 MD 등 수정 시 동점 구간이 재배열돼 순서가 흔들린다.
       orderBy: [
-        { status: "asc" },
+        { status: "desc" },
         { priority: "asc" },
         { createdAt: "desc" },
         { id: "asc" },
@@ -944,7 +947,8 @@ export function getUserProfile(id: string) {
       team: { select: { id: true, key: true, name: true, color: true } },
       assignedTasks: {
         where: { status: { not: "DONE" } },
-        orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+        // 기본 정렬: 상태 내림차(IN_PROGRESS→TODO→BACKLOG, DONE 제외) → 최신 생성 우선.
+        orderBy: [{ status: "desc" }, { createdAt: "desc" }],
         take: 20,
         select: {
           id: true,
@@ -955,7 +959,8 @@ export function getUserProfile(id: string) {
         },
       },
       ownedEpics: {
-        orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+        // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO→BACKLOG) → 최신 생성 우선.
+        orderBy: [{ status: "desc" }, { createdAt: "desc" }],
         take: 20,
         select: {
           id: true,
