@@ -1,6 +1,12 @@
 "use client";
 
-import { createContext, useContext, useState, useTransition } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useTransition,
+} from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import {
@@ -145,6 +151,9 @@ type TreeCtx = {
   dragId: string | null;
   setDragId: (id: string | null) => void;
   move: (pageId: string, target: MoveTarget) => void;
+  /** 방금 생성돼 사이드바에서 바로 이름을 지정할(rename 모드로 열릴) 노드 id. */
+  pendingRenameId: string | null;
+  clearPendingRename: () => void;
 };
 const Ctx = createContext<TreeCtx | null>(null);
 function useTree() {
@@ -165,6 +174,8 @@ export function PageTree({
   const router = useRouter();
   const [, start] = useTransition();
   const [dragId, setDragId] = useState<string | null>(null);
+  // 생성 직후 rename 모드로 열릴 노드. 새로 마운트된 항목이 자기 id면 소비하고 비운다.
+  const [pendingRenameId, setPendingRenameId] = useState<string | null>(null);
 
   // 순환 방지용 페이지→부모 맵. 드롭 대상이 드래그 페이지의 하위인지 판정한다.
   const pageParent = new Map<string, string | null>();
@@ -208,6 +219,7 @@ export function PageTree({
           parentId: opts.parentId ?? null,
           folderId: opts.folderId ?? null,
         });
+        setPendingRenameId(id);
         router.push(`/wiki/${id}`);
         router.refresh();
       } catch {
@@ -218,7 +230,8 @@ export function PageTree({
   const addFolder = (parentId: string | null) =>
     start(async () => {
       try {
-        await createWikiFolder({ name: "새 폴더", parentId });
+        const { id } = await createWikiFolder({ name: "새 폴더", parentId });
+        setPendingRenameId(id);
         router.refresh();
       } catch {
         toast.error("폴더 생성에 실패했습니다");
@@ -232,7 +245,16 @@ export function PageTree({
 
   return (
     <Ctx.Provider
-      value={{ addPage, addFolder, favSet: new Set(favoriteIds), dragId, setDragId, move }}
+      value={{
+        addPage,
+        addFolder,
+        favSet: new Set(favoriteIds),
+        dragId,
+        setDragId,
+        move,
+        pendingRenameId,
+        clearPendingRename: () => setPendingRenameId(null),
+      }}
     >
       <div className="mb-1 flex items-center justify-between gap-1 px-1">
         <h2 className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
@@ -348,11 +370,17 @@ function FolderItem({
   depth: number;
   maps: Maps;
 }) {
-  const { addFolder, addPage, dragId, setDragId, move } = useTree();
+  const { addFolder, addPage, dragId, setDragId, move, pendingRenameId, clearPendingRename } =
+    useTree();
   const router = useRouter();
   const [open, setOpen] = useState(true);
-  const [renaming, setRenaming] = useState(false);
+  // 방금 생성된 폴더면 rename 모드로 시작해 바로 이름을 입력받는다.
+  const [renaming, setRenaming] = useState(() => pendingRenameId === folder.id);
   const [name, setName] = useState(folder.name);
+
+  useEffect(() => {
+    if (pendingRenameId === folder.id) clearPendingRename();
+  }, [pendingRenameId, folder.id, clearPendingRename]);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [dropInto, setDropInto] = useState(false);
   const [, start] = useTransition();
@@ -455,6 +483,7 @@ function FolderItem({
             >
               <Input
                 autoFocus
+                onFocus={(e) => e.currentTarget.select()}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 onBlur={submitRename}
@@ -567,12 +596,18 @@ function PageItem({
   /** 같은 컨테이너의 형제 목록(position 순). after 드롭 시 다음 형제 계산에 쓴다. */
   siblings: PageNode[];
 }) {
-  const { addPage, favSet, dragId, setDragId, move } = useTree();
+  const { addPage, favSet, dragId, setDragId, move, pendingRenameId, clearPendingRename } =
+    useTree();
   const router = useRouter();
   const pathname = usePathname();
   const [open, setOpen] = useState(true);
-  const [renaming, setRenaming] = useState(false);
+  // 방금 생성된 페이지면 rename 모드로 시작해 바로 제목을 입력받는다.
+  const [renaming, setRenaming] = useState(() => pendingRenameId === page.id);
   const [title, setTitle] = useState(page.title);
+
+  useEffect(() => {
+    if (pendingRenameId === page.id) clearPendingRename();
+  }, [pendingRenameId, page.id, clearPendingRename]);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [zone, setZone] = useState<DropZone | null>(null);
   const [, start] = useTransition();
@@ -729,6 +764,7 @@ function PageItem({
             >
               <Input
                 autoFocus
+                onFocus={(e) => e.currentTarget.select()}
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 onBlur={submitRename}
