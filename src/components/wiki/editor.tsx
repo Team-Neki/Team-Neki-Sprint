@@ -587,6 +587,26 @@ const TEXT_COLORS: { name: string; value: string }[] = [
   { name: "분홍", value: "#e93d82" },
 ];
 
+/**
+ * 팝오버 트리거 버튼에 빠른 Tooltip 을 입힌다(네이티브 title 지연 대신). Base UI 는 render
+ * 합성을 지원하므로 Tooltip 트리거가 Popover 트리거를, 그게 다시 Button 을 감싸 한 <button>
+ * 에 hover 툴팁 + click 팝오버가 모두 붙는다. 반드시 <Popover> 안에서 사용한다.
+ */
+function TooltipPopoverTrigger({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactElement;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger render={<PopoverTrigger render={children} />} />
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 /** 글자 색상 선택(Color 확장). 팔레트 스와치 클릭 → setColor, '기본 색' → unsetColor. */
 function ColorButton({ editor }: { editor: Editor }) {
   const [open, setOpen] = useState(false);
@@ -594,26 +614,23 @@ function ColorButton({ editor }: { editor: Editor }) {
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        render={
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-label="글자 색"
-            title="글자 색"
-            className={cn(
-              "size-8",
-              current && "bg-accent text-accent-foreground",
-            )}
-          >
-            <Baseline
-              className="size-4"
-              style={current ? { color: current } : undefined}
-            />
-          </Button>
-        }
-      />
+      <TooltipPopoverTrigger label="글자 색">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label="글자 색"
+          className={cn(
+            "size-8",
+            current && "bg-accent text-accent-foreground",
+          )}
+        >
+          <Baseline
+            className="size-4"
+            style={current ? { color: current } : undefined}
+          />
+        </Button>
+      </TooltipPopoverTrigger>
       <PopoverContent align="start" className="w-auto p-2">
         <div className="grid grid-cols-4 gap-1">
           {TEXT_COLORS.map((c) => (
@@ -752,23 +769,20 @@ function TableButton({ editor }: { editor: Editor }) {
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        render={
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-label="표"
-            title="표"
-            className={cn(
-              "size-8",
-              inTable && "bg-accent text-accent-foreground",
-            )}
-          >
-            <TableIcon className="size-4" />
-          </Button>
-        }
-      />
+      <TooltipPopoverTrigger label="표">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label="표"
+          className={cn(
+            "size-8",
+            inTable && "bg-accent text-accent-foreground",
+          )}
+        >
+          <TableIcon className="size-4" />
+        </Button>
+      </TooltipPopoverTrigger>
       <PopoverContent align="start" className="w-auto p-2">
         {!inTable ? (
           <TableSizePicker
@@ -849,22 +863,20 @@ function LinkButton({ editor }: { editor: Editor }) {
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
-      <PopoverTrigger
-        render={
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className={cn(
-              "size-8",
-              isActive && "bg-accent text-accent-foreground",
-            )}
-            aria-label="링크"
-          >
-            <LinkIcon className="size-4" />
-          </Button>
-        }
-      />
+      <TooltipPopoverTrigger label="링크">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className={cn(
+            "size-8",
+            isActive && "bg-accent text-accent-foreground",
+          )}
+          aria-label="링크"
+        >
+          <LinkIcon className="size-4" />
+        </Button>
+      </TooltipPopoverTrigger>
       <PopoverContent align="start" className="w-72">
         <form
           onSubmit={(e) => {
