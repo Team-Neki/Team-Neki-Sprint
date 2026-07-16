@@ -107,6 +107,8 @@ export function EpicTimeline({
   const [nameW, setNameW] = useState(NAME_W);
 
   const base = startOfDay(new Date(today));
+  // 월 라벨 연도 표기의 기준 연도(오늘 연도). 이 연도와 다른 달은 모두 연도를 함께 표기.
+  const baseYear = base.getFullYear();
 
   // 표시 창(range) 상태 — 좌우 무한 스크롤로 확장된다. 초기값은 데이터 범위와
   // 오늘 기준 기본 패딩의 합집합(데이터가 없어도 최소 90일 폭 → 항상 스크롤 가능).
@@ -164,21 +166,19 @@ export function EpicTimeline({
     const list = eachDayOfInterval({ start: s, end: addDays(s, days - 1) });
 
     // 상단 월 라벨: 각 달의 첫 표시일 인덱스에 "N월"을 놓는다(월 경계마다 1개).
-    // 연도가 바뀌는 달은 "1월'27" 처럼 2자리 연도를 함께 표시(무한 스크롤 대비).
+    // 기준 연도(오늘 연도)와 다른 달은 그 연도의 "모든" 달에 "2월'27년" 처럼 연도를
+    // 함께 표시한다(연도 전환 첫 달만이 아니라). 기준 연도의 달은 "N월"만 표기.
     const ms: { index: number; label: string }[] = [];
     let lastKey = "";
-    let lastYear: number | null = null;
     list.forEach((d, i) => {
       const key = format(d, "yyyy-MM");
       if (key !== lastKey) {
-        const y = d.getFullYear();
         const label =
-          y !== lastYear
-            ? `${format(d, "M")}월'${format(d, "yy")}`
+          d.getFullYear() !== baseYear
+            ? `${format(d, "M")}월'${format(d, "yy")}년`
             : `${format(d, "M")}월`;
         ms.push({ index: i, label });
         lastKey = key;
-        lastYear = y;
       }
     });
 
@@ -190,7 +190,7 @@ export function EpicTimeline({
       dayList: list,
       months: ms,
     };
-  }, [range]);
+  }, [range, baseYear]);
 
   const dayIndex = (d: Date) =>
     differenceInCalendarDays(startOfDay(d), start);
