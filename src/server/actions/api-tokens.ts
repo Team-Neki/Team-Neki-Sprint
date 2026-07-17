@@ -6,7 +6,11 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { buildToken } from "@/lib/api-token";
 
-const nameSchema = z.string().trim().min(1, "이름을 입력하세요").max(60);
+const nameSchema = z
+  .string()
+  .trim()
+  .min(1, { error: "이름을 입력하세요" })
+  .max(60);
 
 /** 현재 유저의 토큰 발급. 원문은 이 응답에서만 반환하고 저장하지 않는다. */
 export async function createApiToken(name: string) {
