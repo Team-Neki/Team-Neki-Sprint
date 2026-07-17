@@ -64,6 +64,8 @@ export function TaskGithub({
       toast.error(
         e instanceof Error ? e.message : "레포 목록을 불러오지 못했습니다",
       );
+      // 로딩 상태로 갇히지 않게 폼을 닫아 재시도 가능하게 한다.
+      setOpen(false);
     }
   }
 
@@ -82,7 +84,6 @@ export function TaskGithub({
         await createBranchForTask({
           taskId,
           repoFullName: repo,
-          prefix,
           branchName,
           base: null,
         });
@@ -168,6 +169,7 @@ export function TaskGithub({
           />
           <span className="text-muted-foreground text-xs">브랜치명</span>
           <input
+            aria-label="브랜치명"
             value={branchName}
             onChange={(e) => setBranchName(e.target.value)}
             className="border-border bg-background rounded-md border px-2 py-1 font-mono text-xs"

@@ -144,7 +144,6 @@ export type WikiFolderInput = z.infer<typeof wikiFolderSchema>;
 export const createBranchSchema = z.object({
   taskId: z.string(),
   repoFullName: z.string().min(1),
-  prefix: z.enum(["feature", "fix", "chore"]),
   branchName: z.string().min(1),
   base: z.string().nullish(),
 });

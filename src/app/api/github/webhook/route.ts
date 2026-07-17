@@ -20,13 +20,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "서명 불일치" }, { status: 401 });
   }
 
+  let payload: GithubPayload;
+  try {
+    payload = JSON.parse(raw) as GithubPayload;
+  } catch {
+    return NextResponse.json({ error: "잘못된 JSON" }, { status: 400 });
+  }
+
   const event = req.headers.get("x-github-event") ?? "";
   try {
-    await handleGithubEvent(event, JSON.parse(raw) as GithubPayload);
+    await handleGithubEvent(event, payload);
   } catch (e) {
     console.error("[github webhook]", e);
-    // 멱등 upsert 라 재전송이 무의미 → 200 으로 확인 처리, 심각 오류만 로깅.
-    return NextResponse.json({ ok: false }, { status: 200 });
+    // 모든 쓰기가 멱등 upsert 라 재시도가 안전하다. 처리 실패는 5xx 로 반환해 GitHub 가
+    // 재전송하게 두어야 링크/상태 전이가 유실되지 않는다(200 으로 삼키지 않는다).
+    return NextResponse.json({ ok: false }, { status: 500 });
   }
   return NextResponse.json({ ok: true });
 }

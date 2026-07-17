@@ -1,6 +1,8 @@
 import { createSign } from "node:crypto";
 
 const API = "https://api.github.com";
+// GitHub 장애 시 서버 액션/요청 자원이 무기한 묶이지 않도록 각 호출에 상한을 둔다.
+const TIMEOUT_MS = 10_000;
 
 /** App 인증용 단기 JWT(RS256). 만료 <=10분. */
 function appJwt(): string {
@@ -34,6 +36,7 @@ async function installationToken(installationId: number): Promise<string> {
         Accept: "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
       },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
     },
   );
   if (!res.ok) {
@@ -62,5 +65,6 @@ export async function githubFetch(
       "Content-Type": "application/json",
       ...(init?.headers ?? {}),
     },
+    signal: init?.signal ?? AbortSignal.timeout(TIMEOUT_MS),
   });
 }
