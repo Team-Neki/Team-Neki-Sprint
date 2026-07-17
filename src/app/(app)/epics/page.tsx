@@ -1,12 +1,12 @@
-import { Plus, Layers } from "lucide-react";
+import { Plus } from "lucide-react";
 import {
   getEpics,
   getProjectOptions,
   getTeamOptions,
   getMembers,
+  getLabelOptions,
 } from "@/server/queries";
 import { PageHeader } from "@/components/page-header";
-import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EpicsTable } from "@/components/tables/epics-table";
@@ -22,11 +22,12 @@ export default async function EpicsPage({
   searchParams: Promise<{ owner?: string; team?: string }>;
 }) {
   const sp = await searchParams;
-  const [epics, projects, teams, members] = await Promise.all([
+  const [epics, projects, teams, members, labels] = await Promise.all([
     getEpics({ ownerId: sp.owner || undefined, teamId: sp.team || undefined }),
     getProjectOptions(),
     getTeamOptions(),
     getMembers(),
+    getLabelOptions(),
   ]);
 
   return (
@@ -51,29 +52,14 @@ export default async function EpicsPage({
         <TeamFilter teams={teams} />
       </OwnerFilter>
 
-      {epics.length === 0 ? (
-        <EmptyState
-          icon={Layers}
-          title="아직 에픽이 없습니다"
-          description="첫 에픽을 만들어 프로젝트를 구조화하세요."
-          action={
-            <EpicDialog
-              members={members}
-              teams={teams}
-              projects={projects}
-              trigger={
-                <Button variant="outline">
-                  <Plus className="size-4" /> 첫 에픽 만들기
-                </Button>
-              }
-            />
-          }
+      {/* 항목이 없어도 컬럼 헤더가 보이도록 항상 표를 렌더한다(빈 안내는 표 안 EmptyRow). */}
+      <Card className="overflow-hidden py-0">
+        <EpicsTable
+          epics={epics}
+          emptyMessage="아직 에픽이 없습니다. 상단 ‘새 에픽’으로 만들어보세요."
+          edit={{ members, teams, projects, labels }}
         />
-      ) : (
-        <Card className="overflow-hidden py-0">
-          <EpicsTable epics={epics} edit={{ members, teams, projects }} />
-        </Card>
-      )}
+      </Card>
     </div>
   );
 }

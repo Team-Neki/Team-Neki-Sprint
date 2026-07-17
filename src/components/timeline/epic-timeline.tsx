@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import {
@@ -55,13 +55,16 @@ const NAME_W_MAX = 560;
 const RULER_PAD = 12;
 // 셀 내부 좌측 텍스트 여백(px) — 월 라벨과 일 숫자가 같은 시작 오프셋을 쓰게 한다.
 const CELL_PAD = 2;
-// Each date is a fixed-width day cell. Day width fills toward TARGET_RULER_PX but
-// is clamped to [DAY_W_MIN, DAY_W_MAX]: long ranges floor at the min (cells stay
-// readable, container widens → horizontal scroll), short ranges cap at the max.
-const DAY_W_MIN = 28;
-const DAY_W_MAX = 40;
-const TARGET_RULER_PX = 900;
+// 무한 스크롤이므로 하루 셀 폭을 고정(min)한다. 창(range)을 넓혀도 재스케일 없이
+// 스크롤 위치 보정(prepend px = CHUNK_DAYS * DAY_W)이 정확해진다.
+const DAY_W = 28;
 const MIN_BAR_PX = 6;
+// 초기 창: 오늘 기준 과거/미래 패딩(데이터 범위와 합집합). 무한 스크롤로 확장됨.
+const PAST_PAD = 30;
+const FUTURE_PAD = 60;
+// 스크롤이 가장자리에서 이 픽셀 이내로 오면 창을 CHUNK_DAYS 만큼 확장.
+const EDGE_PX = 240;
+const CHUNK_DAYS = 30;
 
 function datesOf(epic: TimelineEpic): Date[] {
   const ds: (Date | null)[] = [epic.startDate, epic.dueDate];
@@ -82,6 +85,14 @@ function taskRange(t: TimelineTask): Range {
   return { start: new Date(s), end: new Date(e) };
 }
 
+// 상태 2색 체계: 완료(DONE)=emerald, 그 외(진행 중/예정)=blue. 에픽·태스크 공통
+// (엔티티 종류가 아니라 상태로 색을 구분). in-product 상태색이라 DESIGN 예외 허용.
+function barTone(status: Status): string {
+  return status === "DONE"
+    ? "bg-emerald-500 text-white"
+    : "bg-blue-500 text-white";
+}
+
 export function EpicTimeline({
   epics,
   today,
@@ -94,6 +105,34 @@ export function EpicTimeline({
   // 이름 열(거터) 폭 — 드래그 리사이즈 가능. 구분선은 별도 오버레이가 아니라
   // sticky 거터의 border-r 로 그린다(거터가 CSS sticky 라 스크롤에 안 흔들림).
   const [nameW, setNameW] = useState(NAME_W);
+
+  const base = startOfDay(new Date(today));
+  // 월 라벨 연도 표기의 기준 연도(오늘 연도). 이 연도와 다른 달은 모두 연도를 함께 표기.
+  const baseYear = base.getFullYear();
+
+  // 표시 창(range) 상태 — 좌우 무한 스크롤로 확장된다. 초기값은 데이터 범위와
+  // 오늘 기준 기본 패딩의 합집합(데이터가 없어도 최소 90일 폭 → 항상 스크롤 가능).
+  const [range, setRange] = useState<{ start: Date; end: Date }>(() => {
+    const all = epics.flatMap(datesOf);
+    const start = startOfDay(
+      all.length
+        ? minDate([...all, addDays(base, -PAST_PAD)])
+        : addDays(base, -PAST_PAD),
+    );
+    const end = startOfDay(
+      all.length
+        ? maxDate([...all, addDays(base, FUTURE_PAD)])
+        : addDays(base, FUTURE_PAD),
+    );
+    return { start, end };
+  });
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  // prepend 시 삽입된 폭(px)만큼 scrollLeft 를 더해 화면 위치를 보존(pre-paint).
+  const adjustRef = useRef(0);
+  const didInit = useRef(false);
+  // 확장 처리가 재렌더로 반영되기 전 중복 확장(fling 연타)을 막는 가드.
+  const pending = useRef(false);
 
   function onResizeStart(e: React.PointerEvent) {
     e.preventDefault();
@@ -119,50 +158,42 @@ export function EpicTimeline({
       return next;
     });
 
-  const base = startOfDay(new Date(today));
+  // 표시 창(range)을 per-day 컬럼으로 해상. 하루 폭은 DAY_W 로 고정(무한 스크롤).
+  const { start, totalDays, dayWidth, rulerWidth, dayList, months } =
+    useMemo(() => {
+      const s = startOfDay(range.start);
+      const e = startOfDay(range.end);
+      const days = Math.max(differenceInCalendarDays(e, s) + 1, 14);
+      const list = eachDayOfInterval({ start: s, end: addDays(s, days - 1) });
 
-  // Global window across every epic/task date, resolved to per-day columns.
-  const { start, totalDays, dayWidth, rulerWidth, dayList, months } = useMemo(() => {
-    const all = epics.flatMap(datesOf);
-    const rangeStart = all.length
-      ? minDate([...all, addDays(base, -3)])
-      : addDays(base, -3);
-    const rangeEnd = all.length
-      ? maxDate([...all, addDays(base, 21)])
-      : addDays(base, 21);
-    const s = startOfDay(rangeStart);
-    const e = startOfDay(rangeEnd);
-    const days = Math.max(differenceInCalendarDays(e, s) + 1, 14);
-    const width = Math.min(
-      DAY_W_MAX,
-      Math.max(DAY_W_MIN, Math.round(TARGET_RULER_PX / days)),
-    );
-    const list = eachDayOfInterval({ start: s, end: addDays(s, days - 1) });
+      // 상단 월 라벨: 각 달의 첫 표시일 인덱스에 "N월"을 놓는다(월 경계마다 1개).
+      // 기준 연도(오늘 연도)와 다른 달은 그 연도의 "모든" 달에 "2월'27년" 처럼 연도를
+      // 함께 표시한다(연도 전환 첫 달만이 아니라). 기준 연도의 달은 "N월"만 표기.
+      const ms: { index: number; label: string }[] = [];
+      let lastKey = "";
+      list.forEach((d, i) => {
+        const key = format(d, "yyyy-MM");
+        if (key !== lastKey) {
+          const label =
+            d.getFullYear() !== baseYear
+              ? `${format(d, "M")}월'${format(d, "yy")}년`
+              : `${format(d, "M")}월`;
+          ms.push({ index: i, label });
+          lastKey = key;
+        }
+      });
 
-    // 상단 월 라벨: 각 달의 첫 표시일 인덱스에 "N월"을 놓는다(월 경계마다 1개).
-    // 일(day) 숫자는 모든 셀에 표시하므로 여기선 월만 계산한다.
-    const ms: { index: number; label: string }[] = [];
-    let lastKey = "";
-    list.forEach((d, i) => {
-      const key = format(d, "yyyy-MM");
-      if (key !== lastKey) {
-        ms.push({ index: i, label: `${format(d, "M")}월` });
-        lastKey = key;
-      }
-    });
+      return {
+        start: s,
+        totalDays: days,
+        dayWidth: DAY_W,
+        rulerWidth: days * DAY_W,
+        dayList: list,
+        months: ms,
+      };
+    }, [range, baseYear]);
 
-    return {
-      start: s,
-      totalDays: days,
-      dayWidth: width,
-      rulerWidth: days * width,
-      dayList: list,
-      months: ms,
-    };
-  }, [epics, base]);
-
-  const dayIndex = (d: Date) =>
-    differenceInCalendarDays(startOfDay(d), start);
+  const dayIndex = (d: Date) => differenceInCalendarDays(startOfDay(d), start);
   const leftPx = (d: Date) => Math.max(dayIndex(d), 0) * dayWidth;
   const spanPx = (r: { start: Date; end: Date }) => {
     const l = leftPx(r.start);
@@ -170,6 +201,38 @@ export function EpicTimeline({
     return Math.max(right - l, MIN_BAR_PX);
   };
   const todayIndex = dayIndex(base);
+
+  // 마운트 시 오늘을 이름 거터 바로 우측에 위치시키고, 이후 prepend 확장 때
+  // 삽입된 폭만큼 scrollLeft 를 보정해 화면이 튀지 않게 한다(pre-paint).
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    if (!didInit.current) {
+      didInit.current = true;
+      el.scrollLeft = Math.max(0, RULER_PAD + (todayIndex - 2) * dayWidth);
+      return;
+    }
+    if (adjustRef.current) {
+      el.scrollLeft += adjustRef.current;
+      adjustRef.current = 0;
+    }
+    pending.current = false;
+  }, [range, todayIndex, dayWidth]);
+
+  function onScroll() {
+    const el = scrollRef.current;
+    if (!el || pending.current) return;
+    if (el.scrollLeft < EDGE_PX) {
+      // 좌측 끝 근접 → 과거로 확장. 삽입 폭만큼 scrollLeft 보정 예약.
+      pending.current = true;
+      adjustRef.current += CHUNK_DAYS * dayWidth;
+      setRange((r) => ({ ...r, start: addDays(r.start, -CHUNK_DAYS) }));
+    } else if (el.scrollLeft + el.clientWidth >= el.scrollWidth - EDGE_PX) {
+      // 우측 끝 근접 → 미래로 확장(scrollLeft 보정 불필요).
+      pending.current = true;
+      setRange((r) => ({ ...r, end: addDays(r.end, CHUNK_DAYS) }));
+    }
+  }
 
   // Group epics under their owner (담당자), preserving order.
   const groups = useMemo(() => {
@@ -187,8 +250,11 @@ export function EpicTimeline({
   }, [epics]);
 
   return (
-    <div className="overflow-x-auto">
-      <div className="relative" style={{ width: nameW + RULER_PAD + rulerWidth }}>
+    <div ref={scrollRef} onScroll={onScroll} className="overflow-x-auto">
+      <div
+        className="relative"
+        style={{ width: nameW + RULER_PAD + rulerWidth }}
+      >
         {/* 날짜 축(2줄): 상단=월("N월"), 하단=모든 일자 숫자. 이름 거터 위는 sticky
             마스크로 가려 가로 스크롤 시 라벨이 거터 아래로 비치지 않게 한다. */}
         <div
@@ -258,12 +324,21 @@ export function EpicTimeline({
           )}
 
           <div className="flex flex-col">
-            {/* 최상단 여백: 날짜 축(가로선) 아래 ~ 첫 그룹(이민서) 사이. sticky 거터로
+            {/* 최상단 여백: 날짜 축(가로선) 아래 ~ 첫 그룹 사이. sticky 거터로
                 border-r 을 이어 구분선이 끊기지 않게 한다(그룹 간 스페이서와 동일 패턴). */}
             <div
               className="bg-card border-border sticky left-0 z-30 h-3 border-r"
               style={{ width: nameW }}
             />
+            {/* 에픽이 없어도 축/그리드는 렌더되어 좌우로 스크롤할 수 있다(무한 스크롤). */}
+            {groups.length === 0 && (
+              <div
+                className="bg-card border-border text-muted-foreground sticky left-0 z-30 flex h-16 items-center border-r px-3 text-xs"
+                style={{ width: nameW }}
+              >
+                표시할 에픽이 없습니다
+              </div>
+            )}
             {groups.map((g, gi) => (
               <div key={gi}>
                 {/* 그룹 간 간격을 이름 열에서도 이어지게 하는 sticky 스페이서 —
@@ -277,138 +352,139 @@ export function EpicTimeline({
                 {/* gap 을 두지 않는다: sticky 거터가 세로로 맞닿아야 border-r(구분선)이
                     끊기지 않고 이어진다. 행 간 여백은 각 행의 막대 컨테이너 높이로 확보. */}
                 <div className="flex flex-col">
-                <div
-                  className="bg-card border-border text-foreground sticky left-0 z-30 flex shrink-0 items-center gap-1.5 border-r pr-3 pl-3 text-xs font-medium"
-                  style={{ width: nameW }}
-                  title={g.title}
-                >
-                  <UserBadge user={g.owner} hideName size="xs" />
-                  <span className="truncate">{g.title}</span>
-                </div>
-                {g.epics.map((epic) => {
-                  const r = rangeOf(epic);
-                  const isOpen = expanded.has(epic.id);
-                  const hasTasks = epic.tasks.length > 0;
-                  return (
-                    <div key={epic.id} className="flex flex-col">
-                      {/* Epic row */}
-                      <div className="flex items-center">
-                        <div
-                          className="bg-card border-border sticky left-0 z-30 flex shrink-0 items-center gap-1 self-stretch border-r pr-3 pl-4"
-                          style={{ width: nameW }}
-                        >
-                          <button
-                            type="button"
-                            onClick={() => toggle(epic.id)}
-                            className={cn(
-                              "text-muted-foreground shrink-0 rounded p-0.5 hover:bg-accent",
-                              !hasTasks && "invisible",
-                            )}
-                            aria-label="펼치기"
+                  <div
+                    className="bg-card border-border text-foreground sticky left-0 z-30 flex shrink-0 items-center gap-1.5 border-r pr-3 pl-3 text-xs font-medium"
+                    style={{ width: nameW }}
+                    title={g.title}
+                  >
+                    <UserBadge user={g.owner} hideName size="xs" />
+                    <span className="truncate">{g.title}</span>
+                  </div>
+                  {g.epics.map((epic) => {
+                    const r = rangeOf(epic);
+                    const isOpen = expanded.has(epic.id);
+                    const hasTasks = epic.tasks.length > 0;
+                    return (
+                      <div key={epic.id} className="flex flex-col">
+                        {/* Epic row */}
+                        <div className="flex items-center">
+                          <div
+                            className="bg-card border-border sticky left-0 z-30 flex shrink-0 items-center gap-1 self-stretch border-r pr-3 pl-4"
+                            style={{ width: nameW }}
                           >
-                            <ChevronRight
+                            <button
+                              type="button"
+                              onClick={() => toggle(epic.id)}
                               className={cn(
-                                "size-3.5 transition-transform",
-                                isOpen && "rotate-90",
+                                "text-muted-foreground shrink-0 rounded p-0.5 hover:bg-accent",
+                                !hasTasks && "invisible",
                               )}
-                            />
-                          </button>
-                          <Link
-                            href={`/epics/${epic.id}`}
-                            className="min-w-0 flex-1 truncate text-sm font-medium hover:underline"
-                            title={epic.title}
-                          >
-                            <span className="text-muted-foreground font-mono text-[11px]">
-                              {formatIssueKey(epic.team?.key, epic.number)}
-                            </span>{" "}
-                            {epic.title}
-                          </Link>
-                          <UserBadge user={epic.owner} hideName size="xs" />
-                        </div>
-                        <div
-                          className="relative h-7 shrink-0"
-                          style={{ width: rulerWidth, marginLeft: RULER_PAD }}
-                        >
-                          {r ? (
+                              aria-label="펼치기"
+                            >
+                              <ChevronRight
+                                className={cn(
+                                  "size-3.5 transition-transform",
+                                  isOpen && "rotate-90",
+                                )}
+                              />
+                            </button>
                             <Link
                               href={`/epics/${epic.id}`}
-                              className={cn(
-                                // overflow-clip(=clip, scroll container 아님)로 막대 밖은 잘라내되
-                                // 내부 라벨의 sticky 는 외부 가로 스크롤 컨테이너 기준으로 유지한다.
-                                // 에픽 = 옅은 회색(상태색 대신 계층 구분용).
-                                "absolute top-1/2 flex h-6 -translate-y-1/2 items-center overflow-clip rounded-md bg-neutral-300 px-2 text-[11px] font-medium text-neutral-800 shadow-sm",
-                              )}
-                              style={{ left: leftPx(r.start), width: spanPx(r) }}
+                              className="min-w-0 flex-1 truncate text-sm font-medium hover:underline"
+                              title={epic.title}
                             >
-                              {/* 라벨을 이름 거터 우측(left:NAME_W)에 sticky 고정 → 가로 스크롤 시
-                                  보이는 좌측 끝에 머물다가, 막대가 지나가면 막대와 함께 밀려난다. */}
-                              <span
-                                // pl-1 + left 오프셋: sticky 로 끌려와 이름 거터에
-                                // 붙을 때 글자 좌측이 잘리지 않도록 여백을 준다.
-                                className="sticky min-w-0 truncate pl-1"
-                                style={{ left: nameW + RULER_PAD + 4 }}
-                              >
-                                {epic.tasks.length > 0
-                                  ? `${epic.tasks.length} 태스크`
-                                  : format(r.end, "M/d", { locale: ko })}
-                              </span>
+                              <span className="text-muted-foreground font-mono text-[11px]">
+                                {formatIssueKey(epic.team?.key, epic.number)}
+                              </span>{" "}
+                              {epic.title}
                             </Link>
-                          ) : (
-                            // 일정 미설정 라벨은 sticky 가 아니라 스크롤 콘텐츠(ruler)
-                            // 안에 두어 막대(그래프)와 함께 좌우로 움직인다. left 는
-                            // 일자 라벨과 같은 CELL_PAD 오프셋으로 구분선 여백을 맞춘다.
-                            <span
-                              className="text-muted-foreground/60 pointer-events-none absolute top-1/2 -translate-y-1/2 text-[11px] whitespace-nowrap"
-                              style={{ left: CELL_PAD }}
-                            >
-                              일정 미설정
-                            </span>
-                          )}
+                            <UserBadge user={epic.owner} hideName size="xs" />
+                          </div>
+                          <div
+                            className="relative h-7 shrink-0"
+                            style={{ width: rulerWidth, marginLeft: RULER_PAD }}
+                          >
+                            {r ? (
+                              // 막대만 노출(내부 텍스트 라벨 제거). 색은 상태 2색 체계(완료/진행중),
+                              // 두께는 태스크 막대와 동일(h-5). 제목은 hover 툴팁(title)으로만 제공.
+                              <Link
+                                href={`/epics/${epic.id}`}
+                                className={cn(
+                                  "absolute top-1/2 h-5 -translate-y-1/2 rounded-md shadow-sm",
+                                  barTone(epic.status),
+                                )}
+                                style={{
+                                  left: leftPx(r.start),
+                                  width: spanPx(r),
+                                }}
+                                title={epic.title}
+                              />
+                            ) : (
+                              // 일정 미설정 라벨은 sticky 가 아니라 스크롤 콘텐츠(ruler)
+                              // 안에 두어 막대(그래프)와 함께 좌우로 움직인다. left 는
+                              // 일자 라벨과 같은 CELL_PAD 오프셋으로 구분선 여백을 맞춘다.
+                              <span
+                                className="text-muted-foreground/60 pointer-events-none absolute top-1/2 -translate-y-1/2 text-[11px] whitespace-nowrap"
+                                style={{ left: CELL_PAD }}
+                              >
+                                일정 미설정
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </div>
 
-                      {/* Task sub-rows */}
-                      {isOpen &&
-                        epic.tasks.map((t) => {
-                          const tr = taskRange(t);
-                          return (
-                            <div key={t.id} className="flex items-center">
-                              <div
-                                className="bg-card border-border sticky left-0 z-30 flex shrink-0 items-center gap-1.5 self-stretch border-r py-0.5 pr-3 pl-9"
-                                style={{ width: nameW }}
-                              >
-                                <Link
-                                  href={`/tasks/${t.id}`}
-                                  className="text-muted-foreground min-w-0 flex-1 truncate text-xs hover:underline"
-                                  title={t.title}
+                        {/* Task sub-rows */}
+                        {isOpen &&
+                          epic.tasks.map((t) => {
+                            const tr = taskRange(t);
+                            return (
+                              <div key={t.id} className="flex items-center">
+                                <div
+                                  className="bg-card border-border sticky left-0 z-30 flex shrink-0 items-center gap-1.5 self-stretch border-r py-0.5 pr-3 pl-9"
+                                  style={{ width: nameW }}
                                 >
-                                  {t.title}
-                                </Link>
-                                <UserBadge user={t.assignee} hideName size="xs" />
-                              </div>
-                              <div
-                                className="relative h-6 shrink-0"
-                                style={{ width: rulerWidth, marginLeft: RULER_PAD }}
-                              >
-                                {tr && (
                                   <Link
                                     href={`/tasks/${t.id}`}
-                                    // 태스크 = 에픽보다 조금 더 짙은 회색(개별 태스크는 색 구분 안 함).
-                                    className="absolute top-1/2 h-3.5 -translate-y-1/2 rounded-sm bg-neutral-500"
-                                    style={{
-                                      left: leftPx(tr.start),
-                                      width: spanPx(tr),
-                                    }}
-                                    title={`${t.title} · ${format(tr.end, "M/d", { locale: ko })}`}
+                                    className="text-muted-foreground min-w-0 flex-1 truncate text-xs hover:underline"
+                                    title={t.title}
+                                  >
+                                    {t.title}
+                                  </Link>
+                                  <UserBadge
+                                    user={t.assignee}
+                                    hideName
+                                    size="xs"
                                   />
-                                )}
+                                </div>
+                                <div
+                                  className="relative h-6 shrink-0"
+                                  style={{
+                                    width: rulerWidth,
+                                    marginLeft: RULER_PAD,
+                                  }}
+                                >
+                                  {tr && (
+                                    <Link
+                                      href={`/tasks/${t.id}`}
+                                      // 태스크 막대: 에픽과 동일 두께(h-5)·동일 상태색(2색 체계).
+                                      className={cn(
+                                        "absolute top-1/2 h-5 -translate-y-1/2 rounded-md",
+                                        barTone(t.status),
+                                      )}
+                                      style={{
+                                        left: leftPx(tr.start),
+                                        width: spanPx(tr),
+                                      }}
+                                      title={`${t.title} · ${format(tr.end, "M/d", { locale: ko })}`}
+                                    />
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          );
-                        })}
-                    </div>
-                  );
-                })}
+                            );
+                          })}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ))}

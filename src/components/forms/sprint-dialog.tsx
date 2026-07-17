@@ -41,8 +41,31 @@ export function SprintDialog({
   sprint?: Existing;
   trigger: React.ReactElement;
 }) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger render={trigger} />
+      <DialogContent className="sm:max-w-md">
+        {/*
+          폼 필드 state 는 이 자식(SprintForm)에 둔다. Base UI 는 닫히면 popup 하위를
+          언마운트하므로(keepMounted=false), 매 열림마다 새로 마운트되어 폼이 항상
+          초기값으로 리셋된다(만들기=빈 폼, 수정=원본 값).
+        */}
+        <SprintForm sprint={sprint} onClose={() => setOpen(false)} />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SprintForm({
+  sprint,
+  onClose,
+}: {
+  sprint?: Existing;
+  onClose: () => void;
+}) {
+  const router = useRouter();
   const [pending, start] = useTransition();
 
   const [name, setName] = useState(sprint?.name ?? "");
@@ -63,7 +86,7 @@ export function SprintDialog({
         if (sprint) await updateSprint(sprint.id, payload);
         else await createSprint(payload);
         toast.success(sprint ? "수정했습니다" : "스프린트를 만들었습니다");
-        setOpen(false);
+        onClose();
         router.refresh();
       } catch {
         toast.error("저장에 실패했습니다");
@@ -72,82 +95,79 @@ export function SprintDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={trigger} />
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{sprint ? "스프린트 수정" : "새 스프린트"}</DialogTitle>
-        </DialogHeader>
-        <div className="grid gap-4 py-2">
+    <>
+      <DialogHeader>
+        <DialogTitle>{sprint ? "스프린트 수정" : "새 스프린트"}</DialogTitle>
+      </DialogHeader>
+      <div className="grid gap-4 py-2">
+        <div className="grid gap-2">
+          <Label>이름</Label>
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="예: 2026 상반기 스프린트"
+            autoFocus
+          />
+        </div>
+        <div className="grid gap-2">
+          <Label>상태</Label>
+          <Select
+            value={status}
+            onValueChange={(v) => setStatus(v as SprintStatus)}
+          >
+            <SelectTrigger>
+              <SelectValue>
+                {(v: SprintStatus) => (
+                  <span className="flex items-center gap-2">
+                    <span
+                      className={`size-1.5 rounded-full ${SPRINT_STATUS_META[v].dot}`}
+                    />
+                    {SPRINT_STATUS_META[v].label}
+                  </span>
+                )}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {SPRINT_STATUS_ORDER.map((s) => (
+                <SelectItem key={s} value={s}>
+                  <span className="flex items-center gap-2">
+                    <span
+                      className={`size-1.5 rounded-full ${SPRINT_STATUS_META[s].dot}`}
+                    />
+                    {SPRINT_STATUS_META[s].label}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="grid gap-2">
-            <Label>이름</Label>
+            <Label>시작일</Label>
             <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="예: 2026 상반기 스프린트"
-              autoFocus
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
             />
           </div>
           <div className="grid gap-2">
-            <Label>상태</Label>
-            <Select
-              value={status}
-              onValueChange={(v) => setStatus(v as SprintStatus)}
-            >
-              <SelectTrigger>
-                <SelectValue>
-                  {(v: SprintStatus) => (
-                    <span className="flex items-center gap-2">
-                      <span
-                        className={`size-1.5 rounded-full ${SPRINT_STATUS_META[v].dot}`}
-                      />
-                      {SPRINT_STATUS_META[v].label}
-                    </span>
-                  )}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {SPRINT_STATUS_ORDER.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    <span className="flex items-center gap-2">
-                      <span
-                        className={`size-1.5 rounded-full ${SPRINT_STATUS_META[s].dot}`}
-                      />
-                      {SPRINT_STATUS_META[s].label}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label>시작일</Label>
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label>종료일</Label>
-              <Input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-              />
-            </div>
+            <Label>종료일</Label>
+            <Input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+            />
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>
-            취소
-          </Button>
-          <Button onClick={submit} disabled={pending}>
-            {pending ? "저장 중…" : "저장"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </div>
+      <DialogFooter>
+        <Button variant="outline" onClick={onClose}>
+          취소
+        </Button>
+        <Button onClick={submit} disabled={pending}>
+          {pending ? "저장 중…" : "저장"}
+        </Button>
+      </DialogFooter>
+    </>
   );
 }

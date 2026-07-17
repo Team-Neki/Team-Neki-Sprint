@@ -1,10 +1,13 @@
 "use client";
 
-// 사람 멘션 '@'(B5). Tiptap suggestion(트리거 '@')로 멤버를 검색해 인라인
-// 멘션 칩(personMention 노드)을 삽입한다. 칩 클릭 시 /users/<id> 프로필로 이동.
+// 사람/팀 멘션 '@'(B5). Tiptap suggestion(트리거 '@')로 멤버·팀을 함께 검색해
+// 인라인 멘션 칩(personMention/teamMention 노드)을 삽입한다. 사람 칩 클릭 시
+// /users/<id> 프로필로 이동. 팀 멘션은 저장 시 팀원 전원에게 알림이 확장된다.
 //
 // #4 티켓 멘션(ticket-mention.tsx)과 동일 패턴의 자기완결 모듈로, extensions.ts
-// 배열에 PersonMention 한 줄만 추가하면 된다.
+// 배열에 PersonMention 한 줄만 추가하면 된다(teamMention 노드는 team-mention.tsx).
+// 같은 '@' 문자에 Suggestion 플러그인을 두 개 둘 수 없어 팀 항목도 이 모듈의
+// suggestion 이 함께 노출한다.
 
 import {
   forwardRef,
@@ -25,15 +28,25 @@ import Suggestion, {
   type SuggestionProps,
   type SuggestionKeyDownProps,
 } from "@tiptap/suggestion";
+import { Users } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { searchMembersAction } from "@/server/actions/wiki";
+import { searchMentionTargetsAction } from "@/server/actions/wiki";
 
-export type PersonItem = {
-  id: string;
-  label: string; // 표시 이름
-  email: string;
-  team: string | null; // 팀명
-};
+export type PersonItem =
+  | {
+      kind: "person";
+      id: string;
+      label: string; // 표시 이름
+      email: string;
+      team: string | null; // 팀명
+    }
+  | {
+      kind: "team";
+      id: string;
+      label: string; // 팀명
+      teamKey: string; // 이슈 key 접두어("DESIGN")
+      memberCount: number;
+    };
 
 const personSuggestionKey = new PluginKey("personMention");
 
@@ -114,12 +127,12 @@ const PersonSuggestionList = forwardRef(function PersonSuggestionList(
         </div>
       ) : items.length === 0 ? (
         <div className="text-muted-foreground px-2 py-3 text-center text-sm">
-          일치하는 사용자가 없습니다
+          일치하는 사용자/팀이 없습니다
         </div>
       ) : (
         items.map((item, i) => (
           <button
-            key={item.id}
+            key={`${item.kind}:${item.id}`}
             type="button"
             onMouseDown={(e) => {
               e.preventDefault();
@@ -131,11 +144,23 @@ const PersonSuggestionList = forwardRef(function PersonSuggestionList(
               i === selected ? "bg-muted text-foreground" : "text-foreground",
             )}
           >
-            <span className="truncate">{item.label}</span>
-            {item.team && (
-              <span className="text-muted-foreground shrink-0 text-xs">
-                {item.team}
-              </span>
+            {item.kind === "team" ? (
+              <>
+                <Users className="text-muted-foreground size-3.5 shrink-0" />
+                <span className="truncate">{item.label}</span>
+                <span className="text-muted-foreground shrink-0 text-xs">
+                  팀 전체 · {item.memberCount}명
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="truncate">{item.label}</span>
+                {item.team && (
+                  <span className="text-muted-foreground shrink-0 text-xs">
+                    {item.team}
+                  </span>
+                )}
+              </>
             )}
           </button>
         ))
@@ -205,14 +230,32 @@ export const PersonMention = Node.create({
         char: "@",
         pluginKey: personSuggestionKey,
         debounce: 150,
+        // 코드블록 안에서는 '@' 를 사람 멘션 트리거로 쓰지 않는다(팝업 미표시).
+        allow: ({ state, range }) =>
+          state.doc.resolve(range.from).parent.type.name !== "codeBlock",
         items: async ({ query }) => {
-          const rows = await searchMembersAction(query);
-          return rows.map((u) => ({
-            id: u.id,
-            label: u.name ?? u.email,
-            email: u.email,
-            team: u.team?.name ?? null,
-          }));
+          const { users, teams } = await searchMentionTargetsAction(query);
+          // 팀을 위에(소수), 멤버를 아래에. 팀 멘션은 전원 알림이라 눈에 띄게 구분한다.
+          return [
+            ...teams.map(
+              (t): PersonItem => ({
+                kind: "team",
+                id: t.id,
+                label: t.name,
+                teamKey: t.key,
+                memberCount: t._count.members,
+              }),
+            ),
+            ...users.map(
+              (u): PersonItem => ({
+                kind: "person",
+                id: u.id,
+                label: u.name ?? u.email,
+                email: u.email,
+                team: u.team?.name ?? null,
+              }),
+            ),
+          ];
         },
         command: ({ editor, range, props }) => {
           editor
@@ -220,7 +263,7 @@ export const PersonMention = Node.create({
             .focus()
             .insertContentAt(range, [
               {
-                type: "personMention",
+                type: props.kind === "team" ? "teamMention" : "personMention",
                 attrs: { id: props.id, label: props.label },
               },
               { type: "text", text: " " },

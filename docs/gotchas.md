@@ -103,13 +103,17 @@
 - **깜빡임 방지(스트리밍)**: `@detail` 슬롯엔 자체 `loading.tsx` 가 없어, force-dynamic 상세가 서버 렌더되는 동안 상위 `(app)/loading.tsx` 가 **전체 화면(목록 포함)**을 스켈레톤으로 덮어 깜빡였다 → 인터셉트 `page.tsx` 에서 시트(client)는 즉시 렌더하고 **본문만 `<Suspense fallback={<DetailSkeleton/>}>` 로 감싸** 스트리밍(`src/components/detail/detail-skeleton.tsx`). 목록 유지 + 시트만 슬라이드 + 내부만 스켈레톤→콘텐츠.
 - **검증 주의**: 인터셉트 슬라이드는 build 로는 라우트 등록만 확인됨(`/x/(.)[id]` 가 route 목록에 뜸). **실제 열림/닫힘·새 창 열기 새 탭은 브라우저 soft-nav 로 확인**해야 함(직접 URL 진입은 hard-load 라 전체 페이지가 뜸 — 인터셉트 아님). claude-in-chrome 자동화 툴은 이 소프트 내비를 구동하지 못해 시트를 못 띄우는 경우가 있으니 육안 확인 권장.
 
-## 13. Next 16 데이터 캐시(unstable_cache) + `revalidateTag` 시그니처 (D3 캐싱)
+## 13. `unstable_cache` 는 멀티 replica 에서 pod-local → 제거함 (D3 캐싱 롤백, 2026-07-13)
 
-- **배경(2026-07-09)**: 공유(비유저 종속) 목록/옵션/트리 쿼리를 `unstable_cache` 로 감싸 요청 간 DB 부하를 줄였다(`src/lib/cache.ts` 태그 + `queries.ts` 래핑). 페이지는 `requireUser`(쿠키)로 어차피 동적(force-dynamic)이라 라우트 캐시는 그대로 두고 **데이터 레이어만** 캐시 — 순수 additive.
-- **`use cache` 아님**: Next 16 은 `use cache` 디렉티브를 권장하지만 `cacheComponents` 플래그가 필요하다(이 프로젝트는 미설정). 플래그를 켜면 force-dynamic·Suspense 경계 전면 재작업이라 과함 → **`unstable_cache`(구 모델)** 가 저위험 선택.
-- **함정: mutation 직후 반영 안 되는 off-by-one staleness → `updateTag` 로 해결(2026-07-12).** 처음엔 `revalidateTag(tag, { expire: 0 })` 로 무효화했는데, 이러면 **"한 번 변경 후 다음 변경/요청이 와야 이전 변경이 반영되는"** 증상이 팀·위키·태스크 등 캐시 쿼리 전반에서 났다. 원인: `revalidateTag` 는 `{ expire: 0 }` 을 줘도 `unstable_cache` 데이터 엔트리를 **stale-while-revalidate**(옛 값 1회 서빙 + 백그라운드 갱신)로 처리 → mutation 액션이 끝나고 `router.refresh()` 가 옛 데이터를 받는다. Next 16 문서(`node_modules/next/dist/docs/.../revalidateTag.md`·`updateTag.md`)는 이 **read-your-own-writes** 케이스에 Server Action 전용 **`updateTag(tag)`** 를 명시 권장한다 — 태그를 즉시 하드 만료시켜 다음 요청이 fresh 를 **기다린다**(blocking miss). 그래서 `bumpTags` 를 `updateTag` 로 교체(`src/lib/cache.ts`). `updateTag` 는 Server Action 안에서만 호출 가능한데 `bumpTags` 호출부는 전부 `"use server"` 액션이라 안전(Route Handler 에서 쓰면 throw — 그럴 땐 `revalidateTag(tag, "max")`). 참고로 `revalidateTag(tag)` 단일 인자는 deprecated(TS 에러)라 쓰지 않는다.
-- **캐시 대상 선정 원칙**: 유저별/검색/상세 쿼리는 캐시 금지(정합성 리스크·저가치). 캐시한 목록은 **교차 엔티티 표시 의존성**을 무효화에 반영해야 한다 — 예: 팀 key 변경 → 에픽/태스크 목록에도 반영되므로 team 액션이 `epics`/`tasks` 태그도 bump. 놓쳤을 때를 대비해 `unstable_cache` 에 시간 백스톱(`revalidate`)도 함께 둔다.
-- **주의**: dev 서버에서도 `unstable_cache` 는 동작(라우트 캐시와 별개)하므로, 캐싱 관련 검증 시 태그 무효화가 실제로 도는지 확인.
+**결론 먼저**: 공유 목록/옵션/트리 쿼리를 캐시하지 않는다. `queries.ts` 14개는 이제 매 렌더 **DB 직접 조회**(plain 함수). `src/lib/cache.ts`·`bumpTags`·`CACHE_TAGS` 는 삭제됨. 아래는 왜 도입했다가 걷어냈는지의 전말 — **재도입 금지 근거**.
+
+- **도입(2026-07-09, D3)**: 공유(비유저 종속) 쿼리를 `unstable_cache` 로 감싸 요청 간 DB 부하 절감. `cacheComponents` 플래그가 필요한 `use cache` 대신 구 모델 `unstable_cache` 를 저위험으로 택함.
+- **1차 함정 → `updateTag`(2026-07-12)**: `revalidateTag(tag, { expire: 0 })` 는 `unstable_cache` 를 **stale-while-revalidate** 로 처리해 mutation 직후 `router.refresh()` 가 옛 값을 받는 off-by-one 이 났다. Server Action 전용 `updateTag(tag)`(즉시 하드 만료, blocking miss)로 교체해 **같은 인스턴스 내** read-your-own-writes 는 고쳤다.
+- **2차 함정(근본) → 캐시 제거(2026-07-13)**: `updateTag` 로도 **"위키 저장 후 좌측 사이드바 제목이 간헐적으로 안 바뀌는"** 버그가 prod 에서만 남았다. 원인은 **멀티 인스턴스 캐시 비정합**: prod 는 `replicas: 2` 인데 `next.config` 에 공유 `cacheHandler` 가 없어 `unstable_cache` 가 **pod 별 인메모리/파일 캐시**다. mutation 은 요청을 처리한 pod 만 `updateTag` 로 무효화하고, 이어지는 `router.refresh()`(별도 HTTP 요청)가 로드밸런서에 의해 **다른 pod 로 가면 stale**(~50%, 최대 `revalidate` 백스톱까지). dev·단일 인스턴스에선 절대 재현 안 됨.
+  - **실측 증명**: 같은 DB 에 각자 캐시를 가진 프로덕션 인스턴스 2개를 띄우고 → B 사이드바 워밍 → A 에서 제목 변경 저장 → B 는 옛 제목 유지. (재현 레시피는 이 커밋 세션 참조.)
+- **왜 "캐시 제거"를 택했나**: 대안은 (a) Redis 등 공유 `cacheHandler`, (b) `replicas: 1`, (c) sticky sessions. 20인 내부 툴에선 캐시 이득이 미미하고 DB 부하 무시가능 → **HA(2 replica) 유지 + 전 쿼리 정합성 확보 + 인프라 무추가**인 캐시 제거가 최선. `revalidatePath`/`router.refresh()` + force-dynamic + 클라이언트 라우터 캐시 `staleTime` 0 이면 read-your-own-writes·교차목록 반영 모두 보장된다(캐시가 없으니 애초에 stale 될 것이 없음).
+- **재도입 금지**: 멀티 replica 인 채로 `unstable_cache`(또는 `use cache`)를 다시 쓰려면 **반드시 공유 `cacheHandler`(Redis 등)** 를 먼저 설정한다. 안 그러면 이 버그가 재발한다.
+- **예외 — `lib/server-cache.ts`(2026-07-18, TTL 인메모리 캐시)**: 위 금지와 별개로, **정합성이 TTL 로만 보장돼도 되는 조회 전용 경로**(⌘K 전역 검색 15s·멘션 자동완성 30s)에는 자체 TTL 캐시를 쓴다. pod-local 이라 `cacheDelete`/`cacheClear` 는 같은 pod 에서만 유효한 best-effort — **무효화에 정합성을 의존하는 용도(목록/트리/옵션 등 read-your-own-writes 필요 경로)에 쓰면 §13 버그가 그대로 재발**하니 금지. 새 적용처를 늘릴 땐 "mutation 직후 이 화면이 옛 값을 보여도 되는가?"를 먼저 물을 것.
 
 ## 14. 아이콘 전용 인터랙티브 요소엔 접근 가능한 이름 필수 (D9 a11y)
 
@@ -184,3 +188,54 @@
 - **원인**: 폴더 구조(`<seg>/@detail/(.)[id]`)·코드는 정상. **Next 16 Turbopack dev** 가 HMR/재컴파일 후 인터셉션 경로를 만들 때 `(.)` 마커를 **이중(`(.)(.)`)** 으로 붙인다. Next 의 `extractInterceptionRouteInformation`(`shared/lib/router/utils/interception-routes.js`) 이 `path.split('(.)', 2)` 하는데, 연속된 `(.)(.)` 탓에 두 번째 조각이 빈 문자열 → `interceptedRoute` falsy → throw. **주의(정정): webpack dev 도 HMR 을 충분히 반복하면 동일하게 재현된다**(마커가 `(.)(.)` → `(.)(.)(.)…` 로 누적, 관측상 11개까지). webpack 이 더 오래 버틸 뿐 면역이 아니며 **Next 16 dev(HMR) 공통 버그**(번들러 무관)다.
 - **완화**: (1) `package.json` `dev` 를 `next dev --webpack` 으로(Turbopack 보다 덜 자주 깨짐). (2) **깨지면 dev 서버 재시작** → 마커 상태 초기화로 즉시 복구(진짜 해법은 Next 패치 대기). (3) 시트/인터셉트 UI 검증은 **fresh dev 또는 프로덕션 빌드**에서 HMR 을 많이 돌리기 전에 한다. build/tsc/lint 로는 안 잡히니 **브라우저 실확인** 필수.
 - **프로덕션은 무해**: `next build` 는 라우트를 1회 컴파일하고 HMR 이 없어 doubling 이 안 생긴다(빌드 산출물에서 `(.)[id]` 단일 마커 확인). 배포엔 영향 없음.
+
+## 24. 다이얼로그 폼 리셋은 필드 state 를 popup 하위에 둬야 한다 (Base UI, 2026-07-15)
+
+- **증상**: 만들기 다이얼로그에서 입력→저장(닫힘)→다시 열면 **이전 입력이 그대로 남는다**(만들기인데 빈 폼이 아님). 수정 후 취소→재열기도 편집중 값이 남음.
+- **원인**: 필드 `useState` 초기화는 **마운트 1회만** 실행된다. 폼 필드 state 를 `XDialog`(open 을 소유, Trigger+Dialog 를 감쌈) **최상위**에 두면, 다이얼로그가 닫혀도 그 컴포넌트는 계속 마운트돼 있어 state 가 안 사라진다.
+- **핵심**: Base UI `Dialog.Portal` 은 `keepMounted=false`(기본)라 **닫히면 popup 하위(DialogContent 자식)를 언마운트**한다(`shouldRender = mounted || keepMounted`). 따라서 **필드 state 를 `DialogContent` 하위의 자식 폼 컴포넌트로 내리면** 닫힐 때 언마운트되고 다시 열 때 초기값으로 새로 마운트 → 폼이 항상 리셋된다(닫힘 애니메이션 동안엔 값 유지 후 언마운트 → 깜빡임 없음). 만들기=빈 폼, 수정=원본 값.
+- 적용: `forms/{project,epic,task,sprint,team}-dialog.tsx` = 바깥 `XDialog`(open 소유) + 안쪽 `XForm`(필드 state, `onClose` 로 닫음).
+- 곁들여: **생성 액션은 미지정 담당자에 `?? user.id` 폴백 금지**. `optionalId`(nullish) 스키마가 이미 null 로 정규화하므로 `data` 를 그대로 넘긴다. 태스크 `reporterId=user.id` 는 작성자라 예외(폼 필드 없음).
+
+## 25. auto-layout 표에서 셀 폭은 `w-*` 헤더만으론 안 잡힌다 — 내용 `max-w-*` 필요 (2026-07-15)
+
+- `ui/table` 은 `table-auto`(기본)라 `<th class="w-40">` 은 **힌트일 뿐**, 셀 내용의 max-content 가 더 넓으면 컬럼이 그만큼 커진다. 라벨 배지(줄바꿈/truncate 없음)를 여러 개 붙이면 레이블 컬럼이 가로로 **밀려 다른 컬럼을 찌그러뜨린다**("라벨 추가 시 UI 깨짐").
+- 해결: 셀 **내용**을 고정폭 컨테이너로 감싼다(`<div class="max-w-40">…</div>` 또는 `flex max-w-40 flex-wrap`). td 는 auto 라 max-width 를 무시하지만, td 안의 블록 요소는 max-width 를 존중 → 내용이 그 폭에서 줄바꿈되고 td 가 거기에 맞춰 커지지 않는다. projects/epics/tasks 표 레이블 셀 공통.
+
+## 26. 타임라인 가로 무한 스크롤 — 하루 폭 고정 + prepend scrollLeft 보정 (2026-07-15)
+
+- 데이터 범위에 스크롤이 묶여 에픽이 없거나 범위 밖으로는 스크롤이 안 되던 문제. 표시 창(range)을 **state** 로 두고 스크롤이 가장자리(EDGE_PX)에 오면 `CHUNK_DAYS` 만큼 과거/미래로 확장한다.
+- **하루 셀 폭은 상수(DAY_W)로 고정**해야 한다. 폭을 `TARGET/days` 로 계산하면 창을 넓힐 때마다 재스케일돼 스크롤 위치 보정 계산(`CHUNK*dayWidth`)이 어긋난다.
+- **prepend(과거 확장) 시 삽입된 폭만큼 `scrollLeft += CHUNK*DAY_W` 를 `useLayoutEffect`(pre-paint)로 보정**해야 화면이 안 튄다. 재진입 방지 `pending` ref, 마운트 시 오늘을 거터 옆에 위치시키는 초기 scrollLeft 도 같은 effect 에서. 에픽 0건도 축·그리드를 렌더해 스크롤 가능.
+
+## 27. 코드블록 편집 동작(NodeView·자동닫기·들여쓰기·언어·멘션차단) 위치 (2026-07-15)
+
+- 코드블록은 `CodeBlockLowlight.extend(...)` 한 곳(`extensions.ts`)에서 확장한다. `addNodeView`(복사·언어 select = `code-block.tsx` React NodeView), `addProseMirrorPlugins`(자동 닫기 = `code-block-pairs.ts`), `addKeyboardShortcuts`(Enter 들여쓰기).
+- **베이스 동작 보존 필수**: `addProseMirrorPlugins`/`addKeyboardShortcuts` 를 override 하면 부모가 **교체**된다 → 반드시 `...(this.parent?.() ?? [])` / `...this.parent?.()` 로 lowlight 하이라이트 플러그인·Tab 들여쓰기·triple-Enter 종료를 이어붙인다.
+- `NodeViewContent as="code"` 는 타입 인자를 명시해야 한다(`<NodeViewContent<"code"> as="code" />`) — `as` 가 `NoInfer` 제네릭이라 추론이 기본값 `'div'` 로 고정돼 `"code"` 대입 에러가 난다.
+- 언어 하이라이트는 lowlight `common` 세트에 kotlin·java·json·yaml·swift 가 이미 포함 → 등록 불필요, `node.attrs.language` 만 바꾸면 됨.
+- 코드블록 안 `#`/`@` 멘션 차단은 Suggestion `allow` 콜백(`state.doc.resolve(range.from).parent.type.name !== "codeBlock"`). mermaid 코드 textarea 의 Enter 들여쓰기는 controlled 라 `updateAttributes` 후 caret 이 끝으로 튀므로 pendingCaret ref + 재렌더 후 복원 effect 필요.
+
+## 28. MD(맨데이)는 `Float` — 합산 롤업은 반드시 반올림 (2026-07-15)
+
+- `Task.estimatedMd`/`actualMd` 가 Prisma `Float?` 라 **합산하면 이진 부동소수점 노이즈**가 생긴다(`0.1+0.2=0.30000000000000004`). 단일 값 표시는 무해하나 **롤업 합(에픽/스프린트/프로젝트)** 이 표에 긴 소수로 노출된다.
+- 해결: `queries.ts` 의 모든 롤업 출력(`sumMd`·`mdByEpic`·`getEpics`·`getSprints`·`getProject`)에 `roundMd = n => Math.round(n*1e6)/1e6`(6자리) 적용. 6자리면 실제 입력값(0.5·2.25 등)은 보존하고 1e-15 수준 오차만 사라진다. **저장값은 안 건드리고 표시용 계산만** 반올림.
+
+## 29. 위키 표 편집 — 삭제 키맵·hover 추가버튼·리사이즈 폭 고정 (2026-07-15)
+
+- **삭제**(`table-controls.ts` Extension): 표 아래 블록 맨 앞에서 `ArrowLeft` → 앞 형제가 표면 `setNodeSelection` 으로 표 선택 → `Backspace`/`Delete` 로 삭제. TableKit 내부는 안 건드리는 별도 키맵 확장.
+- **hover 열/행 추가**(`editor.tsx` `TableHoverControls`): 커서가 표 안일 때 `nodeDOM(tablePos)` 로 표 사각형을 읽어 우측/하단 스트립을 **오버레이**(좌표만 읽고 표 내부 로직 미변경). `selectionUpdate`/`transaction`/`scroll`/`resize` 에 위치 갱신. 편집 컨테이너가 `position:relative` 여야 좌표 기준이 맞다.
+- **리사이즈 폭 고정**: 리사이즈 가능한 표는 `TableView` 가 열 너비 합으로 `<table>` 의 **inline `width`/`min-width`** 를 세팅해 드래그 시 표가 통째로 커진다. CSS `.tiptap table { width:100% !important; min-width:0 !important }` 로 inline 을 무시해 컨테이너 폭에 고정 → `table-layout:fixed` 상 경계선만 이동, 인접 열이 폭을 나눈다(엄밀한 인접-only 재분배가 필요하면 커스텀 리사이즈 플러그인 필요 — 현재는 비례 재분배).
+- **드래그로 다중 추가**(2026-07-17): hover 스트립의 `+` 는 `onPointerDown` 에서 window `pointermove` 를 걸어 드래그 거리 `STEP`(열 48·행 32px) 마다 `addColumnAfter`/`addRowAfter` 를 1회씩 호출. 이동 0(=단순 클릭)이면 `pointerup` 에서 1개만 추가. 같은 스트립에 삭제(−, `deleteColumn`/`deleteRow`) 버튼도 인라인 노출(팝오버 삭제와 병행).
+
+## 30. Prisma client 가 checked-in 스키마와 어긋나면 관계없는 파일에서 tsc 에러 (2026-07-17)
+
+- **증상**: 내가 안 건드린 `src/app/api/wiki/image/[id]/route.ts`·`wiki/upload/route.ts` 에서 `'data' does not exist in type WikiImageSelect` 같은 tsc 에러. 생성된 `@prisma/client` 타입엔 `s3Key` 가 있고 `data` 가 없는데, checked-in `schema.prisma` 의 `WikiImage` 는 `data Bytes`(인라인) + 라우트 코드도 `data` 사용 → **client 만 다른(형제 worktree 의 S3) 스키마로 생성돼 있던 잔재**.
+- **해결**: `npx prisma generate` 로 checked-in `schema.prisma` 기준 재생성. (스키마 변경/브랜치 병합 후 client 재생성 규칙 [§ "병합 후 npx prisma generate"] 의 한 사례 — **`npm install <pkg>` 는 client 를 재생성하지 않는다**. 별개로 확인.)
+- **오진 주의**: `<cmd> 2>&1 | tail -n` 은 **파이프 종료코드가 tail(0)** 이라 npm/tsc 실패를 exit 0 으로 오인한다. 실패 판정이 필요하면 `; echo EXIT=$?` 를 명령 뒤에 붙이거나 파이프를 걷어낸다.
+
+## 31. 위키 사이드바 폴더 접힘 상태는 트리 최상단이 소유해야 유지된다 (2026-07-17)
+
+- **증상**: 상위 폴더를 접었다 펴면 하위 폴더가 이전 상태와 무관하게 모두 열림으로 리셋.
+- **원인**: `FolderItem`/`PageItem` 이 각자 `useState(true)`(열림 기본)로 접힘을 가졌는데, **부모 접힘 시 렌더 게이트(`hasChildren && open && <ul>`)가 자식 서브트리를 언마운트** → 재오픈 때 자식이 재마운트되며 `useState(true)` 로 초기화. (`router.refresh` 아님.)
+- **해결**: 접힘을 **`PageTree`(트리 최상단, 항목 언마운트와 무관)** 소유의 `collapsedIds: Set` 으로 승격. "열림이 기본, 닫은 것만 기억" = `open = !collapsedIds.has(key)`. 폴더/페이지 id 충돌 방지로 `f:`/`p:` 네임스페이스. localStorage `wiki:collapsed` 영속(initializer 에서 `typeof window` 가드). 새 하위항목 생성 시 부모를 `expand(key)` 로 강제 펼쳐 즉시 노출.

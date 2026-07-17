@@ -8,7 +8,6 @@ import { logActivity, diffFields } from "@/server/activity";
 import { notifyNewMentions } from "@/server/notify";
 import { nextTeamNumber } from "@/server/keys";
 import { assertCanManage } from "@/lib/authz";
-import { bumpTags, CACHE_TAGS } from "@/lib/cache";
 
 export async function createEpic(input: unknown) {
   const user = await requireUser();
@@ -17,8 +16,9 @@ export async function createEpic(input: unknown) {
   // 팀 시퀀스를 원자적으로 증가시켜 number를 부여한다(epic·task 공유).
   const epic = await prisma.$transaction(async (tx) => {
     const number = await nextTeamNumber(tx, data.teamId);
+    // 담당자(ownerId)는 미지정 시 null 로 둔다 — 만든 사람으로 자동 지정하지 않는다.
     return tx.epic.create({
-      data: { ...data, number, ownerId: data.ownerId ?? user.id },
+      data: { ...data, number },
     });
   });
 
@@ -33,7 +33,6 @@ export async function createEpic(input: unknown) {
   revalidatePath("/epics");
   if (epic.projectId) revalidatePath(`/projects/${epic.projectId}`);
   // 에픽 캐시 + 프로젝트 캐시(하위 에픽 수 표시). 태스크는 새 에픽엔 아직 없음.
-  bumpTags(CACHE_TAGS.epics, CACHE_TAGS.projects);
   return { id: epic.id };
 }
 
@@ -56,7 +55,6 @@ export async function updateEpic(id: string, input: unknown) {
   revalidatePath(`/epics/${id}`);
   if (epic.projectId) revalidatePath(`/projects/${epic.projectId}`);
   // 에픽 제목은 태스크 목록에도 표시되므로 태스크 캐시도 함께 무효화.
-  bumpTags(CACHE_TAGS.epics, CACHE_TAGS.tasks, CACHE_TAGS.projects);
   return { id };
 }
 
@@ -64,7 +62,6 @@ function revalidateEpicPaths(id: string, projectId: string | null) {
   revalidatePath("/epics");
   revalidatePath(`/epics/${id}`);
   if (projectId) revalidatePath(`/projects/${projectId}`);
-  bumpTags(CACHE_TAGS.epics, CACHE_TAGS.tasks, CACHE_TAGS.projects);
 }
 
 // 에픽 인라인 편집(diff 대상). 팀/번호는 불변이라 제외.
@@ -148,5 +145,4 @@ export async function deleteEpic(id: string) {
     action: "deleted",
   });
   revalidatePath("/epics");
-  bumpTags(CACHE_TAGS.epics, CACHE_TAGS.tasks, CACHE_TAGS.projects);
 }

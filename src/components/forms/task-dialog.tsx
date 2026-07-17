@@ -45,16 +45,7 @@ type Existing = {
 
 export type TaskEpicOption = { id: string; title: string; teamId: string };
 
-export function TaskDialog({
-  members,
-  teams,
-  epics,
-  task,
-  defaultEpicId,
-  defaultTeamId,
-  defaultStatus,
-  trigger,
-}: {
+type FormProps = {
   members: MiniUser[];
   teams: TeamOption[];
   epics: TaskEpicOption[];
@@ -62,10 +53,42 @@ export function TaskDialog({
   defaultEpicId?: string;
   defaultTeamId?: string;
   defaultStatus?: Status;
+};
+
+export function TaskDialog({
+  trigger,
+  ...formProps
+}: FormProps & {
   trigger: React.ReactElement;
 }) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger render={trigger} />
+      <DialogContent className="sm:max-w-lg">
+        {/*
+          폼 필드 state 는 이 자식(TaskForm)에 둔다. Base UI 는 닫히면 popup 하위를
+          언마운트하므로(keepMounted=false), 매 열림마다 새로 마운트되어 폼이 항상
+          초기값으로 리셋된다(만들기=빈 폼, 수정=원본 값).
+        */}
+        <TaskForm {...formProps} onClose={() => setOpen(false)} />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function TaskForm({
+  members,
+  teams,
+  epics,
+  task,
+  defaultEpicId,
+  defaultTeamId,
+  defaultStatus,
+  onClose,
+}: FormProps & { onClose: () => void }) {
+  const router = useRouter();
   const [pending, start] = useTransition();
 
   const isEdit = !!task;
@@ -133,7 +156,7 @@ export function TaskDialog({
         if (task) await updateTask(task.id, payload);
         else await createTask(payload);
         toast.success(task ? "수정했습니다" : "태스크를 만들었습니다");
-        setOpen(false);
+        onClose();
         router.refresh();
       } catch {
         toast.error("저장에 실패했습니다");
@@ -142,130 +165,123 @@ export function TaskDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={trigger} />
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{task ? "태스크 수정" : "새 태스크"}</DialogTitle>
-        </DialogHeader>
-        <div className="grid gap-4 py-2">
+    <>
+      <DialogHeader>
+        <DialogTitle>{task ? "태스크 수정" : "새 태스크"}</DialogTitle>
+      </DialogHeader>
+      <div className="grid gap-4 py-2">
+        <div className="grid gap-2">
+          <Label>제목</Label>
+          <Input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="예: 히어로 배너 카피 작성"
+            autoFocus
+          />
+        </div>
+        <div className="grid gap-2">
+          <Label>설명</Label>
+          <Textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={3}
+          />
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="grid gap-2">
-            <Label>제목</Label>
-            <Input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="예: 히어로 배너 카피 작성"
-              autoFocus
+            <Label>상위 에픽</Label>
+            <GenericSelect
+              value={epicId}
+              onChange={onEpicChange}
+              options={epics.map((e) => ({ id: e.id, label: e.title }))}
+              placeholder="에픽 선택"
+              noneLabel="없음"
             />
           </div>
           <div className="grid gap-2">
-            <Label>설명</Label>
-            <Textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-            />
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label>상위 에픽</Label>
-              <GenericSelect
-                value={epicId}
-                onChange={onEpicChange}
-                options={epics.map((e) => ({ id: e.id, label: e.title }))}
-                placeholder="에픽 선택"
-                noneLabel="없음"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label>
-                소유 팀
-                {isEdit
-                  ? " (변경 불가)"
-                  : epicTeamId
-                    ? " (에픽 상속)"
-                    : ""}
-              </Label>
-              {isEdit || epicTeamId ? (
-                <TeamKeyReadonly teams={teams} teamId={effectiveTeamId} />
-              ) : (
-                <TeamSelect value={teamId} onChange={setTeamId} teams={teams} />
-              )}
-            </div>
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label>상태</Label>
-              <StatusSelect value={status} onChange={setStatus} />
-            </div>
-            <div className="grid gap-2">
-              <Label>우선순위</Label>
-              <PrioritySelect value={priority} onChange={setPriority} />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label>담당자</Label>
-              <MemberSelect
-                value={assigneeId}
-                onChange={setAssigneeId}
-                members={members}
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label>예상 MD</Label>
-              <Input
-                type="number"
-                min={0}
-                step={0.5}
-                value={estimatedMd}
-                onChange={(e) => setEstimatedMd(e.target.value)}
-                placeholder="예: 2"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label>실제 MD</Label>
-              <Input
-                type="number"
-                min={0}
-                step={0.5}
-                value={actualMd}
-                onChange={(e) => setActualMd(e.target.value)}
-                placeholder="예: 1.5"
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label>시작일</Label>
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label>마감일</Label>
-              <Input
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-              />
-            </div>
+            <Label>
+              소유 팀
+              {isEdit ? " (변경 불가)" : epicTeamId ? " (에픽 상속)" : ""}
+            </Label>
+            {isEdit || epicTeamId ? (
+              <TeamKeyReadonly teams={teams} teamId={effectiveTeamId} />
+            ) : (
+              <TeamSelect value={teamId} onChange={setTeamId} teams={teams} />
+            )}
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>
-            취소
-          </Button>
-          <Button onClick={submit} disabled={pending}>
-            {pending ? "저장 중…" : "저장"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid gap-2">
+            <Label>상태</Label>
+            <StatusSelect value={status} onChange={setStatus} />
+          </div>
+          <div className="grid gap-2">
+            <Label>우선순위</Label>
+            <PrioritySelect value={priority} onChange={setPriority} />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid gap-2">
+            <Label>담당자</Label>
+            <MemberSelect
+              value={assigneeId}
+              onChange={setAssigneeId}
+              members={members}
+            />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid gap-2">
+            <Label>예상 MD</Label>
+            <Input
+              type="number"
+              min={0}
+              step={0.5}
+              value={estimatedMd}
+              onChange={(e) => setEstimatedMd(e.target.value)}
+              placeholder="예: 2"
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label>실제 MD</Label>
+            <Input
+              type="number"
+              min={0}
+              step={0.5}
+              value={actualMd}
+              onChange={(e) => setActualMd(e.target.value)}
+              placeholder="예: 1.5"
+            />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid gap-2">
+            <Label>시작일</Label>
+            <Input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label>마감일</Label>
+            <Input
+              type="date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+            />
+          </div>
+        </div>
+      </div>
+      <DialogFooter>
+        <Button variant="outline" onClick={onClose}>
+          취소
+        </Button>
+        <Button onClick={submit} disabled={pending}>
+          {pending ? "저장 중…" : "저장"}
+        </Button>
+      </DialogFooter>
+    </>
   );
 }
 

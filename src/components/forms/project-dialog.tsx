@@ -38,21 +38,45 @@ type Existing = {
   dueDate: Date | string | null;
 };
 
-export function ProjectDialog({
-  members,
-  sprints,
-  project,
-  defaultSprintId,
-  trigger,
-}: {
+type FormProps = {
   members: MiniUser[];
   sprints: { id: string; name: string }[];
   project?: Existing;
   defaultSprintId?: string;
+};
+
+export function ProjectDialog({
+  trigger,
+  ...formProps
+}: FormProps & {
   trigger: React.ReactElement;
 }) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger render={trigger} />
+      <DialogContent className="sm:max-w-lg">
+        {/*
+          폼 필드 state 는 이 자식(ProjectForm)에 둔다. Base UI 는 닫히면 popup 하위를
+          언마운트하므로(keepMounted=false), 매 열림마다 새로 마운트되어 폼이 항상
+          초기값으로 리셋된다(만들기=빈 폼, 수정=원본 값). 최상위에 두면 열림 사이에
+          이전 입력이 그대로 남는다.
+        */}
+        <ProjectForm {...formProps} onClose={() => setOpen(false)} />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ProjectForm({
+  members,
+  sprints,
+  project,
+  defaultSprintId,
+  onClose,
+}: FormProps & { onClose: () => void }) {
+  const router = useRouter();
   const [pending, start] = useTransition();
 
   const [title, setTitle] = useState(project?.title ?? "");
@@ -88,7 +112,7 @@ export function ProjectDialog({
         if (project) await updateProject(project.id, payload);
         else await createProject(payload);
         toast.success(project ? "수정했습니다" : "프로젝트를 만들었습니다");
-        setOpen(false);
+        onClose();
         router.refresh();
       } catch {
         toast.error("저장에 실패했습니다");
@@ -97,83 +121,80 @@ export function ProjectDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={trigger} />
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{project ? "프로젝트 수정" : "새 프로젝트"}</DialogTitle>
-        </DialogHeader>
-        <div className="grid gap-4 py-2">
+    <>
+      <DialogHeader>
+        <DialogTitle>{project ? "프로젝트 수정" : "새 프로젝트"}</DialogTitle>
+      </DialogHeader>
+      <div className="grid gap-4 py-2">
+        <div className="grid gap-2">
+          <Label>제목</Label>
+          <Input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="예: 브랜드 캠페인 리뉴얼"
+            autoFocus
+          />
+        </div>
+        <div className="grid gap-2">
+          <Label>설명</Label>
+          <Textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={3}
+            placeholder="팀 횡단으로 진행할 작업의 목표와 배경"
+          />
+        </div>
+        <div className="grid gap-2">
+          <Label>스프린트</Label>
+          <GenericSelect
+            value={sprintId}
+            onChange={setSprintId}
+            options={sprints.map((s) => ({ id: s.id, label: s.name }))}
+            placeholder="스프린트 선택"
+            noneLabel="없음"
+          />
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="grid gap-2">
-            <Label>제목</Label>
-            <Input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="예: 브랜드 캠페인 리뉴얼"
-              autoFocus
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label>설명</Label>
-            <Textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-              placeholder="팀 횡단으로 진행할 작업의 목표와 배경"
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label>스프린트</Label>
-            <GenericSelect
-              value={sprintId}
-              onChange={setSprintId}
-              options={sprints.map((s) => ({ id: s.id, label: s.name }))}
-              placeholder="스프린트 선택"
-              noneLabel="없음"
-            />
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label>상태</Label>
-              <StatusSelect value={status} onChange={setStatus} />
-            </div>
-            <div className="grid gap-2">
-              <Label>우선순위</Label>
-              <PrioritySelect value={priority} onChange={setPriority} />
-            </div>
+            <Label>상태</Label>
+            <StatusSelect value={status} onChange={setStatus} />
           </div>
           <div className="grid gap-2">
-            <Label>담당자</Label>
-            <MemberSelect value={ownerId} onChange={setOwnerId} members={members} />
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label>시작일</Label>
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label>종료일</Label>
-              <Input
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-              />
-            </div>
+            <Label>우선순위</Label>
+            <PrioritySelect value={priority} onChange={setPriority} />
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>
-            취소
-          </Button>
-          <Button onClick={submit} disabled={pending}>
-            {pending ? "저장 중…" : "저장"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        <div className="grid gap-2">
+          <Label>담당자</Label>
+          <MemberSelect value={ownerId} onChange={setOwnerId} members={members} />
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid gap-2">
+            <Label>시작일</Label>
+            <Input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label>종료일</Label>
+            <Input
+              type="date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+            />
+          </div>
+        </div>
+      </div>
+      <DialogFooter>
+        <Button variant="outline" onClick={onClose}>
+          취소
+        </Button>
+        <Button onClick={submit} disabled={pending}>
+          {pending ? "저장 중…" : "저장"}
+        </Button>
+      </DialogFooter>
+    </>
   );
 }

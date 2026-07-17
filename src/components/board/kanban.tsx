@@ -202,6 +202,10 @@ export function KanbanBoard({
 
   return (
     <DndContext
+      // 안정적 id 지정: 없으면 dnd-kit 이 draggable 의 aria-describedby 를
+      // 자동증가 카운터(DndDescribedBy-N)로 만들어 SSR/CSR 값이 달라져(-0 vs -1)
+      // hydration 불일치가 났다. 고정 id 를 주면 양쪽이 동일하게 렌더된다.
+      id="board-dnd"
       sensors={sensors}
       collisionDetection={closestCorners}
       onDragStart={onDragStart}

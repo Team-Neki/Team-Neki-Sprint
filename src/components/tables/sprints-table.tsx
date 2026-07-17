@@ -25,17 +25,13 @@ export type SprintTableRow = {
   estimatedMd: number;
 };
 
-function dateRange(start: Date | null, end: Date | null) {
-  const fmt = (d: Date) => format(d, "yyyy.M.d", { locale: ko });
-  if (start && end) return `${fmt(start)} – ${fmt(end)}`;
-  if (start) return `${fmt(start)} –`;
-  if (end) return `– ${fmt(end)}`;
-  return "기간 미설정";
-}
+const fmt = (d: Date | null) =>
+  d ? format(d, "yyyy.M.d", { locale: ko }) : "—";
 
 /**
  * 스프린트 목록 표.
- * 컬럼: [이름] [기간] [MD] [상태]
+ * 컬럼: [이름] [시작일] [종료일] [MD] [상태]
+ * (기간 단일 컬럼을 시작일·종료일로 분리 — 다른 표와 동일한 날짜 표기.)
  */
 export function SprintsTable({
   sprints,
@@ -49,14 +45,15 @@ export function SprintsTable({
       <TableHeader>
         <TableRow>
           <TableHead>이름</TableHead>
-          <TableHead className="w-56">기간</TableHead>
+          <TableHead className="w-28">시작일</TableHead>
+          <TableHead className="w-28">종료일</TableHead>
           <TableHead className="w-24 text-right">MD</TableHead>
           <TableHead className="w-24">상태</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {sprints.length === 0 ? (
-          <EmptyRow colSpan={4} message={emptyMessage} />
+          <EmptyRow colSpan={5} message={emptyMessage} />
         ) : (
           sprints.map((s) => (
             <RowContextMenu
@@ -68,7 +65,10 @@ export function SprintsTable({
             >
               <TableCell className="font-medium">{s.name}</TableCell>
               <TableCell className="text-muted-foreground text-xs">
-                {dateRange(s.startDate, s.endDate)}
+                {fmt(s.startDate)}
+              </TableCell>
+              <TableCell className="text-muted-foreground text-xs">
+                {fmt(s.endDate)}
               </TableCell>
               <TableCell className="text-muted-foreground text-right text-xs tabular-nums">
                 {s.estimatedMd || "—"}

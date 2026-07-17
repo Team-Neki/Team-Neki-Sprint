@@ -1,9 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { JSONContent } from "@tiptap/react";
+import { Pencil } from "lucide-react";
 import { UserBadge, type MiniUser } from "@/components/user-badge";
-import { WikiEditor } from "@/components/wiki/editor";
+import { Button } from "@/components/ui/button";
+import {
+  WikiEditor,
+  type WikiEditorHandle,
+  type WikiEditorState,
+} from "@/components/wiki/editor";
 import { WikiCommentsView } from "@/components/wiki/wiki-comments-view";
 import type { ThreadItem } from "@/components/wiki/comment-thread-card";
 import { WikiPageMenu } from "@/components/wiki/wiki-page-menu";
@@ -43,6 +49,16 @@ export function WikiDetail({
 }) {
   // 임시저장본이 있으면 편집 모드로 바로 진입(사용자가 편집을 이어가도록).
   const [mode, setMode] = useState<"view" | "edit">(draft ? "edit" : "view");
+  // 저장/취소는 에디터가 아니라 이 sticky 헤더에서 호출한다(긴 본문 스크롤 시에도 고정).
+  const editorRef = useRef<WikiEditorHandle>(null);
+  const [editState, setEditState] = useState<WikiEditorState>({
+    status: "",
+    saving: false,
+  });
+  const handleEditState = useCallback(
+    (s: WikiEditorState) => setEditState(s),
+    [],
+  );
 
   return (
     <div>
@@ -56,7 +72,36 @@ export function WikiDetail({
             {editor && <UserBadge user={editor} size="xs" />}
             <span className="shrink-0">{updatedLabel}</span>
           </div>
-          <div className="flex shrink-0 items-center gap-1">
+          {/* '...' 메뉴 좌측: 뷰 모드는 '수정', 편집 중엔 상태·취소·저장(에디터 내부 아님). */}
+          <div className="flex shrink-0 items-center gap-2">
+            {mode === "view" ? (
+              <Button variant="outline" size="sm" onClick={() => setMode("edit")}>
+                <Pencil className="size-4" /> 수정
+              </Button>
+            ) : (
+              <>
+                {editState.status && (
+                  <span className="text-muted-foreground hidden text-xs sm:inline">
+                    {editState.status}
+                  </span>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => editorRef.current?.cancel()}
+                  disabled={editState.saving}
+                >
+                  취소
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => editorRef.current?.commit()}
+                  disabled={editState.saving}
+                >
+                  저장
+                </Button>
+              </>
+            )}
             <WikiPageMenu
               pageId={pageId}
               favorited={favorited}
@@ -70,11 +115,13 @@ export function WikiDetail({
       {mode === "edit" ? (
         <WikiEditor
           key={pageId}
+          ref={editorRef}
           pageId={pageId}
           initialTitle={title}
           initialContent={content}
           draft={draft}
           onExit={() => setMode("view")}
+          onStateChange={handleEditState}
         />
       ) : (
         <WikiCommentsView
@@ -84,7 +131,6 @@ export function WikiDetail({
           threads={threads}
           currentUserId={currentUserId}
           updatedAt={updatedAt}
-          onEdit={() => setMode("edit")}
         />
       )}
     </div>

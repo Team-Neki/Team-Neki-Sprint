@@ -8,15 +8,16 @@ import { wikiPageSchema, wikiFolderSchema } from "@/lib/validators";
 import {
   searchTasks,
   searchWikiPages,
-  searchMembers,
+  searchMentionTargets,
   getWikiRevision,
 } from "@/server/queries";
 import { logActivity } from "@/server/activity";
-import { extractMentionUserIds } from "@/lib/mentions";
+import { newMentionRecipients } from "@/server/notify";
 import { docToPlainText } from "@/lib/rich-content";
+import { cached } from "@/lib/server-cache";
 import type { JSONContent } from "@tiptap/core";
-import { assertCanManage } from "@/lib/authz";
-import { bumpTags, CACHE_TAGS } from "@/lib/cache";
+import { assertCanManage, canManage } from "@/lib/authz";
+import { z } from "zod";
 
 const EMPTY_DOC: Prisma.InputJsonValue = {
   type: "doc",
@@ -54,7 +55,6 @@ export async function createWikiPage(input: unknown) {
   });
 
   revalidatePath("/wiki", "layout");
-  bumpTags(CACHE_TAGS.wiki);
   return { id: page.id };
 }
 
@@ -108,14 +108,16 @@ export async function updateWikiContent(
     action: "updated",
   });
 
-  // 본문에 '새로 추가된' 사람 멘션에 대해 수신자별 알림 생성(B5).
+  // 본문에 '새로 추가된' 멘션(사람 + 팀→팀원 전원 확장)에 대해 수신자별 알림 생성(B5).
   // 저장 전/후 doc 의 멘션 차집합만 → 재저장마다 중복 알림 방지. 자기멘션 제외.
-  const before = extractMentionUserIds(current.content);
-  const after = extractMentionUserIds(content);
-  const added = [...after].filter((uid) => !before.has(uid) && uid !== user.id);
-  if (added.length > 0) {
+  const recipients = await newMentionRecipients(
+    current.content,
+    content,
+    user.id,
+  );
+  if (recipients.length > 0) {
     await prisma.notification.createMany({
-      data: added.map((uid) => ({
+      data: recipients.map((uid) => ({
         userId: uid,
         actorId: user.id,
         type: "mention",
@@ -132,7 +134,6 @@ export async function updateWikiContent(
     .catch(() => {});
 
   revalidatePath("/wiki", "layout");
-  bumpTags(CACHE_TAGS.wiki);
   revalidatePath(`/wiki/${id}`);
   return { id };
 }
@@ -183,7 +184,6 @@ export async function renameWikiPage(id: string, title: string) {
     action: "updated",
   });
   revalidatePath("/wiki", "layout");
-  bumpTags(CACHE_TAGS.wiki);
   revalidatePath(`/wiki/${id}`);
 }
 
@@ -237,7 +237,6 @@ export async function deleteWikiPage(id: string) {
     action: "trashed",
   });
   revalidatePath("/wiki", "layout");
-  bumpTags(CACHE_TAGS.wiki);
 }
 
 /** 휴지통에서 복원: 페이지 + 함께 삭제됐던 후손(deletedAt != null) 복구. */
@@ -255,7 +254,6 @@ export async function restoreWikiPage(id: string) {
     action: "restored",
   });
   revalidatePath("/wiki", "layout");
-  bumpTags(CACHE_TAGS.wiki);
   revalidatePath(`/wiki/${id}`);
 }
 
@@ -277,7 +275,76 @@ export async function purgeWikiPage(id: string) {
     action: "deleted",
   });
   revalidatePath("/wiki", "layout");
-  bumpTags(CACHE_TAGS.wiki);
+}
+
+const purgeWikiPagesSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1),
+});
+
+/**
+ * 휴지통 다중 영구 삭제(하드·cascade). 넘긴 id 중 사용자가 관리(작성자/ADMIN)할
+ * 수 있는 페이지만 골라 삭제한다. 권한 없는 항목 하나 때문에 배치 전체를 중단하지
+ * 않고 건너뛴다. 없어진 id 도 조용히 건너뛴다. 삭제한 개수를 반환.
+ */
+export async function purgeWikiPages(input: unknown) {
+  const user = await requireUser();
+  const { ids } = purgeWikiPagesSchema.parse(input);
+
+  const pages = await prisma.wikiPage.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, authorId: true },
+  });
+  // 작성자 또는 ADMIN 이 관리할 수 있는 페이지만 삭제 대상으로.
+  const authorized = pages.filter((p) => canManage(user, p.authorId));
+  if (authorized.length === 0) return { count: 0 };
+
+  const authorizedIds = authorized.map((p) => p.id);
+  await prisma.wikiPage.deleteMany({ where: { id: { in: authorizedIds } } });
+  await Promise.all(
+    authorizedIds.map((id) =>
+      logActivity({
+        userId: user.id,
+        entityType: "wiki",
+        entityId: id,
+        action: "deleted",
+      }),
+    ),
+  );
+
+  revalidatePath("/wiki", "layout");
+  return { count: authorizedIds.length };
+}
+
+/**
+ * 휴지통 비우기: 휴지통(soft-delete)의 모든 페이지 중 사용자가 관리(작성자/ADMIN)할
+ * 수 있는 것을 영구 삭제한다. ADMIN 은 전체, 일반 사용자는 자기 작성분만 지워진다.
+ * 삭제한 개수를 반환.
+ */
+export async function emptyWikiTrash() {
+  const user = await requireUser();
+  const trashed = await prisma.wikiPage.findMany({
+    where: { deletedAt: { not: null } },
+    select: { id: true, authorId: true },
+  });
+  const authorizedIds = trashed
+    .filter((p) => canManage(user, p.authorId))
+    .map((p) => p.id);
+  if (authorizedIds.length === 0) return { count: 0 };
+
+  await prisma.wikiPage.deleteMany({ where: { id: { in: authorizedIds } } });
+  await Promise.all(
+    authorizedIds.map((id) =>
+      logActivity({
+        userId: user.id,
+        entityType: "wiki",
+        entityId: id,
+        action: "deleted",
+      }),
+    ),
+  );
+
+  revalidatePath("/wiki", "layout");
+  return { count: authorizedIds.length };
 }
 
 /** 페이지를 폴더에 넣거나 뺀다(folderId=null 이면 폴더 밖으로). */
@@ -288,7 +355,6 @@ export async function movePageToFolder(pageId: string, folderId: string | null) 
     data: { folderId },
   });
   revalidatePath("/wiki", "layout");
-  bumpTags(CACHE_TAGS.wiki);
   revalidatePath(`/wiki/${pageId}`);
 }
 
@@ -348,7 +414,6 @@ export async function moveWikiPage(
   });
 
   revalidatePath("/wiki", "layout");
-  bumpTags(CACHE_TAGS.wiki);
   revalidatePath(`/wiki/${pageId}`);
 }
 
@@ -371,7 +436,6 @@ export async function createWikiFolder(input: unknown) {
   });
 
   revalidatePath("/wiki", "layout");
-  bumpTags(CACHE_TAGS.wiki);
   return { id: folder.id };
 }
 
@@ -381,7 +445,6 @@ export async function renameWikiFolder(id: string, name: string) {
   if (!nextName) throw new Error("폴더 이름을 입력하세요");
   await prisma.wikiFolder.update({ where: { id }, data: { name: nextName } });
   revalidatePath("/wiki", "layout");
-  bumpTags(CACHE_TAGS.wiki);
 }
 
 /**
@@ -392,7 +455,6 @@ export async function deleteWikiFolder(id: string) {
   await requireUser();
   await prisma.wikiFolder.delete({ where: { id } });
   revalidatePath("/wiki", "layout");
-  bumpTags(CACHE_TAGS.wiki);
 }
 
 // ---------- 티켓 ↔ 위키 링크(#3) ----------
@@ -436,7 +498,6 @@ export async function toggleWikiFavorite(pageId: string) {
     });
   }
   revalidatePath("/wiki", "layout");
-  bumpTags(CACHE_TAGS.wiki);
   revalidatePath(`/wiki/${pageId}`);
   return { favorited: !existing };
 }
@@ -487,7 +548,6 @@ export async function restoreWikiRevision(revisionId: string) {
   });
 
   revalidatePath("/wiki", "layout");
-  bumpTags(CACHE_TAGS.wiki);
   revalidatePath(`/wiki/${rev.pageId}`);
   return { id: rev.pageId };
 }
@@ -511,7 +571,12 @@ export async function searchWikiPagesAction(query: string) {
 }
 
 /** '@' 사람 멘션 드롭다운(B5). */
-export async function searchMembersAction(query: string) {
+// 멘션 자동완성은 타이핑마다 호출되는 조회 전용 경로 — 짧은 TTL 캐시로 DB 왕복을
+// 줄인다(pod 로컬, TTL 로만 만료. 멤버/팀 변경이 최대 30초 늦게 보이는 건 허용).
+const MENTION_SEARCH_TTL_MS = 30_000;
+
+export async function searchMentionTargetsAction(query: string) {
   await requireUser();
-  return searchMembers(query);
+  const key = `mentionTargets:${query.trim().toLowerCase()}`;
+  return cached(key, MENTION_SEARCH_TTL_MS, () => searchMentionTargets(query));
 }

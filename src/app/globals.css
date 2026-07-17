@@ -78,7 +78,7 @@
   --chart-3: #ff0080; /* brand highlight (pink) */
   --chart-4: #f9cb28; /* brand gradient — ship (amber) */
   --chart-5: #00dfd8; /* brand gradient — develop (cyan) */
-  --radius: 0.75rem; /* 12px cards (rounded.lg); buttons/inputs derive smaller */
+  --radius: 0.5rem; /* 8px cards (rounded.lg); 버튼/인풋은 --radius-sm/md 파생값으로 더 작게. round 는 살짝만 */
   --sidebar: #fafafa; /* canvas-soft */
   --sidebar-foreground: #171717;
   --sidebar-primary: #171717;
@@ -134,6 +134,25 @@
   font-weight: 600;
   margin-top: 1em;
 }
+.tiptap h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-top: 1em;
+}
+.tiptap h5 {
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-top: 0.9em;
+  color: var(--muted-foreground);
+}
+.tiptap h6 {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-top: 0.9em;
+  color: var(--muted-foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
 .tiptap ul,
 .tiptap ol {
   padding-left: 1.5rem;
@@ -170,6 +189,60 @@
 .tiptap pre code {
   background: none;
   padding: 0;
+}
+/* 코드블록 복사 버튼(NodeView). 세로 여백을 래퍼로 옮기고 pre 는 flush 로 붙여
+   버튼을 pre 우측 상단 패딩 위에 고정한다(pre 의 가로 스크롤에 안 흔들림).
+   평소 숨김 → 블록 hover(또는 키보드 포커스) 시 노출. */
+.tiptap .wiki-codeblock {
+  position: relative;
+  margin: 0.75em 0;
+}
+.tiptap .wiki-codeblock pre {
+  margin: 0;
+}
+/* 우측 상단 도구 묶음(언어 선택 + 복사). 평소 숨김 → 블록 hover/포커스 시 노출. */
+.tiptap .wiki-codeblock-tools {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.tiptap .wiki-codeblock:hover .wiki-codeblock-tools,
+.tiptap .wiki-codeblock:focus-within .wiki-codeblock-tools {
+  opacity: 1;
+}
+.tiptap .wiki-codeblock-lang,
+.tiptap .wiki-codeblock-lang-label,
+.tiptap .wiki-codeblock-copy {
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  padding: 0.12rem 0.4rem;
+  font-size: 0.7rem;
+  line-height: 1.4;
+  color: var(--muted-foreground);
+  background: var(--card);
+}
+.tiptap .wiki-codeblock-lang {
+  cursor: pointer;
+  font-family: inherit;
+}
+.tiptap .wiki-codeblock-lang-label {
+  pointer-events: none;
+}
+.tiptap .wiki-codeblock-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  cursor: pointer;
+  transition: color 0.12s ease;
+}
+.tiptap .wiki-codeblock-copy:hover {
+  color: var(--foreground);
 }
 
 /* 표(TableKit). hairline 보더 + header row 인셋 배경(surface ladder 정합). */
@@ -213,41 +286,117 @@
   overflow-x: auto;
 }
 
-/* highlight.js(lowlight) 라이트 테마 토큰 색 — near-white 배경에 대비되는 최소 팔레트. */
+/* 표 열 리사이즈 시 표 전체 폭이 커지지 않게 고정(T18). 리사이즈 가능한 표는
+   TableView 가 열 너비 합으로 table 의 inline width/min-width 를 세팅해 표가 통째로
+   커진다. 이 inline 값을 !important 로 무시하고 컨테이너 폭(100%)에 고정하면,
+   table-layout:fixed 상 드래그한 경계선만 이동하고 인접 열이 폭을 나눠 가진다
+   (표 크기 자체는 불변). 읽기 표는 애초에 inline width 가 없어 영향 없음. */
+.tiptap .tableWrapper table,
+.tiptap table {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+/* 표 가장자리 hover 열/행 추가 버튼(T17). 표 우측/하단에 겹쳐 그리는 오버레이 —
+   스트립에 hover 하면 + 버튼이 나타난다. 편집기 좌표 컨테이너(.relative) 기준 절대배치. */
+.wiki-table-add {
+  position: absolute;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.wiki-table-add-col {
+  width: 20px;
+}
+.wiki-table-add-row {
+  height: 20px;
+}
+.wiki-table-add > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 18px;
+  width: 18px;
+  border: 1px solid var(--border);
+  border-radius: 9999px;
+  background: var(--card);
+  color: var(--muted-foreground);
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 0.12s ease,
+    color 0.12s ease,
+    background 0.12s ease;
+}
+.wiki-table-add:hover > button {
+  opacity: 1;
+}
+.wiki-table-add > button:hover {
+  color: var(--foreground);
+  background: var(--accent);
+}
+
+/* highlight.js(lowlight) 라이트 테마 토큰 색 — near-white 배경 대비 채도 높은 팔레트.
+   키워드=빨강, 문자열=초록, 숫자=파랑, 함수=보라, 타입/속성=주황 으로 대비를 키운다. */
+.tiptap pre code {
+  color: #1f2328;
+}
 .tiptap pre code .hljs-comment,
 .tiptap pre code .hljs-quote {
-  color: #6a737d;
+  color: #8a919b;
   font-style: italic;
 }
 .tiptap pre code .hljs-keyword,
 .tiptap pre code .hljs-selector-tag,
+.tiptap pre code .hljs-literal,
+.tiptap pre code .hljs-doctag {
+  color: #cf222e;
+}
 .tiptap pre code .hljs-built_in,
-.tiptap pre code .hljs-name {
-  color: #d73a49;
+.tiptap pre code .hljs-class .hljs-title,
+.tiptap pre code .hljs-type,
+.tiptap pre code .hljs-title.class_ {
+  color: #953800;
 }
 .tiptap pre code .hljs-string,
-.tiptap pre code .hljs-attr,
-.tiptap pre code .hljs-template-tag,
-.tiptap pre code .hljs-addition {
-  color: #032f62;
+.tiptap pre code .hljs-regexp,
+.tiptap pre code .hljs-addition,
+.tiptap pre code .hljs-meta .hljs-string {
+  color: #0a7b34;
 }
 .tiptap pre code .hljs-number,
-.tiptap pre code .hljs-literal,
-.tiptap pre code .hljs-type {
-  color: #005cc5;
+.tiptap pre code .hljs-symbol,
+.tiptap pre code .hljs-bullet,
+.tiptap pre code .hljs-link {
+  color: #0550ae;
 }
 .tiptap pre code .hljs-title,
+.tiptap pre code .hljs-title.function_,
 .tiptap pre code .hljs-function .hljs-title,
 .tiptap pre code .hljs-section {
-  color: #6f42c1;
+  color: #8250df;
 }
+.tiptap pre code .hljs-attr,
 .tiptap pre code .hljs-attribute,
 .tiptap pre code .hljs-variable,
-.tiptap pre code .hljs-tag {
-  color: #e36209;
+.tiptap pre code .hljs-template-variable,
+.tiptap pre code .hljs-property,
+.tiptap pre code .hljs-params {
+  color: #b35900;
+}
+.tiptap pre code .hljs-name,
+.tiptap pre code .hljs-tag,
+.tiptap pre code .hljs-selector-id,
+.tiptap pre code .hljs-selector-class {
+  color: #116329;
+}
+.tiptap pre code .hljs-meta,
+.tiptap pre code .hljs-punctuation {
+  color: #6e7781;
 }
 .tiptap pre code .hljs-deletion {
-  color: #b31d28;
+  color: #82071e;
 }
 .tiptap pre code .hljs-emphasis {
   font-style: italic;

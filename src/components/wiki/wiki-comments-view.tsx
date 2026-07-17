@@ -9,7 +9,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { useEditor, EditorContent, type JSONContent } from "@tiptap/react";
-import { MessageSquarePlus, Pencil } from "lucide-react";
+import { MessageSquarePlus } from "lucide-react";
 import { toast } from "sonner";
 import { wikiExtensions } from "@/components/wiki/extensions";
 import {
@@ -58,8 +58,9 @@ function useIsWide() {
  * 씌운 뒤 우측 거터에 그 앵커 세로위치에 맞춰 스레드 카드가 나타난다(sticky 아님 —
  * 본문과 함께 스크롤하며 댓글이 달린 위치 우측에 고정). 앵커 클릭 ↔ 카드 상호 하이라이트.
  *
- * 편집은 상위 WikiDetail 의 '편집' 버튼(WikiEditor)에서 하며, 여기선 하지 않는다.
- * 마크 적용 시에만 잠깐 editable 을 켰다 끈다(읽기전용에서 트랜잭션 디스패치 보장).
+ * 편집은 상위 WikiDetail 헤더('...' 좌측)의 '수정' 버튼(WikiEditor)에서 하며,
+ * 여기선 하지 않는다. 마크 적용 시에만 잠깐 editable 을 켰다 끈다(읽기전용에서
+ * 트랜잭션 디스패치 보장).
  */
 export function WikiCommentsView({
   pageId,
@@ -68,7 +69,6 @@ export function WikiCommentsView({
   threads,
   currentUserId,
   updatedAt,
-  onEdit,
 }: {
   pageId: string;
   title: string;
@@ -76,8 +76,6 @@ export function WikiCommentsView({
   threads: ThreadItem[];
   currentUserId: string;
   updatedAt: string;
-  /** 제목 행 우측 '수정' 버튼 → 편집 모드 진입(상위 WikiDetail). */
-  onEdit?: () => void;
 }) {
   const router = useRouter();
   const isWide = useIsWide();
@@ -314,20 +312,10 @@ export function WikiCommentsView({
       {/* 본문: 데스크톱은 우측 댓글 거터만큼 비워 카드와 겹치지 않게. 모바일은 거터 폭이
           안 나오므로 전체폭 사용(댓글은 본문 아래로 스택). */}
       <div style={{ paddingRight: hasComments && isWide ? GUTTER : undefined }}>
-        <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="mb-4">
           <h1 className="min-w-0 text-2xl font-semibold break-words md:text-3xl">
             {title.trim() || "제목 없음"}
           </h1>
-          {onEdit && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onEdit}
-              className="mt-0.5 shrink-0"
-            >
-              <Pencil className="size-4" /> 수정
-            </Button>
-          )}
         </div>
         <div onClick={onDocClick}>
           <EditorContent editor={editor} />

@@ -8,10 +8,13 @@ export function EpicLabels({
   epicId,
   labels,
   allLabels,
+  align,
 }: {
   epicId: string;
   labels: LabelItem[];
   allLabels: LabelItem[];
+  /** 표 셀에선 "start"(헤더와 좌측 정렬), 상세 시트 메타행은 기본 "end". */
+  align?: "start" | "end";
 }) {
   return (
     <EntityLabels
@@ -19,6 +22,7 @@ export function EpicLabels({
       allLabels={allLabels}
       attach={(labelId) => addLabelToEpic(epicId, labelId)}
       detach={(labelId) => removeLabelFromEpic(epicId, labelId)}
+      align={align}
     />
   );
 }

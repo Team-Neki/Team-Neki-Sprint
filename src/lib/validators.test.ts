@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  isRichDoc,
   sprintSchema,
   teamSchema,
   projectSchema,
@@ -214,5 +215,32 @@ describe("단일 필드 인라인 편집 스키마", () => {
     expect(assigneeIdSchema.parse("u1")).toBe("u1");
     expect(assigneeIdSchema.parse(null)).toBeNull();
     expect(() => assigneeIdSchema.parse("")).toThrow();
+  });
+});
+
+describe("isRichDoc (Tiptap 본문 doc 최소 방어)", () => {
+  it("최상위 { type: 'doc' } 객체만 허용", () => {
+    expect(isRichDoc({ type: "doc", content: [] })).toBe(true);
+    expect(isRichDoc({ type: "paragraph" })).toBe(false);
+    expect(isRichDoc({})).toBe(false);
+    expect(isRichDoc([])).toBe(false);
+    expect(isRichDoc("doc")).toBe(false);
+    expect(isRichDoc(null)).toBe(false);
+    expect(isRichDoc(undefined)).toBe(false);
+  });
+
+  it("직렬화 크기 상한을 넘으면 거부", () => {
+    const big = {
+      type: "doc",
+      content: [{ type: "text", text: "x".repeat(100) }],
+    };
+    expect(isRichDoc(big, 50)).toBe(false);
+    expect(isRichDoc(big)).toBe(true);
+  });
+
+  it("직렬화 불가(순환 참조) 문서는 거부", () => {
+    const cyclic: { type: string; self?: unknown } = { type: "doc" };
+    cyclic.self = cyclic;
+    expect(isRichDoc(cyclic)).toBe(false);
   });
 });

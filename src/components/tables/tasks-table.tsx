@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { format } from "date-fns";
+import { ko } from "date-fns/locale";
 import type { Priority, Status } from "@prisma/client";
 import {
   Table,
@@ -25,7 +27,10 @@ import {
   InlinePriority,
   InlineMember,
   InlineNumber,
+  InlineDate,
 } from "@/components/detail/inline-fields";
+import { TaskLabels } from "@/components/detail/task-labels";
+import type { LabelItem } from "@/components/detail/entity-labels";
 import { OpenDetailKey } from "./open-detail";
 import { EmptyRow } from "./cells";
 
@@ -42,6 +47,8 @@ export type TaskTableRow = {
   team: { key: string } | null;
   teamId: string;
   assignee: MiniUser | null;
+  startDate?: Date | null;
+  dueDate?: Date | null;
   labels?: { label: { id: string; name: string; color: string } }[];
   assigneeId?: string | null;
   estimatedMd?: number | null;
@@ -54,11 +61,17 @@ export type TaskEditContext = {
   members: MiniUser[];
   teams: TeamOption[];
   epics: TaskEpicOption[];
+  labels: LabelItem[];
 };
+
+const fmt = (d: Date | null | undefined) =>
+  d ? format(d, "yyyy.M.d", { locale: ko }) : "—";
 
 /**
  * 태스크 목록/하위목록 공용 표.
- * 컬럼: [키] [제목] [우선순위] [상태] [MD] [담당자]
+ * 컬럼: [키] [제목] [담당자] [시작일] [종료일] [우선순위] [상태] [레이블] [MD]
+ * - 프로젝트/에픽 표와 동일한 공통 컬럼 순서(제목→담당자→시작일→종료일→우선순위→상태→레이블).
+ *   키(식별자)는 맨 앞, MD 는 맨 뒤에 둔다.
  * - `edit` 제공(목록): 각 셀 인라인 편집. 미제공(상세 하위목록): 읽기전용 표시.
  * - 키 클릭: 우측 슬라이드 상세(목록 세그먼트 한정), ↗: 새 탭 전체 페이지.
  */
@@ -77,15 +90,18 @@ export function TasksTable({
         <TableRow>
           <TableHead className="w-28">키</TableHead>
           <TableHead>제목</TableHead>
+          <TableHead className="w-32">담당자</TableHead>
+          <TableHead className="w-28">시작일</TableHead>
+          <TableHead className="w-28">종료일</TableHead>
           <TableHead className="w-24">우선순위</TableHead>
           <TableHead className="w-28">상태</TableHead>
+          <TableHead className="w-40">레이블</TableHead>
           <TableHead className="w-20">MD</TableHead>
-          <TableHead className="w-36 pl-5">담당자</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {tasks.length === 0 ? (
-          <EmptyRow colSpan={6} message={emptyMessage} />
+          <EmptyRow colSpan={9} message={emptyMessage} />
         ) : (
           tasks.map((t) => {
             const cells = (
@@ -113,14 +129,45 @@ export function TasksTable({
                     </Link>
                   )}
                   {t.blocked && <BlockedBadge />}
-                  {t.labels?.map((l) => (
-                    <LabelBadge
-                      key={l.label.id}
-                      name={l.label.name}
-                      color={l.label.color}
-                    />
-                  ))}
                 </span>
+              </TableCell>
+              <TableCell>
+                {edit ? (
+                  <InlineMember
+                    type="task"
+                    id={t.id}
+                    field="assigneeId"
+                    value={t.assignee}
+                    members={edit.members}
+                    avatarOnly
+                  />
+                ) : (
+                  <UserBadge user={t.assignee} hideName />
+                )}
+              </TableCell>
+              <TableCell className="text-muted-foreground text-xs">
+                {edit ? (
+                  <InlineDate
+                    type="task"
+                    id={t.id}
+                    field="startDate"
+                    value={t.startDate ?? null}
+                  />
+                ) : (
+                  fmt(t.startDate)
+                )}
+              </TableCell>
+              <TableCell className="text-muted-foreground text-xs">
+                {edit ? (
+                  <InlineDate
+                    type="task"
+                    id={t.id}
+                    field="dueDate"
+                    value={t.dueDate ?? null}
+                  />
+                ) : (
+                  fmt(t.dueDate)
+                )}
               </TableCell>
               <TableCell>
                 {edit ? (
@@ -136,6 +183,32 @@ export function TasksTable({
                   <StatusBadge status={t.status} />
                 )}
               </TableCell>
+              {/* 라벨 셀: auto-layout 표에서 컬럼이 밀리지 않도록 폭을 헤더(w-40)에
+                  맞춰 상한 두고 넘치면 줄바꿈(가로 blowout 방지). */}
+              <TableCell>
+                {edit ? (
+                  <div className="max-w-40">
+                    <TaskLabels
+                      taskId={t.id}
+                      labels={t.labels?.map((l) => l.label) ?? []}
+                      allLabels={edit.labels}
+                      align="start"
+                    />
+                  </div>
+                ) : (
+                  <span className="flex max-w-40 flex-wrap items-center gap-1">
+                    {t.labels?.length
+                      ? t.labels.map((l) => (
+                          <LabelBadge
+                            key={l.label.id}
+                            name={l.label.name}
+                            color={l.label.color}
+                          />
+                        ))
+                      : "—"}
+                  </span>
+                )}
+              </TableCell>
               <TableCell>
                 {edit ? (
                   <InlineNumber
@@ -148,20 +221,6 @@ export function TasksTable({
                   <span className="text-muted-foreground text-sm tabular-nums">
                     {t.estimatedMd ?? "—"}
                   </span>
-                )}
-              </TableCell>
-              <TableCell className="pl-5">
-                {edit ? (
-                  <InlineMember
-                    type="task"
-                    id={t.id}
-                    field="assigneeId"
-                    value={t.assignee}
-                    members={edit.members}
-                    avatarOnly
-                  />
-                ) : (
-                  <UserBadge user={t.assignee} hideName />
                 )}
               </TableCell>
               </>

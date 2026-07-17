@@ -1,9 +1,7 @@
-import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import type { Prisma, Status } from "@prisma/client";
 import { formatIssueKey } from "@/lib/constants";
 import { searchExcerpt } from "@/lib/rich-content";
-import { CACHE_TAGS, CACHE_REVALIDATE } from "@/lib/cache";
 
 const miniUser = {
   select: {
@@ -33,16 +31,29 @@ const labelInclude = {
 export type MdRollup = { estimated: number; actual: number };
 const ZERO_MD: MdRollup = { estimated: 0, actual: 0 };
 
+/**
+ * MD 는 Float 라 합산하면 이진 부동소수점 노이즈가 생긴다(예: 0.1+0.2=
+ * 0.30000000000000004 → 표에 그대로 노출). 표시용 롤업 출력에만 반올림해 노이즈만
+ * 없앤다 — 6자리면 실제 입력값(0.5·2.25 등)은 보존되고 1e-15 수준 오차만 사라진다.
+ */
+const roundMd = (n: number) => Math.round(n * 1e6) / 1e6;
+const roundRollup = (r: MdRollup): MdRollup => ({
+  estimated: roundMd(r.estimated),
+  actual: roundMd(r.actual),
+});
+
 /** 태스크 배열의 estimated/actual MD 합. */
 function sumMd(
   tasks: { estimatedMd: number | null; actualMd: number | null }[],
 ): MdRollup {
-  return tasks.reduce<MdRollup>(
-    (acc, t) => ({
-      estimated: acc.estimated + (t.estimatedMd ?? 0),
-      actual: acc.actual + (t.actualMd ?? 0),
-    }),
-    { estimated: 0, actual: 0 },
+  return roundRollup(
+    tasks.reduce<MdRollup>(
+      (acc, t) => ({
+        estimated: acc.estimated + (t.estimatedMd ?? 0),
+        actual: acc.actual + (t.actualMd ?? 0),
+      }),
+      { estimated: 0, actual: 0 },
+    ),
   );
 }
 
@@ -57,10 +68,13 @@ async function mdByEpic(epicIds: string[]): Promise<Map<string, MdRollup>> {
   });
   for (const r of rows) {
     if (!r.epicId) continue;
-    map.set(r.epicId, {
-      estimated: r._sum.estimatedMd ?? 0,
-      actual: r._sum.actualMd ?? 0,
-    });
+    map.set(
+      r.epicId,
+      roundRollup({
+        estimated: r._sum.estimatedMd ?? 0,
+        actual: r._sum.actualMd ?? 0,
+      }),
+    );
   }
   return map;
 }
@@ -79,34 +93,25 @@ export function getMembers() {
   });
 }
 
-export const getTeams = unstable_cache(
-  () =>
+export const getTeams = () =>
     prisma.team.findMany({
       orderBy: { key: "asc" },
       include: {
         members: { ...miniUser, orderBy: { name: "asc" } },
         _count: { select: { epics: true, tasks: true, members: true } },
       },
-    }),
-  ["teams"],
-  { tags: [CACHE_TAGS.teams], revalidate: CACHE_REVALIDATE.list },
-);
+    });
 
 /** 폼 select 등에 쓰는 팀 옵션(경량). */
-export const getTeamOptions = unstable_cache(
-  () =>
+export const getTeamOptions = () =>
     prisma.team.findMany({
       orderBy: { key: "asc" },
       select: { id: true, key: true, name: true, color: true },
-    }),
-  ["team-options"],
-  { tags: [CACHE_TAGS.teams], revalidate: CACHE_REVALIDATE.options },
-);
+    });
 
 // ---------- Sprint ----------
 
-export const getSprints = unstable_cache(
-  async () => {
+export const getSprints = async () => {
     const sprints = await prisma.sprint.findMany({
       orderBy: [{ status: "asc" }, { startDate: "desc" }, { createdAt: "desc" }],
     });
@@ -121,19 +126,17 @@ export const getSprints = unstable_cache(
       WHERE p."sprintId" IS NOT NULL
       GROUP BY p."sprintId"
     `;
-    const mdBySprint = new Map(mdRows.map((r) => [r.sprintId, r.md]));
+    const mdBySprint = new Map(mdRows.map((r) => [r.sprintId, roundMd(r.md)]));
     return sprints.map((s) => ({ ...s, estimatedMd: mdBySprint.get(s.id) ?? 0 }));
-  },
-  ["sprints"],
-  { tags: [CACHE_TAGS.sprints], revalidate: CACHE_REVALIDATE.list },
-);
+  };
 
 export async function getSprint(id: string) {
   const sprint = await prisma.sprint.findUnique({
     where: { id },
     include: {
       projects: {
-        orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+        // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO→BACKLOG) → 최신 생성 우선.
+        orderBy: [{ status: "desc" }, { createdAt: "desc" }],
         include: {
           owner: miniUser,
           _count: { select: { epics: true } },
@@ -145,15 +148,11 @@ export async function getSprint(id: string) {
   return sprint;
 }
 
-export const getSprintOptions = unstable_cache(
-  () =>
+export const getSprintOptions = () =>
     prisma.sprint.findMany({
       orderBy: [{ startDate: "desc" }, { createdAt: "desc" }],
       select: { id: true, name: true, status: true },
-    }),
-  ["sprint-options"],
-  { tags: [CACHE_TAGS.sprints], revalidate: CACHE_REVALIDATE.options },
-);
+    });
 
 // ---------- Project (구 Initiative) ----------
 
@@ -171,9 +170,9 @@ export type ProjectFilter = {
   sort?: { field: ProjectSortField; dir: "asc" | "desc" };
 };
 
-// 기본 정렬(정렬 지정 없을 때). 상태 오름차 → 최신 생성 우선.
+// 기본 정렬(정렬 지정 없을 때). 상태 내림차(DONE→IN_PROGRESS→TODO→BACKLOG) → 최신 생성 우선.
 const PROJECT_DEFAULT_ORDER: Prisma.ProjectOrderByWithRelationInput[] = [
-  { status: "asc" },
+  { status: "desc" },
   { createdAt: "desc" },
 ];
 
@@ -203,8 +202,7 @@ function projectOrderBy(
   }
 }
 
-export const getProjects = unstable_cache(
-  async (filter: ProjectFilter = {}) => {
+export const getProjects = async (filter: ProjectFilter = {}) => {
     const projects = await prisma.project.findMany({
       where: {
         ownerId: filter.ownerId,
@@ -219,10 +217,7 @@ export const getProjects = unstable_cache(
       },
     });
     return projects;
-  },
-  ["projects"],
-  { tags: [CACHE_TAGS.projects], revalidate: CACHE_REVALIDATE.list },
-);
+  };
 
 export async function getProject(id: string) {
   const project = await prisma.project.findUnique({
@@ -247,25 +242,23 @@ export async function getProject(id: string) {
     ...e,
     md: perEpic.get(e.id) ?? ZERO_MD,
   }));
-  const md = epics.reduce<MdRollup>(
-    (a, e) => ({
-      estimated: a.estimated + e.md.estimated,
-      actual: a.actual + e.md.actual,
-    }),
-    { estimated: 0, actual: 0 },
+  const md = roundRollup(
+    epics.reduce<MdRollup>(
+      (a, e) => ({
+        estimated: a.estimated + e.md.estimated,
+        actual: a.actual + e.md.actual,
+      }),
+      { estimated: 0, actual: 0 },
+    ),
   );
   return { ...project, epics, md };
 }
 
-export const getProjectOptions = unstable_cache(
-  () =>
+export const getProjectOptions = () =>
     prisma.project.findMany({
       orderBy: { createdAt: "desc" },
       select: { id: true, title: true },
-    }),
-  ["project-options"],
-  { tags: [CACHE_TAGS.projects], revalidate: CACHE_REVALIDATE.options },
-);
+    });
 
 // ---------- Epic ----------
 
@@ -274,18 +267,19 @@ export type EpicFilter = {
   teamId?: string;
 };
 
-export const getEpics = unstable_cache(
-  async (filter: EpicFilter = {}) => {
+export const getEpics = async (filter: EpicFilter = {}) => {
     const epics = await prisma.epic.findMany({
       where: {
         ownerId: filter.ownerId,
         teamId: filter.teamId,
       },
-      orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+      // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO→BACKLOG) → 최신 생성 우선.
+      orderBy: [{ status: "desc" }, { createdAt: "desc" }],
       include: {
         owner: miniUser,
         team: miniTeam,
         project: { select: { id: true, title: true } },
+        labels: labelInclude,
         _count: { select: { tasks: true } },
       },
     });
@@ -298,16 +292,13 @@ export const getEpics = unstable_cache(
       _sum: { estimatedMd: true },
     });
     const mdByEpicId = new Map(
-      mdGroups.map((g) => [g.epicId, g._sum.estimatedMd ?? 0]),
+      mdGroups.map((g) => [g.epicId, roundMd(g._sum.estimatedMd ?? 0)]),
     );
     return epics.map((e) => ({
       ...e,
       estimatedMd: mdByEpicId.get(e.id) ?? 0,
     }));
-  },
-  ["epics"],
-  { tags: [CACHE_TAGS.epics], revalidate: CACHE_REVALIDATE.list },
-);
+  };
 
 export async function getEpic(id: string) {
   const epic = await prisma.epic.findUnique({
@@ -329,8 +320,7 @@ export async function getEpic(id: string) {
 }
 
 /** 에픽 옵션(폼 select). 태스크 생성 시 에픽의 팀을 상속하기 위해 team도 함께. */
-export const getEpicOptions = unstable_cache(
-  () =>
+export const getEpicOptions = () =>
     prisma.epic.findMany({
       orderBy: { createdAt: "desc" },
       select: {
@@ -339,10 +329,7 @@ export const getEpicOptions = unstable_cache(
         number: true,
         team: { select: { id: true, key: true } },
       },
-    }),
-  ["epic-options"],
-  { tags: [CACHE_TAGS.epics], revalidate: CACHE_REVALIDATE.options },
-);
+    });
 
 // ---------- Task ----------
 
@@ -351,8 +338,7 @@ export type BoardFilter = {
   teamId?: string;
 };
 
-export const getBoardTasks = unstable_cache(
-  async (filter: BoardFilter = {}) => {
+export const getBoardTasks = async (filter: BoardFilter = {}) => {
     const rows = await prisma.task.findMany({
       where: {
         assigneeId: filter.assigneeId,
@@ -378,10 +364,7 @@ export const getBoardTasks = unstable_cache(
       ...t,
       blocked: blockedBy.some((d) => d.blocker.status !== "DONE"),
     }));
-  },
-  ["board-tasks"],
-  { tags: [CACHE_TAGS.tasks], revalidate: CACHE_REVALIDATE.list },
-);
+  };
 
 export type TaskFilter = {
   status?: Status;
@@ -392,8 +375,7 @@ export type TaskFilter = {
   q?: string;
 };
 
-export const getTasks = unstable_cache(
-  async (filter: TaskFilter = {}) => {
+export const getTasks = async (filter: TaskFilter = {}) => {
     const rows = await prisma.task.findMany({
       where: {
         status: filter.status,
@@ -408,10 +390,11 @@ export const getTasks = unstable_cache(
           ? { contains: filter.q, mode: "insensitive" }
           : undefined,
       },
+      // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO→BACKLOG) 우선.
       // id 를 마지막 tiebreaker 로 추가 → (status,priority,createdAt) 동점 행들도
       // 결정적 순서 보장. 없으면 MD 등 수정 시 동점 구간이 재배열돼 순서가 흔들린다.
       orderBy: [
-        { status: "asc" },
+        { status: "desc" },
         { priority: "asc" },
         { createdAt: "desc" },
         { id: "asc" },
@@ -429,10 +412,7 @@ export const getTasks = unstable_cache(
       ...t,
       blocked: blockedBy.some((d) => d.blocker.status !== "DONE"),
     }));
-  },
-  ["tasks"],
-  { tags: [CACHE_TAGS.tasks], revalidate: CACHE_REVALIDATE.list },
-);
+  };
 
 export function getTask(id: string) {
   return prisma.task.findUnique({
@@ -494,11 +474,27 @@ export function getTask(id: string) {
   });
 }
 
+/** 태스크에 연결된 GitHub 브랜치/PR 링크. 최신순. */
+export function getTaskGithubLinks(taskId: string) {
+  return prisma.githubBranchLink.findMany({
+    where: { taskId },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      repoFullName: true,
+      branchName: true,
+      branchUrl: true,
+      prNumber: true,
+      prState: true,
+      prUrl: true,
+    },
+  });
+}
+
 // ---------- Label (C8) ----------
 
 /** 라벨 전체 + 사용 카운트(태스크/에픽/프로젝트). 관리 페이지·배지 표시용. 이름순. */
-export const getLabels = unstable_cache(
-  () =>
+export const getLabels = () =>
     prisma.label.findMany({
       orderBy: { name: "asc" },
       select: {
@@ -507,21 +503,14 @@ export const getLabels = unstable_cache(
         color: true,
         _count: { select: { tasks: true, epics: true, projects: true } },
       },
-    }),
-  ["labels"],
-  { tags: [CACHE_TAGS.labels], revalidate: CACHE_REVALIDATE.list },
-);
+    });
 
 /** 필터/할당 컨트롤용 경량 라벨 옵션(카운트 없음). 이름순. */
-export const getLabelOptions = unstable_cache(
-  () =>
+export const getLabelOptions = () =>
     prisma.label.findMany({
       orderBy: { name: "asc" },
       select: { id: true, name: true, color: true },
-    }),
-  ["label-options"],
-  { tags: [CACHE_TAGS.labels], revalidate: CACHE_REVALIDATE.options },
-);
+    });
 
 // ---------- Activity (업무 히스토리, B8) ----------
 
@@ -572,8 +561,7 @@ export function getTimelineEpics() {
 }
 
 /** Full page tree (small dataset for a 20-person team). */
-export const getWikiTree = unstable_cache(
-  () =>
+export const getWikiTree = () =>
     prisma.wikiPage.findMany({
       where: { deletedAt: null },
       orderBy: [{ position: "asc" }, { createdAt: "asc" }],
@@ -585,10 +573,7 @@ export const getWikiTree = unstable_cache(
         position: true,
         updatedAt: true,
       },
-    }),
-  ["wiki-tree"],
-  { tags: [CACHE_TAGS.wiki], revalidate: CACHE_REVALIDATE.wiki },
-);
+    });
 
 /** 휴지통(soft-delete)된 페이지 목록. 최근 삭제순. parentId 로 '삭제 루트'를 화면에서 판별. */
 export function getTrashedWikiPages() {
@@ -621,15 +606,11 @@ export async function getWikiDraft(pageId: string, userId: string) {
 }
 
 /** 문서 폴더(사이드바 그룹핑). 페이지와 별개 타입. */
-export const getWikiFolders = unstable_cache(
-  () =>
+export const getWikiFolders = () =>
     prisma.wikiFolder.findMany({
       orderBy: [{ position: "asc" }, { createdAt: "asc" }],
       select: { id: true, name: true, parentId: true, position: true },
-    }),
-  ["wiki-folders"],
-  { tags: [CACHE_TAGS.wiki], revalidate: CACHE_REVALIDATE.wiki },
-);
+    });
 
 /** 페이지의 버전 기록 목록(경량: 내용 제외, 작성자·시각만). ⋯ 메뉴 버전 기록 리스트용. */
 export function getWikiRevisions(pageId: string) {
@@ -969,6 +950,36 @@ export function searchMembers(query: string, limit = 8) {
   });
 }
 
+/**
+ * '@' 멘션 드롭다운용 통합 검색: 멤버(이름/이메일) + 팀(이름/key).
+ * 팀을 고르면 팀 전원에게 알림이 가므로(teamMention) 팀은 소수만 노출한다.
+ */
+export async function searchMentionTargets(query: string) {
+  const q = query.trim();
+  const [users, teams] = await Promise.all([
+    searchMembers(query),
+    prisma.team.findMany({
+      where: q
+        ? {
+            OR: [
+              { name: { contains: q, mode: "insensitive" } },
+              { key: { contains: q, mode: "insensitive" } },
+            ],
+          }
+        : undefined,
+      orderBy: { name: "asc" },
+      take: 4,
+      select: {
+        id: true,
+        key: true,
+        name: true,
+        _count: { select: { members: true } },
+      },
+    }),
+  ]);
+  return { users, teams };
+}
+
 /** 프로필 페이지: 기본 정보 + 담당 태스크(진행 중) + 오너 에픽. */
 export function getUserProfile(id: string) {
   return prisma.user.findUnique({
@@ -983,7 +994,8 @@ export function getUserProfile(id: string) {
       team: { select: { id: true, key: true, name: true, color: true } },
       assignedTasks: {
         where: { status: { not: "DONE" } },
-        orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+        // 기본 정렬: 상태 내림차(IN_PROGRESS→TODO→BACKLOG, DONE 제외) → 최신 생성 우선.
+        orderBy: [{ status: "desc" }, { createdAt: "desc" }],
         take: 20,
         select: {
           id: true,
@@ -994,7 +1006,8 @@ export function getUserProfile(id: string) {
         },
       },
       ownedEpics: {
-        orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+        // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO→BACKLOG) → 최신 생성 우선.
+        orderBy: [{ status: "desc" }, { createdAt: "desc" }],
         take: 20,
         select: {
           id: true,
@@ -1020,6 +1033,31 @@ export function getNotifications(userId: string, limit = 20) {
 
 export function getUnreadNotificationCount(userId: string) {
   return prisma.notification.count({ where: { userId, read: false } });
+}
+
+// ---------- 공지(Announcement) ----------
+
+/** 공지 목록(최신순). 대시보드(limit 지정)와 전체 목록이 공유. */
+export function getAnnouncements(limit?: number) {
+  return prisma.announcement.findMany({
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    select: {
+      id: true,
+      title: true,
+      createdAt: true,
+      updatedAt: true,
+      author: miniUser,
+    },
+  });
+}
+
+/** 공지 상세(본문 포함). */
+export function getAnnouncement(id: string) {
+  return prisma.announcement.findUnique({
+    where: { id },
+    include: { author: miniUser },
+  });
 }
 
 export async function getDashboardData(userId: string) {
@@ -1108,9 +1146,13 @@ export async function getDashboardData(userId: string) {
   const epicIds = recentActivityRaw
     .filter((a) => a.entityType === "epic")
     .map((a) => a.entityId);
+  const wikiIds = recentActivityRaw
+    .filter((a) => a.entityType === "wiki")
+    .map((a) => a.entityId);
   const [
     actTasks,
     actEpics,
+    actWikis,
     lookupMembers,
     lookupEpics,
     lookupProjects,
@@ -1138,6 +1180,15 @@ export async function getDashboardData(userId: string) {
           },
         })
       : Promise.resolve([]),
+    // 위키 활동에 "어떤 페이지인지" 제목을 붙인다. 휴지통(deletedAt≠null) 페이지도
+    // 포함 — 목록/검색 유출(gotchas §8)이 아니라 이미 노출된 활동 이력의 제목 보강이며,
+    // 제외하면 방금 삭제된 페이지의 과거 수정 활동이 제목 없이 뜬다.
+    wikiIds.length
+      ? prisma.wikiPage.findMany({
+          where: { id: { in: wikiIds } },
+          select: { id: true, title: true },
+        })
+      : Promise.resolve([]),
     prisma.user.findMany({ select: { id: true, name: true, email: true } }),
     prisma.epic.findMany({ select: { id: true, title: true } }),
     prisma.project.findMany({ select: { id: true, title: true } }),
@@ -1153,6 +1204,7 @@ export async function getDashboardData(userId: string) {
     keyMap.set(e.id, formatIssueKey(e.team.key, e.number));
     titleMap.set(e.id, e.title);
   }
+  for (const w of actWikis) titleMap.set(w.id, w.title);
   for (const p of lookupProjects) titleMap.set(p.id, p.title);
   for (const s of lookupSprints) titleMap.set(s.id, s.name);
 

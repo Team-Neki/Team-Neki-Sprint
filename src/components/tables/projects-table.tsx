@@ -180,16 +180,20 @@ export function ProjectsTable({
                   <StatusBadge status={p.status} />
                 )}
               </TableCell>
+              {/* 라벨 셀: auto-layout 표에서 컬럼이 밀리지 않도록 폭을 헤더(w-40)에
+                  맞춰 상한 두고 넘치면 줄바꿈(가로 blowout 방지). */}
               <TableCell>
                 {edit ? (
-                  <ProjectLabels
-                    projectId={p.id}
-                    labels={p.labels?.map((l) => l.label) ?? []}
-                    allLabels={edit.labels}
-                    align="start"
-                  />
+                  <div className="max-w-40">
+                    <ProjectLabels
+                      projectId={p.id}
+                      labels={p.labels?.map((l) => l.label) ?? []}
+                      allLabels={edit.labels}
+                      align="start"
+                    />
+                  </div>
                 ) : (
-                  <span className="flex flex-wrap items-center gap-1">
+                  <span className="flex max-w-40 flex-wrap items-center gap-1">
                     {p.labels?.length
                       ? p.labels.map((l) => (
                           <LabelBadge

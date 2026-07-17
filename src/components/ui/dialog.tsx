@@ -11,16 +11,36 @@ function Dialog({ ...props }: DialogPrimitive.Root.Props) {
   return <DialogPrimitive.Root data-slot="dialog" {...props} />
 }
 
-function DialogTrigger({ ...props }: DialogPrimitive.Trigger.Props) {
-  return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />
+function DialogTrigger({ render, ...props }: DialogPrimitive.Trigger.Props) {
+  // render 로 커스텀 요소(<Button/> 등, 자체 data-slot 보유)를 넣을 땐 data-slot 키
+  // 자체를 넘기지 않는다(값 undefined 도 안 됨 — 키가 있으면 병합에서 override 됨).
+  // Base UI 의 render 병합은 SSR 에선 트리거(outer)의 data-slot 이, CSR 에선 렌더
+  // 요소(inner)의 data-slot 이 이겨서 둘 다 값을 주면 hydration 불일치가 난다
+  // (server="dialog-trigger"/null vs client="button"). 트리거가 키를 안 주면 양쪽 모두
+  // 렌더 요소의 slot 으로 수렴한다. standalone(render 없음)일 때만 slot 을 부여.
+  return (
+    <DialogPrimitive.Trigger
+      {...(render ? {} : { "data-slot": "dialog-trigger" })}
+      render={render}
+      {...props}
+    />
+  )
 }
 
 function DialogPortal({ ...props }: DialogPrimitive.Portal.Props) {
   return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />
 }
 
-function DialogClose({ ...props }: DialogPrimitive.Close.Props) {
-  return <DialogPrimitive.Close data-slot="dialog-close" {...props} />
+function DialogClose({ render, ...props }: DialogPrimitive.Close.Props) {
+  // DialogTrigger 와 동일: render 로 <Button/> 등을 넣을 땐 data-slot 키를 생략해
+  // 렌더 요소의 slot 에 양보한다(hydration 불일치 방지).
+  return (
+    <DialogPrimitive.Close
+      {...(render ? {} : { "data-slot": "dialog-close" })}
+      render={render}
+      {...props}
+    />
+  )
 }
 
 function DialogOverlay({

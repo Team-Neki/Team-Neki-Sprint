@@ -1,6 +1,12 @@
 "use client";
 
-import { createContext, useContext, useState, useTransition } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useTransition,
+} from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import {
@@ -32,6 +38,12 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { ConfirmDelete } from "@/components/confirm-delete";
+import {
+  folderKey,
+  pageKey,
+  parseCollapsed,
+  serializeCollapsed,
+} from "@/components/wiki/wiki-collapsed";
 import {
   createWikiPage,
   createWikiFolder,
@@ -93,7 +105,10 @@ function buildMaps(folders: FolderNode[], pages: PageNode[]): Maps {
   const pagesByFolderId = new Map<string, number>();
   for (const p of pages) {
     if (p.folderId) {
-      pagesByFolderId.set(p.folderId, (pagesByFolderId.get(p.folderId) ?? 0) + 1);
+      pagesByFolderId.set(
+        p.folderId,
+        (pagesByFolderId.get(p.folderId) ?? 0) + 1,
+      );
     }
     const hasParent = !!p.parentId && pageIds.has(p.parentId);
     if (hasParent) {
@@ -121,7 +136,12 @@ function buildMaps(folders: FolderNode[], pages: PageNode[]): Maps {
     detachImpact.set(f.id, count);
   }
 
-  return { foldersByParent, topPagesByFolder, pageChildrenByParent, detachImpact };
+  return {
+    foldersByParent,
+    topPagesByFolder,
+    pageChildrenByParent,
+    detachImpact,
+  };
 }
 
 /** 페이지 하위(재귀) 페이지 수. 삭제 경고 문구용. */
@@ -139,13 +159,38 @@ function countPageDescendants(maps: Maps, pageId: string): number {
 
 // 생성 액션 + 즐겨찾기 집합 + 드래그 이동 상태를 트리 전역에서 공유(프롭 드릴링 방지).
 type TreeCtx = {
-  addPage: (opts: { parentId?: string | null; folderId?: string | null }) => void;
+  addPage: (opts: {
+    parentId?: string | null;
+    folderId?: string | null;
+  }) => void;
   addFolder: (parentId: string | null) => void;
   favSet: Set<string>;
   dragId: string | null;
   setDragId: (id: string | null) => void;
   move: (pageId: string, target: MoveTarget) => void;
+  /** 방금 생성돼 사이드바에서 바로 이름을 지정할(rename 모드로 열릴) 노드 id. */
+  pendingRenameId: string | null;
+  clearPendingRename: () => void;
+  // 접힘 상태를 트리 최상위에서 소유해 자식 <ul> 언마운트에도 보존한다.
+  // (자식이 local useState 로 open 을 들면 부모 접힘→재펼침 때 open=true 로 초기화되던 버그.)
+  // 기본값은 '펼침'이고 collapsedIds 에 든 key 만 접힌 것으로 본다. key 는 `f:`/`p:` 로 네임스페이스.
+  isCollapsed: (key: string) => boolean;
+  toggleCollapsed: (key: string) => void;
+  /** key 를 접힘 집합에서 빼서 강제로 펼친다(하위 항목 생성 직후 노출용). */
+  expand: (key: string) => void;
 };
+
+// 접힘 상태 localStorage 키. JSON 문자열 배열로 저장한다(파싱/직렬화는 wiki-collapsed).
+const COLLAPSED_STORAGE_KEY = "wiki:collapsed";
+
+function readCollapsedFromStorage(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    return parseCollapsed(window.localStorage.getItem(COLLAPSED_STORAGE_KEY));
+  } catch {
+    return new Set();
+  }
+}
 const Ctx = createContext<TreeCtx | null>(null);
 function useTree() {
   const c = useContext(Ctx);
@@ -165,6 +210,45 @@ export function PageTree({
   const router = useRouter();
   const [, start] = useTransition();
   const [dragId, setDragId] = useState<string | null>(null);
+  // 생성 직후 rename 모드로 열릴 노드. 새로 마운트된 항목이 자기 id면 소비하고 비운다.
+  const [pendingRenameId, setPendingRenameId] = useState<string | null>(null);
+
+  // 사용자가 명시적으로 접은 항목의 key 집합. 기본은 펼침이므로 여기 없는 항목은 open.
+  // 최상위에서 소유하므로 자식 <ul> 언마운트/재마운트에도 접힘 상태가 유지된다.
+  // SSR 에선 localStorage 접근 불가 → initializer 에서 window 존재할 때만 복원한다.
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(
+    readCollapsedFromStorage,
+  );
+
+  const persistCollapsed = (next: Set<string>) => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(
+        COLLAPSED_STORAGE_KEY,
+        serializeCollapsed(next),
+      );
+    } catch {
+      // localStorage 쓰기 실패(용량/프라이버시 모드)는 무시 — 접힘은 메모리로도 동작.
+    }
+  };
+
+  const isCollapsed = (key: string) => collapsedIds.has(key);
+  const toggleCollapsed = (key: string) =>
+    setCollapsedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      persistCollapsed(next);
+      return next;
+    });
+  const expand = (key: string) =>
+    setCollapsedIds((prev) => {
+      if (!prev.has(key)) return prev;
+      const next = new Set(prev);
+      next.delete(key);
+      persistCollapsed(next);
+      return next;
+    });
 
   // 순환 방지용 페이지→부모 맵. 드롭 대상이 드래그 페이지의 하위인지 판정한다.
   const pageParent = new Map<string, string | null>();
@@ -203,11 +287,15 @@ export function PageTree({
   }) =>
     start(async () => {
       try {
+        // 부모 페이지/폴더 아래에 만들 때 접혀 있으면 펼쳐 새 페이지가 바로 보이게 한다.
+        if (opts.parentId) expand(pageKey(opts.parentId));
+        if (opts.folderId) expand(folderKey(opts.folderId));
         const { id } = await createWikiPage({
           title: "제목 없음",
           parentId: opts.parentId ?? null,
           folderId: opts.folderId ?? null,
         });
+        setPendingRenameId(id);
         router.push(`/wiki/${id}`);
         router.refresh();
       } catch {
@@ -218,7 +306,13 @@ export function PageTree({
   const addFolder = (parentId: string | null) =>
     start(async () => {
       try {
-        await createWikiFolder({ name: "새 폴더", parentId });
+        // 하위 폴더 생성 시 부모가 접혀 있으면 펼쳐 새 폴더가 바로 보이게 한다.
+        // (접힌 부모의 자식 <ul> 은 렌더 게이트에 막혀 안 보이던 버그 방지.)
+        if (parentId) expand(folderKey(parentId));
+        const { id } = await createWikiFolder({ name: "새 폴더", parentId });
+        // 새로 만든 폴더 자신은 접힘 집합에서 빼 항상 펼친 상태로 시작한다.
+        expand(folderKey(id));
+        setPendingRenameId(id);
         router.refresh();
       } catch {
         toast.error("폴더 생성에 실패했습니다");
@@ -232,7 +326,19 @@ export function PageTree({
 
   return (
     <Ctx.Provider
-      value={{ addPage, addFolder, favSet: new Set(favoriteIds), dragId, setDragId, move }}
+      value={{
+        addPage,
+        addFolder,
+        favSet: new Set(favoriteIds),
+        dragId,
+        setDragId,
+        move,
+        pendingRenameId,
+        clearPendingRename: () => setPendingRenameId(null),
+        isCollapsed,
+        toggleCollapsed,
+        expand,
+      }}
     >
       <div className="mb-1 flex items-center justify-between gap-1 px-1">
         <h2 className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
@@ -272,7 +378,13 @@ export function PageTree({
             <FolderItem key={f.id} folder={f} depth={0} maps={maps} />
           ))}
           {rootPages.map((p) => (
-            <PageItem key={p.id} page={p} depth={0} maps={maps} siblings={rootPages} />
+            <PageItem
+              key={p.id}
+              page={p}
+              depth={0}
+              maps={maps}
+              siblings={rootPages}
+            />
           ))}
         </ul>
       )}
@@ -283,7 +395,8 @@ export function PageTree({
           aria-label="여기에 추가 · 루트로 이동"
           className={cn(
             "mt-1 block min-h-10 w-full rounded-md transition-colors",
-            dragId && "outline-border/70 outline-2 -outline-offset-2 outline-dashed",
+            dragId &&
+              "outline-border/70 outline-2 -outline-offset-2 outline-dashed",
           )}
           onDragOver={(e) => {
             if (dragId) e.preventDefault();
@@ -348,11 +461,29 @@ function FolderItem({
   depth: number;
   maps: Maps;
 }) {
-  const { addFolder, addPage, dragId, setDragId, move } = useTree();
+  const {
+    addFolder,
+    addPage,
+    dragId,
+    setDragId,
+    move,
+    pendingRenameId,
+    clearPendingRename,
+    isCollapsed,
+    toggleCollapsed,
+    expand,
+  } = useTree();
   const router = useRouter();
-  const [open, setOpen] = useState(true);
-  const [renaming, setRenaming] = useState(false);
+  // 접힘 상태는 트리 최상위가 소유(TreeContext) — 자식 언마운트에도 보존된다.
+  const key = folderKey(folder.id);
+  const open = !isCollapsed(key);
+  // 방금 생성된 폴더면 rename 모드로 시작해 바로 이름을 입력받는다.
+  const [renaming, setRenaming] = useState(() => pendingRenameId === folder.id);
   const [name, setName] = useState(folder.name);
+
+  useEffect(() => {
+    if (pendingRenameId === folder.id) clearPendingRename();
+  }, [pendingRenameId, folder.id, clearPendingRename]);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [dropInto, setDropInto] = useState(false);
   const [, start] = useTransition();
@@ -361,6 +492,18 @@ function FolderItem({
   const folderPages = maps.topPagesByFolder.get(folder.id) ?? [];
   const hasChildren = subFolders.length > 0 || folderPages.length > 0;
   const impact = maps.detachImpact.get(folder.id) ?? 0;
+
+  // 하위 항목 추가 시 이 폴더를 펼쳐(expand) 새 항목이 바로 보이게 한다.
+  // 접힌 폴더(open=false)에 추가하면 아래 `hasChildren && open` 게이트에 막혀
+  // 새로 만든 폴더/페이지가 렌더되지 않던 버그를 막는다.
+  const addSubPage = () => {
+    expand(key);
+    addPage({ folderId: folder.id });
+  };
+  const addSubFolder = () => {
+    expand(key);
+    addFolder(folder.id);
+  };
 
   function submitRename() {
     const next = name.trim();
@@ -413,14 +556,18 @@ function FolderItem({
             e.preventDefault();
             setDropInto(false);
             // 폴더로 이동: 최상위(부모 페이지 해제) + 이 폴더 소속 맨 끝에 배치.
-            move(dragId, { parentId: null, folderId: folder.id, beforeId: null });
+            move(dragId, {
+              parentId: null,
+              folderId: folder.id,
+              beforeId: null,
+            });
             setDragId(null);
-            setOpen(true);
+            expand(key);
           }}
         >
           <button
             type="button"
-            onClick={() => setOpen((o) => !o)}
+            onClick={() => toggleCollapsed(key)}
             className={cn(
               "text-muted-foreground shrink-0 rounded p-0.5",
               !hasChildren && "opacity-40",
@@ -443,6 +590,7 @@ function FolderItem({
             >
               <Input
                 autoFocus
+                onFocus={(e) => e.currentTarget.select()}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 onBlur={submitRename}
@@ -458,7 +606,7 @@ function FolderItem({
           ) : (
             <button
               type="button"
-              onClick={() => setOpen((o) => !o)}
+              onClick={() => toggleCollapsed(key)}
               onDoubleClick={() => {
                 setName(folder.name);
                 setRenaming(true);
@@ -479,22 +627,22 @@ function FolderItem({
                 {
                   icon: <FilePlus className="size-4" />,
                   label: "하위 페이지",
-                  onClick: () => addPage({ folderId: folder.id }),
+                  onClick: addSubPage,
                 },
                 {
                   icon: <FolderPlus className="size-4" />,
                   label: "하위 폴더",
-                  onClick: () => addFolder(folder.id),
+                  onClick: addSubFolder,
                 },
               ]}
             />
           </span>
         </ContextMenuTrigger>
         <ContextMenuContent>
-          <ContextMenuItem onClick={() => addPage({ folderId: folder.id })}>
+          <ContextMenuItem onClick={addSubPage}>
             <FilePlus className="size-4" /> 하위 페이지 추가
           </ContextMenuItem>
-          <ContextMenuItem onClick={() => addFolder(folder.id)}>
+          <ContextMenuItem onClick={addSubFolder}>
             <FolderPlus className="size-4" /> 하위 폴더 추가
           </ContextMenuItem>
           <ContextMenuSeparator />
@@ -555,12 +703,30 @@ function PageItem({
   /** 같은 컨테이너의 형제 목록(position 순). after 드롭 시 다음 형제 계산에 쓴다. */
   siblings: PageNode[];
 }) {
-  const { addPage, favSet, dragId, setDragId, move } = useTree();
+  const {
+    addPage,
+    favSet,
+    dragId,
+    setDragId,
+    move,
+    pendingRenameId,
+    clearPendingRename,
+    isCollapsed,
+    toggleCollapsed,
+    expand,
+  } = useTree();
   const router = useRouter();
   const pathname = usePathname();
-  const [open, setOpen] = useState(true);
-  const [renaming, setRenaming] = useState(false);
+  // 접힘 상태는 트리 최상위가 소유(TreeContext) — 자식 언마운트에도 보존된다.
+  const key = pageKey(page.id);
+  const open = !isCollapsed(key);
+  // 방금 생성된 페이지면 rename 모드로 시작해 바로 제목을 입력받는다.
+  const [renaming, setRenaming] = useState(() => pendingRenameId === page.id);
   const [title, setTitle] = useState(page.title);
+
+  useEffect(() => {
+    if (pendingRenameId === page.id) clearPendingRename();
+  }, [pendingRenameId, page.id, clearPendingRename]);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [zone, setZone] = useState<DropZone | null>(null);
   const [, start] = useTransition();
@@ -568,9 +734,18 @@ function PageItem({
   // after 드롭 = 이 페이지 "뒤"에 삽입 = 다음 형제 앞(없으면 맨 끝).
   const sibIdx = siblings.findIndex((s) => s.id === page.id);
   const nextSiblingId =
-    sibIdx >= 0 && sibIdx + 1 < siblings.length ? siblings[sibIdx + 1].id : null;
+    sibIdx >= 0 && sibIdx + 1 < siblings.length
+      ? siblings[sibIdx + 1].id
+      : null;
 
   const isDragging = dragId === page.id;
+
+  // 하위 페이지 추가 시 이 페이지를 펼쳐(expand) 새 페이지가 바로 보이게 한다.
+  // 접힌 상태(open=false)에선 아래 `hasChildren && open` 게이트에 막혀 안 보이던 버그 방지.
+  const addSubPage = () => {
+    expand(key);
+    addPage({ parentId: page.id });
+  };
 
   function onDragOver(e: React.DragEvent) {
     if (!dragId || dragId === page.id) return;
@@ -578,7 +753,11 @@ function PageItem({
     const rect = e.currentTarget.getBoundingClientRect();
     const y = e.clientY - rect.top;
     const z: DropZone =
-      y < rect.height * 0.3 ? "before" : y > rect.height * 0.7 ? "after" : "into";
+      y < rect.height * 0.3
+        ? "before"
+        : y > rect.height * 0.7
+          ? "after"
+          : "into";
     setZone(z);
   }
 
@@ -592,7 +771,11 @@ function PageItem({
       // 하위 페이지로 중첩: 이 페이지의 자식 맨 끝. folderId 는 부모를 따른다.
       move(id, { parentId: page.id, folderId: page.folderId, beforeId: null });
     } else if (z === "before") {
-      move(id, { parentId: page.parentId, folderId: page.folderId, beforeId: page.id });
+      move(id, {
+        parentId: page.parentId,
+        folderId: page.folderId,
+        beforeId: page.id,
+      });
     } else {
       move(id, {
         parentId: page.parentId,
@@ -687,7 +870,7 @@ function PageItem({
           )}
           <button
             type="button"
-            onClick={() => setOpen((o) => !o)}
+            onClick={() => toggleCollapsed(key)}
             className={cn(
               "text-muted-foreground shrink-0 rounded p-0.5",
               !hasChildren && "invisible",
@@ -710,6 +893,7 @@ function PageItem({
             >
               <Input
                 autoFocus
+                onFocus={(e) => e.currentTarget.select()}
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 onBlur={submitRename}
@@ -746,14 +930,14 @@ function PageItem({
                 {
                   icon: <FilePlus className="size-4" />,
                   label: "하위 페이지",
-                  onClick: () => addPage({ parentId: page.id }),
+                  onClick: addSubPage,
                 },
               ]}
             />
           </span>
         </ContextMenuTrigger>
         <ContextMenuContent>
-          <ContextMenuItem onClick={() => addPage({ parentId: page.id })}>
+          <ContextMenuItem onClick={addSubPage}>
             <FilePlus className="size-4" /> 하위 페이지 추가
           </ContextMenuItem>
           <ContextMenuItem onClick={toggleStar}>
