@@ -18,8 +18,9 @@ export function NewAnnouncementButton() {
     start(async () => {
       try {
         const { id } = await createAnnouncement();
+        // 서버 액션의 revalidatePath + 클라이언트 라우터 staleTime 0 으로 push 만으로
+        // 최신 렌더가 보장된다 — push 직후 refresh 는 트랜지션 경합만 만든다.
         router.push(`/announcements/${id}?edit=1`);
-        router.refresh();
       } catch {
         toast.error("공지 생성에 실패했습니다");
       }

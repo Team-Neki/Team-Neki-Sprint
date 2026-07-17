@@ -5,6 +5,7 @@ import type { Prisma } from "@prisma/client";
 import type { JSONContent } from "@tiptap/core";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
+import { isRichDoc } from "@/lib/validators";
 import { newMentionRecipients } from "@/server/notify";
 
 const EMPTY_DOC: Prisma.InputJsonValue = {
@@ -43,6 +44,8 @@ export async function updateAnnouncement(
   content: unknown,
 ) {
   const user = await requireUser();
+  // 서버 액션 경계 방어: doc 형태·크기만 검증(비정상 페이로드가 본문을 비우는 것 방지).
+  if (!isRichDoc(content)) throw new Error("본문 형식이 올바르지 않습니다");
   const current = await prisma.announcement.findUnique({ where: { id } });
   if (!current) throw new Error("공지를 찾을 수 없습니다");
 
@@ -52,32 +55,38 @@ export async function updateAnnouncement(
     JSON.stringify(current.content) === JSON.stringify(content);
   if (unchanged) return { id };
 
-  await prisma.announcement.update({
-    where: { id },
-    data: {
-      title: nextTitle,
-      content: content as Prisma.InputJsonValue,
-    },
-  });
-
   // 본문에 '새로 추가된' 멘션(사람 + 팀 확장)에 알림. 위키와 동일 규칙(B5).
+  // 알림 생성이 실패하면 재시도가 unchanged 분기로 빠져 알림만 누락되므로,
+  // 수정과 알림 생성을 한 트랜잭션으로 묶는다.
   const recipients = await newMentionRecipients(
     current.content as JSONContent,
     content,
     user.id,
   );
+  const writes: Prisma.PrismaPromise<unknown>[] = [
+    prisma.announcement.update({
+      where: { id },
+      data: {
+        title: nextTitle,
+        content: content as Prisma.InputJsonValue,
+      },
+    }),
+  ];
   if (recipients.length > 0) {
-    await prisma.notification.createMany({
-      data: recipients.map((uid) => ({
-        userId: uid,
-        actorId: user.id,
-        type: "mention",
-        entityType: "announcement",
-        entityId: id,
-        context: nextTitle,
-      })),
-    });
+    writes.push(
+      prisma.notification.createMany({
+        data: recipients.map((uid) => ({
+          userId: uid,
+          actorId: user.id,
+          type: "mention",
+          entityType: "announcement",
+          entityId: id,
+          context: nextTitle,
+        })),
+      }),
+    );
   }
+  await prisma.$transaction(writes);
 
   revalidateAnnouncements(id);
   return { id };

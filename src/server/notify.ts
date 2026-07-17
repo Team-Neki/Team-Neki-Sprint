@@ -6,7 +6,9 @@ import { extractMentionUserIds, extractMentionTeamIds } from "@/lib/mentions";
  * 저장 전/후 doc 을 비교해 '새로 추가된' 멘션의 수신자 userId 목록을 만든다.
  * - personMention: 해당 사용자
  * - teamMention: 그 팀 소속 사용자 전원으로 확장
- * 재저장/수정 시 중복 알림 방지를 위해 차집합만 취하고, 자기 자신은 제외한다.
+ * 팀을 먼저 사용자로 **확장한 뒤** 최종 수신자 집합끼리 차집합을 취한다 — 팀 id
+ * 차집합만 보면 "직접 멘션 → 그 사람이 속한 팀 멘션으로 교체" 같은 경우 이미
+ * 알림받은 사용자에게 중복 알림이 간다(팀 구성은 현재 시점 기준). 자기 자신은 제외.
  */
 export async function newMentionRecipients(
   beforeDoc: unknown,
@@ -18,19 +20,34 @@ export async function newMentionRecipients(
   const prevTeams = extractMentionTeamIds(beforeDoc);
   const nextTeams = extractMentionTeamIds(afterDoc);
 
-  const addedUsers = [...nextUsers].filter((uid) => !prevUsers.has(uid));
-  const addedTeams = [...nextTeams].filter((tid) => !prevTeams.has(tid));
-
-  const recipients = new Set(addedUsers);
-  if (addedTeams.length > 0) {
-    const members = await prisma.user.findMany({
-      where: { teamId: { in: addedTeams } },
-      select: { id: true },
+  const allTeamIds = [...new Set([...prevTeams, ...nextTeams])];
+  const membersByTeam = new Map<string, string[]>();
+  if (allTeamIds.length > 0) {
+    const rows = await prisma.user.findMany({
+      where: { teamId: { in: allTeamIds } },
+      select: { id: true, teamId: true },
     });
-    for (const m of members) recipients.add(m.id);
+    for (const row of rows) {
+      if (!row.teamId) continue;
+      const list = membersByTeam.get(row.teamId);
+      if (list) list.push(row.id);
+      else membersByTeam.set(row.teamId, [row.id]);
+    }
   }
-  recipients.delete(actorId);
-  return [...recipients];
+
+  const expand = (users: Set<string>, teams: Set<string>): Set<string> => {
+    const s = new Set(users);
+    for (const teamId of teams) {
+      for (const uid of membersByTeam.get(teamId) ?? []) s.add(uid);
+    }
+    return s;
+  };
+  const prevRecipients = expand(prevUsers, prevTeams);
+  const nextRecipients = expand(nextUsers, nextTeams);
+
+  return [...nextRecipients].filter(
+    (uid) => !prevRecipients.has(uid) && uid !== actorId,
+  );
 }
 
 /**

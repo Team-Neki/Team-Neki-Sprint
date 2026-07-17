@@ -6,7 +6,7 @@
 // 따라 달라진다 — 여기 헬퍼는 커서와 무관하게 표 끝에 붙인다.
 
 import type { Editor } from "@tiptap/core";
-import type { EditorState } from "@tiptap/pm/state";
+import { NodeSelection, type EditorState } from "@tiptap/pm/state";
 import type { Node as PmNode } from "@tiptap/pm/model";
 import {
   TableMap,
@@ -20,7 +20,17 @@ export type TableCtx = { table: PmNode; tableStart: number; map: TableMap };
 
 /** 선택을 둘러싼 표(없으면 null). tableStart = 표 첫 자식 위치(prosemirror-tables 규약). */
 export function tableAroundSelection(state: EditorState): TableCtx | null {
-  const { $from } = state.selection;
+  const sel = state.selection;
+  // 표 자체가 NodeSelection(ArrowLeft→표 선택 흐름)이면 $from 조상엔 표가 없다 —
+  // 선택된 노드를 직접 표 컨텍스트로 반환한다.
+  if (sel instanceof NodeSelection && sel.node.type.name === "table") {
+    return {
+      table: sel.node,
+      tableStart: sel.from + 1,
+      map: TableMap.get(sel.node),
+    };
+  }
+  const { $from } = sel;
   for (let d = $from.depth; d > 0; d -= 1) {
     const node = $from.node(d);
     if (node.type.name === "table") {

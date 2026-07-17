@@ -49,6 +49,8 @@ export const AnnouncementEditor = forwardRef<
   const router = useRouter();
   const [title, setTitle] = useState(initialTitle);
   const [saving, setSaving] = useState(false);
+  // state 는 리렌더 전 연속 호출(더블클릭·Cmd+S 키 반복)을 못 막는다 — ref 로 동기 가드.
+  const savingRef = useRef(false);
   const dirtyRef = useRef(false);
   const editorAreaRef = useRef<HTMLDivElement>(null);
 
@@ -71,8 +73,10 @@ export const AnnouncementEditor = forwardRef<
   }, [editor]);
 
   const commit = useCallback(async () => {
+    if (savingRef.current) return;
     const content = cloneContent();
     if (!content) return;
+    savingRef.current = true;
     setSaving(true);
     try {
       await updateAnnouncement(id, title, content);
@@ -82,6 +86,7 @@ export const AnnouncementEditor = forwardRef<
     } catch {
       toast.error("공지 저장에 실패했습니다");
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }, [cloneContent, id, title, router, onExit]);

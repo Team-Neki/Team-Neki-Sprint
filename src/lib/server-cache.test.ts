@@ -81,4 +81,11 @@ describe("server-cache", () => {
     expect(await cached("k", 1000, loader)).toBeNull();
     expect(loader).toHaveBeenCalledTimes(1);
   });
+
+  it("undefined 값은 캐시하지 않는다(다음 호출에서 loader 재실행)", async () => {
+    const loader = vi.fn().mockResolvedValue(undefined);
+    expect(await cached("k", 1000, loader)).toBeUndefined();
+    expect(await cached("k", 1000, loader)).toBeUndefined();
+    expect(loader).toHaveBeenCalledTimes(2);
+  });
 });

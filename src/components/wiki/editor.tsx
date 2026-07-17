@@ -112,6 +112,8 @@ export const WikiEditor = forwardRef<WikiEditorHandle, WikiEditorProps>(
     const [saving, setSaving] = useState(false);
     const [dirty, setDirty] = useState(false);
     const [usingDraft, setUsingDraft] = useState(startedFromDraft);
+    // state 는 리렌더 전 연속 호출(Cmd+S 키 반복 등)을 못 막는다 — ref 로 동기 가드.
+    const savingRef = useRef(false);
     const dirtyRef = useRef(false);
     // 표 hover 열/행 추가 버튼(T17)의 좌표 기준 컨테이너.
     const editorAreaRef = useRef<HTMLDivElement>(null);
@@ -139,8 +141,10 @@ export const WikiEditor = forwardRef<WikiEditorHandle, WikiEditorProps>(
 
     // 명시적 저장(커밋): WikiPage 로 반영(리비전 생성) + 임시저장본 정리 → 뷰로 복귀.
     const commit = useCallback(async () => {
+      if (savingRef.current) return;
       const content = cloneContent();
       if (!content) return;
+      savingRef.current = true;
       setSaving(true);
       try {
         await updateWikiContent(pageId, title, content);
@@ -151,6 +155,7 @@ export const WikiEditor = forwardRef<WikiEditorHandle, WikiEditorProps>(
       } catch {
         toast.error("저장에 실패했습니다");
       } finally {
+        savingRef.current = false;
         setSaving(false);
       }
     }, [cloneContent, pageId, title, router, onExit]);
@@ -448,13 +453,20 @@ export function TableHoverControls({
         net -= 1;
       }
     };
-    const onUp = () => {
-      if (!dragged && net === 0) add(); // 클릭 = 1개 추가
+    // pointercancel(터치 제스처·OS 개입)에도 전역 리스너를 정리한다 — 안 하면
+    // 리스너가 남아 이후 포인터 이동이 표를 계속 변경한다.
+    const cleanup = () => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", cleanup);
+    };
+    const onUp = () => {
+      if (!dragged && net === 0) add(); // 클릭 = 1개 추가
+      cleanup();
     };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", cleanup);
   }
 
   // 추가는 커서 위치와 무관하게 항상 마지막 열/행 뒤에(T22).

@@ -9,7 +9,7 @@
 import { useEffect, useState, type RefObject } from "react";
 import type { Editor } from "@tiptap/react";
 import { TextSelection } from "@tiptap/pm/state";
-import { CellSelection, selectedRect } from "@tiptap/pm/tables";
+import { CellSelection, cellAround, selectedRect } from "@tiptap/pm/tables";
 import {
   ArrowDownToLine,
   ArrowLeftToLine,
@@ -44,23 +44,35 @@ export function TableContextMenu({
 
       let kind: MenuKind = "cell";
       const sel = editor.state.selection;
-      if (sel instanceof CellSelection) {
-        // 드래그로 행/열 전체를 선택한 채 우클릭 → 선택을 유지하고 전용 메뉴.
+      const clicked = editor.view.posAtCoords({
+        left: e.clientX,
+        top: e.clientY,
+      });
+      // 우클릭한 셀이 현재 CellSelection 에 포함되는지 — 선택 밖 셀을 우클릭하면
+      // 이전 선택이 아니라 그 셀 기준으로 동작해야 한다(아래 else 경로로 이동).
+      let clickedInsideSelection = false;
+      if (sel instanceof CellSelection && clicked) {
+        const clickedCell = cellAround(editor.state.doc.resolve(clicked.pos));
+        if (clickedCell) {
+          sel.forEachCell((_node, pos) => {
+            if (pos === clickedCell.pos) clickedInsideSelection = true;
+          });
+        }
+      }
+      if (sel instanceof CellSelection && clickedInsideSelection) {
+        // 드래그로 행/열 전체를 선택한 채 그 안을 우클릭 → 선택을 유지하고 전용 메뉴.
         // (전체 표 선택 등 그 외 셀 선택은 일반 셀 메뉴로 취급)
         const rect = selectedRect(editor.state);
         const fullWidth = rect.left === 0 && rect.right === rect.map.width;
         const fullHeight = rect.top === 0 && rect.bottom === rect.map.height;
         if (fullWidth && !fullHeight) kind = "row";
         else if (fullHeight && !fullWidth) kind = "col";
-      } else {
+      } else if (clicked) {
         // 우클릭한 셀에 커서를 놓아 이후 명령이 그 셀 기준으로 동작하게 한다.
-        const pos = editor.view.posAtCoords({ left: e.clientX, top: e.clientY });
-        if (pos) {
-          const tr = editor.state.tr.setSelection(
-            TextSelection.near(editor.state.doc.resolve(pos.pos)),
-          );
-          editor.view.dispatch(tr);
-        }
+        const tr = editor.state.tr.setSelection(
+          TextSelection.near(editor.state.doc.resolve(clicked.pos)),
+        );
+        editor.view.dispatch(tr);
       }
 
       const cr = container.getBoundingClientRect();

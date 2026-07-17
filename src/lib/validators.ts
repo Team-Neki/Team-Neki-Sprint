@@ -132,6 +132,22 @@ export const taskCommentBodySchema = z
   .string()
   .max(100_000, "댓글이 너무 깁니다");
 
+/**
+ * Tiptap 본문 doc(unknown 입력)의 최소 방어: 최상위가 `{ type: "doc" }` 객체이고
+ * 직렬화 크기가 상한 이내인지만 본다. 노드 구성 스키마는 Tiptap 확장이 소유하므로
+ * 여기서 검사하지 않는다(공지 등 content 를 통째로 받는 서버 액션 경계용).
+ */
+export function isRichDoc(value: unknown, maxBytes = 1_000_000): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  if ((value as { type?: unknown }).type !== "doc") return false;
+  try {
+    return JSON.stringify(value).length <= maxBytes;
+  } catch {
+    // 순환 참조 등 직렬화 불가 → 저장 불가 문서.
+    return false;
+  }
+}
+
 export type SprintInput = z.infer<typeof sprintSchema>;
 export type TeamInput = z.infer<typeof teamSchema>;
 export type ProjectInput = z.infer<typeof projectSchema>;
