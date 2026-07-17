@@ -9,6 +9,7 @@ import { PageTree } from "@/components/wiki/page-tree";
 import { FavoritesPanel } from "@/components/wiki/favorites-panel";
 import { TrashLink } from "@/components/wiki/trash-link";
 import { WikiNavSheet } from "@/components/wiki/wiki-nav-sheet";
+import { WikiSidebar } from "@/components/wiki/wiki-sidebar";
 
 export const dynamic = "force-dynamic";
 
@@ -42,9 +43,7 @@ export default async function WikiLayout({
 
   return (
     <div className="flex gap-6">
-      <aside className="hidden w-64 shrink-0 md:block">
-        <div className="sticky top-0 space-y-4">{nav}</div>
-      </aside>
+      <WikiSidebar>{nav}</WikiSidebar>
       <div className="min-w-0 flex-1">
         {/* 모바일: 좌측 사이드바가 숨겨지므로 드로어로 문서 트리 접근 제공 */}
         <WikiNavSheet>{nav}</WikiNavSheet>

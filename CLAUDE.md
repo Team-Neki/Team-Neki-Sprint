@@ -48,9 +48,13 @@
 
 - **전역 검색/⌘K**: `command-palette.tsx`(토픽바 마운트, `queries.globalSearch` + `globalSearchAction`). 새 엔티티 추가 시 검색 그룹에 반영 고려.
 - **라벨**: `Label` 스키마를 태스크에 표면화(`/labels` 관리, 부여 팝오버, `?label=` 필터, 색 뱃지). 에픽·프로젝트 라벨 부여는 스키마만 있고 UI 미구현(후속).
-- **위키 리치 렌더링**: `wikiExtensions()`(에디터·뷰 공유)에 표(`TableKit`+`TableControls`)·구문강조 코드(`CodeBlockLowlight`)·mermaid(`MermaidBlock` atom NodeView, 지연 로드) 포함. 확장은 이 한 곳에만 추가. 함정은 [gotchas §18].
-  - **코드블록**(`code-block.tsx` NodeView + `code-block-pairs.ts`): 우측 상단 복사 버튼·언어 select(Plain/Kotlin/Java/JSON/YAML/iOS-Swift, lowlight `common`), 괄호·따옴표 자동 닫기, Enter 자동 들여쓰기(`{`·`[` +1단, 그 외 유지). 코드블록 안 `#`/`@` 는 멘션 트리거 안 됨(Suggestion `allow`). `extend` 시 `this.parent` 로 lowlight·베이스 단축키 보존 필수. [gotchas §27]
-  - **표 편집**: 표 아래 맨 앞 `ArrowLeft`→표 선택→`Backspace`로 삭제(`TableControls`), 표 안이면 우측/하단 hover 로 열/행 추가 버튼(`editor.tsx` `TableHoverControls`), 리사이즈는 표 폭 고정(경계선만 이동, CSS `!important`). [gotchas §29]
+- **위키 리치 렌더링**: `wikiExtensions()`(에디터·뷰 공유)에 표(`TableKit`+`TableControls`)·구문강조 코드(`CodeBlockLowlight`)·mermaid(`MermaidBlock` atom NodeView, 지연 로드)·글자색(`TextStyle`+`Color`)·슬래시 커맨드(`SlashCommand`) 포함. 확장은 이 한 곳에만 추가. 함정은 [gotchas §18].
+  - **슬래시 커맨드(/)**: `slash-command.ts`(`@tiptap/suggestion` 기반 Extension) + `slash-menu.tsx`(목록/필터). 제목1~6·글머리/번호/체크 목록·인용·코드·표·mermaid·구분선. 커맨드 추가는 `SLASH_ITEMS`(slash-menu) 한 곳에. 코드블록 내부·단어 중간 `/` 는 트리거 제외(`allow`).
+  - **제목/툴바**: heading `levels:[1..6]`(`#` 개수만큼 h1~h6). 편집 툴바엔 H1/H2/H3·목록/체크 아이콘 없음 — 제목·목록은 `#`/`-`/`1.`/`[ ]` 또는 슬래시로. 툴바 아이콘 툴팁은 Base UI `Tooltip`(≈150ms), 네이티브 `title` 아님.
+  - **저장/취소는 에디터가 아니라 헤더에**: `WikiEditor` 는 `forwardRef`+`useImperativeHandle({commit,cancel})`+`onStateChange`. `WikiDetail` 의 sticky 헤더(`...` 메뉴 좌측)에서 호출 — 긴 본문 스크롤에도 고정.
+  - **코드블록**(`code-block.tsx` NodeView + `code-block-pairs.ts`): 우측 상단 복사 버튼·언어 select(Plain/Kotlin/Java/JSON/YAML/iOS-Swift, lowlight `common`), 괄호·따옴표 자동 닫기, Enter 자동 들여쓰기(`{`·`[` +1단, 그 외 유지). 코드블록 안 `#`/`@`/`/` 는 트리거 안 됨(Suggestion `allow`). `extend` 시 `this.parent` 로 lowlight·베이스 단축키 보존 필수. 강조 색은 `globals.css` `.hljs-*`. [gotchas §27]
+  - **표 편집**: 삽입 버튼은 hover 크기 그리드 픽커(최대 8×8). 표 안이면 우측/하단 hover 스트립에서 `+` **드래그로 다중 추가** + `−` 삭제(`editor.tsx` `TableHoverControls`), 또는 표 버튼 팝오버 메뉴. `ArrowLeft`→표 선택→`Backspace` 삭제(`TableControls`), 리사이즈는 표 폭 고정(경계선만 이동, CSS `!important`). [gotchas §29]
+  - **휴지통**(`trash-list.tsx`): 행 `Checkbox` 다중 선택 → `purgeWikiPages(ids)` 다중 삭제, `emptyWikiTrash()` 비우기. 둘 다 `canManage`(작성자/ADMIN) 통과분만 삭제(권한 없는 항목 건너뜀).
 - **목록 행 우클릭 메뉴**: `tables/row-context-menu.tsx`의 `RowContextMenu`가 목록 표 행(tasks/epics/projects/sprints)에 좌클릭=상세 열기 + 우클릭=컨텍스트 메뉴(열기·새 창에서 열기·삭제)를 준다. 삭제는 controlled `ConfirmDelete`로 확인 후 실행. 삭제 서버 액션은 표(서버 컴포넌트)에서 `deleteAction` prop으로 주입해 `deleteAction(id)`로 호출한다. 기존 `RowOpenSheet`/`TableRowLink`를 대체.
 - **알림 벨**: `notification-bell.tsx`가 45s 폴링(`getBellNotifications`). 실시간 소켓 아님.
 - **태스크 의존성**: `TaskDependency`(blocker→blocked 방향). 상세 사이드바 `task-dependencies.tsx`에서 '차단됨/차단함' 편집. 순환은 `lib/task-deps.wouldCreateCycle`로 서버에서 거부. 방향/함정은 [gotchas §17].
