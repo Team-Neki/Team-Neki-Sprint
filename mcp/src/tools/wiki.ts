@@ -16,9 +16,9 @@ export function registerWikiTools(
         "Create a wiki page. 'body' is markdown (headings, lists, code, bold/italic/links). Optional parentId/folderId to nest.",
       inputSchema: {
         title: z.string(),
-        body: z.string().optional(),
-        parentId: z.string().optional(),
-        folderId: z.string().optional(),
+        body: z.string().nullish(),
+        parentId: z.string().nullish(),
+        folderId: z.string().nullish(),
       },
     },
     async (args) => {
@@ -41,8 +41,8 @@ export function registerWikiTools(
         "Update a wiki page's title and/or body (markdown). Body replaces the page content.",
       inputSchema: {
         id: z.string(),
-        title: z.string().optional(),
-        body: z.string().optional(),
+        title: z.string().nullish(),
+        body: z.string().nullish(),
       },
     },
     async ({ id, ...patch }) => {
@@ -79,7 +79,7 @@ export function registerWikiTools(
     "search_wiki_pages",
     {
       description: "Search wiki pages by title.",
-      inputSchema: { query: z.string(), limit: z.number().optional() },
+      inputSchema: { query: z.string(), limit: z.number().nullish() },
     },
     async ({ query, limit }) => {
       const qs = new URLSearchParams({ query });

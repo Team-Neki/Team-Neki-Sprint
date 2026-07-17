@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { withMcpAuth, ok, fail } from "@/server/api/mcp-auth";
+import { withMcpAuth, ok, fail, parseLimit } from "@/server/api/mcp-auth";
 import { createTaskCore } from "@/server/actions/tasks";
 import { searchTasks } from "@/server/queries";
 import { resolveTeamId, resolveUserId } from "@/lib/issue-key";
@@ -51,7 +51,7 @@ export const POST = withMcpAuth(async (actor, req) => {
 export const GET = withMcpAuth(async (_actor, req) => {
   const url = new URL(req.url);
   const query = url.searchParams.get("query") ?? "";
-  const limit = Math.min(Number(url.searchParams.get("limit") ?? 20) || 20, 50);
+  const limit = parseLimit(url.searchParams.get("limit"));
   const rows = await searchTasks(query, limit);
   return ok(
     rows.map((t) => ({

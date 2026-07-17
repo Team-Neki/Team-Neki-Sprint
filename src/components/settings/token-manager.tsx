@@ -21,7 +21,7 @@ export function TokenManager({ tokens }: { tokens: TokenRow[] }) {
   const [busy, setBusy] = useState(false);
 
   async function onCreate() {
-    if (!name.trim()) return;
+    if (!name.trim() || busy) return;
     setBusy(true);
     try {
       const { raw } = await createApiToken(name.trim());
@@ -50,7 +50,7 @@ export function TokenManager({ tokens }: { tokens: TokenRow[] }) {
 
       {newToken && (
         <Card>
-          <CardContent className="py-3">
+          <CardContent>
             <p className="text-foreground text-sm">
               아래 토큰은 지금만 표시됩니다. 복사해 두세요.
             </p>
@@ -72,7 +72,7 @@ export function TokenManager({ tokens }: { tokens: TokenRow[] }) {
         </Card>
       )}
 
-      <Card>
+      <Card className="gap-0 py-0">
         <CardContent className="divide-y p-0">
           {tokens.length === 0 ? (
             <p className="text-muted-foreground px-4 py-6 text-sm">
@@ -96,8 +96,12 @@ export function TokenManager({ tokens }: { tokens: TokenRow[] }) {
                 <Button
                   variant="outline"
                   onClick={async () => {
-                    await revokeApiToken(t.id);
-                    toast.success("폐기됨");
+                    try {
+                      await revokeApiToken(t.id);
+                      toast.success("폐기됨");
+                    } catch (e) {
+                      toast.error(e instanceof Error ? e.message : "폐기 실패");
+                    }
                   }}
                 >
                   폐기

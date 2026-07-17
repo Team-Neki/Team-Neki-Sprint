@@ -4,6 +4,7 @@ import { updateWikiContentCore } from "@/server/actions/wiki";
 import { getWikiPage } from "@/server/queries";
 import { docToPlainText } from "@/lib/rich-content";
 import { markdownToDoc } from "@/lib/text-to-doc";
+import { tiptapDocSchema } from "@/lib/tiptap-doc";
 import type { JSONContent } from "@tiptap/core";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +12,7 @@ export const dynamic = "force-dynamic";
 const patchInput = z.object({
   title: z.string().trim().min(1).nullish(),
   body: z.string().nullish(),
-  contentJson: z.unknown().nullish(),
+  contentJson: tiptapDocSchema.nullish(),
 });
 
 export const GET = withMcpAuth(async (_actor, _req, ctx) => {
