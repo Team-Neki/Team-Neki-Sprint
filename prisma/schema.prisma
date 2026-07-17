@@ -47,6 +47,23 @@ model User {
   // 알림(B5). 수신자/행위자 양방향.
   notifications     Notification[] @relation("NotifRecipient")
   sentNotifications Notification[] @relation("NotifActor")
+  announcements     Announcement[] @relation("AnnouncementAuthor")
+}
+
+/**
+ * 대시보드 공지. 모든 멤버가 작성/수정할 수 있고, **삭제는 작성자만** 가능
+ * (작성자가 사라진 공지는 ADMIN 이 정리). 본문은 위키와 동일한 Tiptap doc JSON.
+ */
+model Announcement {
+  id        String   @id @default(cuid())
+  title     String
+  content   Json     @default("{}")
+  authorId  String?
+  author    User?    @relation("AnnouncementAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([createdAt])
 }
 
 /**

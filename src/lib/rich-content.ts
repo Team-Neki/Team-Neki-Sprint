@@ -5,7 +5,7 @@
 // 아니면 단락으로 감싼 doc 으로 정규화한다. 멘션 추출은 lib/mentions 재사용.
 
 import type { JSONContent } from "@tiptap/core";
-import { extractMentionUserIds } from "@/lib/mentions";
+import { extractMentionUserIds, extractMentionTeamIds } from "@/lib/mentions";
 
 const EMPTY_DOC: JSONContent = { type: "doc", content: [{ type: "paragraph" }] };
 
@@ -32,7 +32,7 @@ export function docToPlainText(doc: JSONContent): string {
   let out = "";
   const walk = (node: JSONContent | undefined) => {
     if (!node) return;
-    if (node.type === "personMention") {
+    if (node.type === "personMention" || node.type === "teamMention") {
       out += `@${(node.attrs?.label as string) ?? ""}`;
       return;
     }
@@ -63,6 +63,13 @@ export function isValueEmpty(value: string | null | undefined): boolean {
 /** 저장 문자열에서 멘션된 사용자 id 집합. */
 export function mentionsInValue(value: string | null | undefined): Set<string> {
   return extractMentionUserIds(parseDoc(value));
+}
+
+/** 저장 문자열에서 멘션된 팀 id 집합(팀 멘션 → 알림 시 팀원 전원으로 확장). */
+export function teamMentionsInValue(
+  value: string | null | undefined,
+): Set<string> {
+  return extractMentionTeamIds(parseDoc(value));
 }
 
 /**
