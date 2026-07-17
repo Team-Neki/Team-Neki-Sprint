@@ -15,7 +15,8 @@ import { logActivity } from "@/server/activity";
 import { extractMentionUserIds } from "@/lib/mentions";
 import { docToPlainText } from "@/lib/rich-content";
 import type { JSONContent } from "@tiptap/core";
-import { assertCanManage } from "@/lib/authz";
+import { assertCanManage, canManage } from "@/lib/authz";
+import { z } from "zod";
 
 const EMPTY_DOC: Prisma.InputJsonValue = {
   type: "doc",
@@ -271,6 +272,76 @@ export async function purgeWikiPage(id: string) {
     action: "deleted",
   });
   revalidatePath("/wiki", "layout");
+}
+
+const purgeWikiPagesSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1),
+});
+
+/**
+ * 휴지통 다중 영구 삭제(하드·cascade). 넘긴 id 중 사용자가 관리(작성자/ADMIN)할
+ * 수 있는 페이지만 골라 삭제한다. 권한 없는 항목 하나 때문에 배치 전체를 중단하지
+ * 않고 건너뛴다. 없어진 id 도 조용히 건너뛴다. 삭제한 개수를 반환.
+ */
+export async function purgeWikiPages(input: unknown) {
+  const user = await requireUser();
+  const { ids } = purgeWikiPagesSchema.parse(input);
+
+  const pages = await prisma.wikiPage.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, authorId: true },
+  });
+  // 작성자 또는 ADMIN 이 관리할 수 있는 페이지만 삭제 대상으로.
+  const authorized = pages.filter((p) => canManage(user, p.authorId));
+  if (authorized.length === 0) return { count: 0 };
+
+  const authorizedIds = authorized.map((p) => p.id);
+  await prisma.wikiPage.deleteMany({ where: { id: { in: authorizedIds } } });
+  await Promise.all(
+    authorizedIds.map((id) =>
+      logActivity({
+        userId: user.id,
+        entityType: "wiki",
+        entityId: id,
+        action: "deleted",
+      }),
+    ),
+  );
+
+  revalidatePath("/wiki", "layout");
+  return { count: authorizedIds.length };
+}
+
+/**
+ * 휴지통 비우기: 휴지통(soft-delete)의 모든 페이지 중 사용자가 관리(작성자/ADMIN)할
+ * 수 있는 것을 영구 삭제한다. ADMIN 은 전체, 일반 사용자는 자기 작성분만 지워진다.
+ * 삭제한 개수를 반환.
+ */
+export async function emptyWikiTrash() {
+  const user = await requireUser();
+  const trashed = await prisma.wikiPage.findMany({
+    where: { deletedAt: { not: null } },
+    select: { id: true, authorId: true },
+  });
+  const authorizedIds = trashed
+    .filter((p) => canManage(user, p.authorId))
+    .map((p) => p.id);
+  if (authorizedIds.length === 0) return { count: 0 };
+
+  await prisma.wikiPage.deleteMany({ where: { id: { in: authorizedIds } } });
+  await Promise.all(
+    authorizedIds.map((id) =>
+      logActivity({
+        userId: user.id,
+        entityType: "wiki",
+        entityId: id,
+        action: "deleted",
+      }),
+    ),
+  );
+
+  revalidatePath("/wiki", "layout");
+  return { count: authorizedIds.length };
 }
 
 /** 페이지를 폴더에 넣거나 뺀다(folderId=null 이면 폴더 밖으로). */

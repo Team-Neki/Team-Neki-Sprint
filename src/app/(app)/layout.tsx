@@ -1,4 +1,3 @@
-import { Menu } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { signOut } from "@/auth";
 import {
@@ -9,6 +8,7 @@ import { SidebarNav } from "@/components/app-shell/sidebar-nav";
 import { UserMenu } from "@/components/app-shell/user-menu";
 import { NotificationBell } from "@/components/app-shell/notification-bell";
 import { CommandPalette } from "@/components/app-shell/command-palette";
+import { MobileNav } from "@/components/app-shell/mobile-nav";
 import {
   SidebarProvider,
   DesktopSidebar,
@@ -16,8 +16,6 @@ import {
   SidebarBrand,
 } from "@/components/app-shell/sidebar-collapse";
 import { toNotifItem } from "@/components/app-shell/notification-shared";
-import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 export default async function AppLayout({
   children,
@@ -49,28 +47,10 @@ export default async function AppLayout({
           <header className="bg-background/80 sticky top-0 z-30 flex h-14 items-center gap-2 border-b px-4 backdrop-blur">
             {/* Desktop sidebar toggle */}
             <SidebarToggle />
-            {/* Mobile menu */}
-            <Sheet>
-            <SheetTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="메뉴 열기"
-                  className="md:hidden"
-                />
-              }
-            >
-              <Menu className="size-5" />
-            </SheetTrigger>
-            <SheetContent side="left" className="w-64 p-0">
-              <SheetTitle className="sr-only">메뉴</SheetTitle>
-              <SidebarBrand alwaysExpanded />
-              <SidebarNav alwaysExpanded />
-            </SheetContent>
-          </Sheet>
+            {/* Mobile menu (경로 변경 시 자동 닫힘 — MobileNav 내부에서 처리) */}
+            <MobileNav />
 
-          <div className="flex-1" />
+            <div className="flex-1" />
 
           <CommandPalette />
 

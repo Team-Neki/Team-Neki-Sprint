@@ -225,3 +225,16 @@
 - **삭제**(`table-controls.ts` Extension): 표 아래 블록 맨 앞에서 `ArrowLeft` → 앞 형제가 표면 `setNodeSelection` 으로 표 선택 → `Backspace`/`Delete` 로 삭제. TableKit 내부는 안 건드리는 별도 키맵 확장.
 - **hover 열/행 추가**(`editor.tsx` `TableHoverControls`): 커서가 표 안일 때 `nodeDOM(tablePos)` 로 표 사각형을 읽어 우측/하단 스트립을 **오버레이**(좌표만 읽고 표 내부 로직 미변경). `selectionUpdate`/`transaction`/`scroll`/`resize` 에 위치 갱신. 편집 컨테이너가 `position:relative` 여야 좌표 기준이 맞다.
 - **리사이즈 폭 고정**: 리사이즈 가능한 표는 `TableView` 가 열 너비 합으로 `<table>` 의 **inline `width`/`min-width`** 를 세팅해 드래그 시 표가 통째로 커진다. CSS `.tiptap table { width:100% !important; min-width:0 !important }` 로 inline 을 무시해 컨테이너 폭에 고정 → `table-layout:fixed` 상 경계선만 이동, 인접 열이 폭을 나눈다(엄밀한 인접-only 재분배가 필요하면 커스텀 리사이즈 플러그인 필요 — 현재는 비례 재분배).
+- **드래그로 다중 추가**(2026-07-17): hover 스트립의 `+` 는 `onPointerDown` 에서 window `pointermove` 를 걸어 드래그 거리 `STEP`(열 48·행 32px) 마다 `addColumnAfter`/`addRowAfter` 를 1회씩 호출. 이동 0(=단순 클릭)이면 `pointerup` 에서 1개만 추가. 같은 스트립에 삭제(−, `deleteColumn`/`deleteRow`) 버튼도 인라인 노출(팝오버 삭제와 병행).
+
+## 30. Prisma client 가 checked-in 스키마와 어긋나면 관계없는 파일에서 tsc 에러 (2026-07-17)
+
+- **증상**: 내가 안 건드린 `src/app/api/wiki/image/[id]/route.ts`·`wiki/upload/route.ts` 에서 `'data' does not exist in type WikiImageSelect` 같은 tsc 에러. 생성된 `@prisma/client` 타입엔 `s3Key` 가 있고 `data` 가 없는데, checked-in `schema.prisma` 의 `WikiImage` 는 `data Bytes`(인라인) + 라우트 코드도 `data` 사용 → **client 만 다른(형제 worktree 의 S3) 스키마로 생성돼 있던 잔재**.
+- **해결**: `npx prisma generate` 로 checked-in `schema.prisma` 기준 재생성. (스키마 변경/브랜치 병합 후 client 재생성 규칙 [§ "병합 후 npx prisma generate"] 의 한 사례 — **`npm install <pkg>` 는 client 를 재생성하지 않는다**. 별개로 확인.)
+- **오진 주의**: `<cmd> 2>&1 | tail -n` 은 **파이프 종료코드가 tail(0)** 이라 npm/tsc 실패를 exit 0 으로 오인한다. 실패 판정이 필요하면 `; echo EXIT=$?` 를 명령 뒤에 붙이거나 파이프를 걷어낸다.
+
+## 31. 위키 사이드바 폴더 접힘 상태는 트리 최상단이 소유해야 유지된다 (2026-07-17)
+
+- **증상**: 상위 폴더를 접었다 펴면 하위 폴더가 이전 상태와 무관하게 모두 열림으로 리셋.
+- **원인**: `FolderItem`/`PageItem` 이 각자 `useState(true)`(열림 기본)로 접힘을 가졌는데, **부모 접힘 시 렌더 게이트(`hasChildren && open && <ul>`)가 자식 서브트리를 언마운트** → 재오픈 때 자식이 재마운트되며 `useState(true)` 로 초기화. (`router.refresh` 아님.)
+- **해결**: 접힘을 **`PageTree`(트리 최상단, 항목 언마운트와 무관)** 소유의 `collapsedIds: Set` 으로 승격. "열림이 기본, 닫은 것만 기억" = `open = !collapsedIds.has(key)`. 폴더/페이지 id 충돌 방지로 `f:`/`p:` 네임스페이스. localStorage `wiki:collapsed` 영속(initializer 에서 `typeof window` 가드). 새 하위항목 생성 시 부모를 `expand(key)` 로 강제 펼쳐 즉시 노출.
