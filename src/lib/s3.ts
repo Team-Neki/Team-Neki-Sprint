@@ -26,6 +26,10 @@ function getClient(): S3Client {
   const endpoint = process.env.S3_ENDPOINT || undefined;
   client = new S3Client({
     region,
+    // S3 지연·행업 시 요청이 무기한 붙잡히지 않도록 명시적 타임아웃.
+    // (SDK 기본값은 request timeout 이 없다.) 객체 리터럴은 NodeHttpHandler
+    // 옵션으로 전달된다.
+    requestHandler: { connectionTimeout: 3_000, requestTimeout: 10_000 },
     // MinIO 등 경로형 접근이 필요한 S3 호환 스토리지 지원.
     ...(endpoint
       ? { endpoint, forcePathStyle: process.env.S3_FORCE_PATH_STYLE === "true" }

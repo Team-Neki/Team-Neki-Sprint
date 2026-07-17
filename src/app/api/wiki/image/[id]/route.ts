@@ -28,7 +28,13 @@ export async function GET(
     return new Response("Not found", { status: 404 });
   }
 
-  const object = await getWikiImage(image.s3Key);
+  // S3 장애(권한·네트워크 등)는 업로드 라우트와 동일하게 502 로 응답한다.
+  let object;
+  try {
+    object = await getWikiImage(image.s3Key);
+  } catch {
+    return new Response("이미지 조회에 실패했습니다", { status: 502 });
+  }
   if (!object) {
     return new Response("Not found", { status: 404 });
   }
