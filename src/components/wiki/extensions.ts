@@ -17,9 +17,11 @@ import {
   codeBlockAutoPairs,
   codeBlockEnterIndent,
 } from "@/components/wiki/code-block-pairs";
-// '#' 티켓 멘션(#4) / '@' 사람 멘션(B5). 각각 자기완결 모듈, 여기 한 줄씩만 추가.
+// '#' 티켓 멘션(#4) / '@' 사람·팀 멘션(B5). 각각 자기완결 모듈, 여기 한 줄씩만 추가.
+// 팀 멘션 suggestion 은 PersonMention 이 겸한다(같은 '@' 트리거 공유).
 import { TicketMention } from "@/components/wiki/ticket-mention";
 import { PersonMention } from "@/components/wiki/person-mention";
+import { TeamMention } from "@/components/wiki/team-mention";
 // 인라인 댓글 앵커(B10). 편집/뷰가 동일 스키마로 파싱해야 하므로 여기서 공유한다.
 import { CommentMark } from "@/components/wiki/comment-mark";
 // mermaid 다이어그램 블록(atom + NodeView, mermaid 는 지연 로드).
@@ -100,6 +102,7 @@ export function wikiExtensions(opts?: { placeholder?: string }) {
     }),
     TicketMention,
     PersonMention,
+    TeamMention,
     CommentMark,
   ];
 }

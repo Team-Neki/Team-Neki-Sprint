@@ -47,6 +47,23 @@ model User {
   // 알림(B5). 수신자/행위자 양방향.
   notifications     Notification[] @relation("NotifRecipient")
   sentNotifications Notification[] @relation("NotifActor")
+  announcements     Announcement[] @relation("AnnouncementAuthor")
+}
+
+/**
+ * 대시보드 공지. 모든 멤버가 작성/수정할 수 있고, **삭제는 작성자만** 가능
+ * (작성자가 사라진 공지는 ADMIN 이 정리). 본문은 위키와 동일한 Tiptap doc JSON.
+ */
+model Announcement {
+  id        String   @id @default(cuid())
+  title     String
+  content   Json     @default("{}")
+  authorId  String?
+  author    User?    @relation("AnnouncementAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([createdAt])
 }
 
 /**
@@ -268,6 +285,9 @@ model Comment {
   author    User     @relation(fields: [authorId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // 태스크 상세의 댓글 조회 + 태스크 삭제 cascade 스캔용(계속 자라는 테이블).
+  @@index([taskId, createdAt])
 }
 
 model Label {
@@ -430,6 +450,10 @@ model WikiRevision {
   editorId  String?
   editor    User?    @relation("RevisionEditor", fields: [editorId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
+
+  // 버전 히스토리 조회 + 페이지 영구삭제 cascade 스캔용. 저장마다 1건씩 쌓이는
+  // 가장 빨리 자라는 테이블이라 pageId 인덱스가 필수.
+  @@index([pageId, createdAt])
 }
 
 // 유저별 위키 페이지 즐겨찾기(별표). @@id 로 (userId,pageId) 유일. 순수 조인 테이블.
@@ -450,6 +474,8 @@ model WikiPageTaskLink {
   task   Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@id([pageId, taskId])
+  // PK 는 pageId 선두라 태스크 상세의 "연결된 위키"(taskId 역방향) 조회를 못 탄다.
+  @@index([taskId])
 }
 
 // ---------- Activity log ----------

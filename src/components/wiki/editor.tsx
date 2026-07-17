@@ -47,6 +47,13 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import {
+  appendColumnEnd,
+  appendRowEnd,
+  removeLastColumnIfEmpty,
+  removeLastRowIfEmpty,
+} from "@/components/wiki/table-edit";
+import { TableContextMenu } from "@/components/wiki/table-context-menu";
+import {
   updateWikiContent,
   saveWikiDraft,
   discardWikiDraft,
@@ -105,6 +112,8 @@ export const WikiEditor = forwardRef<WikiEditorHandle, WikiEditorProps>(
     const [saving, setSaving] = useState(false);
     const [dirty, setDirty] = useState(false);
     const [usingDraft, setUsingDraft] = useState(startedFromDraft);
+    // state 는 리렌더 전 연속 호출(Cmd+S 키 반복 등)을 못 막는다 — ref 로 동기 가드.
+    const savingRef = useRef(false);
     const dirtyRef = useRef(false);
     // 표 hover 열/행 추가 버튼(T17)의 좌표 기준 컨테이너.
     const editorAreaRef = useRef<HTMLDivElement>(null);
@@ -132,8 +141,10 @@ export const WikiEditor = forwardRef<WikiEditorHandle, WikiEditorProps>(
 
     // 명시적 저장(커밋): WikiPage 로 반영(리비전 생성) + 임시저장본 정리 → 뷰로 복귀.
     const commit = useCallback(async () => {
+      if (savingRef.current) return;
       const content = cloneContent();
       if (!content) return;
+      savingRef.current = true;
       setSaving(true);
       try {
         await updateWikiContent(pageId, title, content);
@@ -144,6 +155,7 @@ export const WikiEditor = forwardRef<WikiEditorHandle, WikiEditorProps>(
       } catch {
         toast.error("저장에 실패했습니다");
       } finally {
+        savingRef.current = false;
         setSaving(false);
       }
     }, [cloneContent, pageId, title, router, onExit]);
@@ -334,7 +346,10 @@ export const WikiEditor = forwardRef<WikiEditorHandle, WikiEditorProps>(
         <div ref={editorAreaRef} className="relative mt-4">
           <EditorContent editor={editor} />
           {editor && (
-            <TableHoverControls editor={editor} containerRef={editorAreaRef} />
+            <>
+              <TableHoverControls editor={editor} containerRef={editorAreaRef} />
+              <TableContextMenu editor={editor} containerRef={editorAreaRef} />
+            </>
           )}
         </div>
       </div>
@@ -345,10 +360,11 @@ export const WikiEditor = forwardRef<WikiEditorHandle, WikiEditorProps>(
 /**
  * 표 가장자리 hover 열/행 추가 버튼(T17). 커서가 표 안에 있을 때, 그 표의 DOM
  * 사각형을 추적해 우측(열 추가)·하단(행 추가) 스트립을 오버레이한다. 스트립에
- * hover 하면 + 버튼이 나타나고, 클릭 시 addColumnAfter/addRowAfter. 표 내부 로직은
- * 건드리지 않고 좌표만 읽어 겹쳐 그리므로 리사이즈/편집 동작과 독립적이다.
+ * hover 하면 + 버튼이 나타나고, 클릭 시 마지막 열/행 뒤에 추가·드래그로 여러 개
+ * 추가/삭제(table-edit.ts). 표 내부 로직은 건드리지 않고 좌표만 읽어 겹쳐
+ * 그리므로 리사이즈/편집 동작과 독립적이다. (공지 에디터도 재사용 — export)
  */
-function TableHoverControls({
+export function TableHoverControls({
   editor,
   containerRef,
 }: {
@@ -409,32 +425,55 @@ function TableHoverControls({
     };
   }, [editor, containerRef]);
 
-  // 열/행 추가를 드래그로 여러 개. 포인터를 오른쪽/아래로 끌면 STEP 픽셀마다 한 개씩
-  // 추가한다. 드래그 없이 클릭(이동 0)하면 한 개만 추가(기존 클릭 동작 보존).
-  function addByDrag(e: React.PointerEvent, axis: "x" | "y", add: () => void) {
+  // 열/행 추가·삭제를 드래그로 여러 개. 오른쪽/아래로 끌면 STEP 픽셀마다 마지막에
+  // 한 개씩 추가, 반대 방향으로 끌면 끝에서부터 한 개씩 삭제한다(빈 행/열까지만 —
+  // 내용 있는 셀을 만나면 멈춘다. table-edit.ts). 드래그 없이 클릭하면 한 개만 추가.
+  function resizeByDrag(
+    e: React.PointerEvent,
+    axis: "x" | "y",
+    add: () => boolean,
+    remove: () => boolean,
+  ) {
     e.preventDefault();
     const start = axis === "x" ? e.clientX : e.clientY;
     const STEP = axis === "x" ? 48 : 32;
-    let added = 0;
+    let net = 0; // 이 드래그로 순증감한 개수(음수 = 삭제)
+    let dragged = false;
     const onMove = (ev: PointerEvent) => {
       const pos = axis === "x" ? ev.clientX : ev.clientY;
-      const target = Math.max(0, Math.floor((pos - start) / STEP));
-      while (added < target) {
-        add();
-        added += 1;
+      // trunc: 시작점 주변 미세 이동(±STEP 미만)으로 바로 삭제되지 않게.
+      const target = Math.trunc((pos - start) / STEP);
+      if (target !== 0) dragged = true;
+      while (net < target) {
+        if (!add()) break;
+        net += 1;
+      }
+      while (net > target) {
+        if (!remove()) break; // 내용 있는 행/열 → 더 줄이지 않음
+        net -= 1;
       }
     };
-    const onUp = () => {
-      if (added === 0) add(); // 클릭 = 1개
+    // pointercancel(터치 제스처·OS 개입)에도 전역 리스너를 정리한다 — 안 하면
+    // 리스너가 남아 이후 포인터 이동이 표를 계속 변경한다.
+    const cleanup = () => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", cleanup);
+    };
+    const onUp = () => {
+      if (!dragged && net === 0) add(); // 클릭 = 1개 추가
+      cleanup();
     };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", cleanup);
   }
 
-  const addColumn = () => editor.chain().focus().addColumnAfter().run();
-  const addRow = () => editor.chain().focus().addRowAfter().run();
+  // 추가는 커서 위치와 무관하게 항상 마지막 열/행 뒤에(T22).
+  const addColumn = () => appendColumnEnd(editor);
+  const addRow = () => appendRowEnd(editor);
+  const shrinkColumn = () => removeLastColumnIfEmpty(editor);
+  const shrinkRow = () => removeLastRowIfEmpty(editor);
 
   if (!rect) return null;
   return (
@@ -453,9 +492,9 @@ function TableHoverControls({
         <button
           type="button"
           onMouseDown={(e) => e.preventDefault()}
-          onPointerDown={(e) => addByDrag(e, "x", addColumn)}
-          aria-label="열 추가 (드래그로 여러 개)"
-          title="열 추가 · 드래그로 여러 개"
+          onPointerDown={(e) => resizeByDrag(e, "x", addColumn, shrinkColumn)}
+          aria-label="열 추가 (드래그로 여러 개 추가/삭제)"
+          title="열 추가 · 드래그로 여러 개 추가/삭제"
         >
           <Plus className="size-3.5" />
         </button>
@@ -482,9 +521,9 @@ function TableHoverControls({
         <button
           type="button"
           onMouseDown={(e) => e.preventDefault()}
-          onPointerDown={(e) => addByDrag(e, "y", addRow)}
-          aria-label="행 추가 (드래그로 여러 개)"
-          title="행 추가 · 드래그로 여러 개"
+          onPointerDown={(e) => resizeByDrag(e, "y", addRow, shrinkRow)}
+          aria-label="행 추가 (드래그로 여러 개 추가/삭제)"
+          title="행 추가 · 드래그로 여러 개 추가/삭제"
         >
           <Plus className="size-3.5" />
         </button>
@@ -502,9 +541,9 @@ function TableHoverControls({
   );
 }
 
-function Toolbar({ editor }: { editor: Editor }) {
+export function Toolbar({ editor }: { editor: Editor }) {
   // 제목(H1~3)·목록(글머리/번호/체크) 아이콘은 제거했다 — 제목은 '#'(개수만큼 h1~h6),
-  // 목록은 '-'/'1.'/'[ ]' 또는 슬래시 커맨드(/)로 만든다.
+  // 목록은 '-'/'1.'/'[ ]' 또는 슬래시 커맨드(/)로 만든다. (공지 에디터도 재사용 — export)
   return (
     <TooltipProvider delay={150}>
       <div className="bg-background/80 sticky top-14 z-10 flex flex-wrap items-center gap-0.5 rounded-md border p-1 backdrop-blur">
@@ -796,16 +835,14 @@ function TableButton({ editor }: { editor: Editor }) {
             }}
           />
         ) : (
-          <div className="w-40">
-            <TableMenuItem
-              onClick={() => editor.chain().focus().addRowAfter().run()}
-            >
-              아래 행 추가
+          <div className="w-44">
+            {/* 추가는 항상 마지막 행/열 뒤(T22). 커서 기준 삽입은 단축키
+                (Ctrl+Option+방향키)와 우클릭 메뉴로 제공한다. */}
+            <TableMenuItem onClick={() => appendRowEnd(editor)}>
+              맨 아래 행 추가
             </TableMenuItem>
-            <TableMenuItem
-              onClick={() => editor.chain().focus().addColumnAfter().run()}
-            >
-              오른쪽 열 추가
+            <TableMenuItem onClick={() => appendColumnEnd(editor)}>
+              맨 오른쪽 열 추가
             </TableMenuItem>
             <TableMenuItem
               onClick={() => editor.chain().focus().deleteRow().run()}
