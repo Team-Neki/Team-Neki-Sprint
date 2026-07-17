@@ -9,6 +9,8 @@
 | 날짜 | 세션 | 상태 |
 |---|---|---|
 | 2026-07-17 | MCP 서버 추가(`mcp/`, `@team-neki/sprint-mcp`): 티켓 생성/수정/조회/검색 + 위키 생성/수정/조회/검색 도구. 앱에 `/api/mcp/v1/*` HTTP API + 개인 API 토큰(설정 페이지 발급, sha-256 해시 저장) 추가, mutation core를 actor 주입형으로 리팩터링. 팀 배포: 레포 `.mcp.json`(Claude Code) + npm(Desktop/Cursor). 설계·계획은 `docs/superpowers/{specs,plans}`. 병합 후 main에서 `prisma migrate`(ApiToken)+`prisma generate` 필요 | worktree 검증 완료, 병합·마이그레이션 대기 |
+| 2026-07-17 | GitHub 연동(Task->Branch->PR 양방향): 태스크 상세에서 브랜치 생성(`prefix/KEY-slug`, 레포 생성 시 선택), webhook(`/api/github/webhook`) 으로 PR open->IN_PROGRESS·merge->DONE 자동 전이 + 이름규칙 자동연결. GitHub App(installation token), 신규 npm 의존성 없이 fetch+node:crypto. 모델 `GithubInstallation`/`GithubBranchLink`. 설계 `specs/2026-07-17-github-integration-design.md`, 계획 `plans/2026-07-17-github-integration.md` | `DONE`\* |
+| 2026-07-17 | 위키/타임라인/레이아웃 22건(worktree 5-스트림 병렬): 사이드바 폴더 접힘 유지·새 하위폴더 즉시노출·토글/리사이즈, 저장/취소 헤더 이동, 타임라인 막대 라벨 제거, 에디터(슬래시커맨드·글자색·표 크기픽커/드래그 다중추가·삭제·h1~h6·툴팁 속도·코드강조 채도↑·툴바 H/목록 아이콘 제거), 휴지통 다중선택·다중삭제·비우기, 전역 모바일드로어 이동시 닫힘·사이드바 리사이즈 | `DONE`\* |
 | 2026-07-15 | 폼/목록/타임라인/위키 UX 다수: 담당자 기본값·폼 리셋 버그, 목록 컬럼 통일+빈 헤더, 타임라인 무한스크롤·2색, round 축소, 위키 코드블록(복사·언어·자동닫기·들여쓰기)·표 편집(삭제·추가버튼·리사이즈), 스프린트 컬럼·MD 소수점 | `DONE`\* |
 | 2026-07-13 | 위키 저장 후 사이드바 제목 stale 버그 근본원인 = `unstable_cache` 가 멀티 replica 에서 pod-local → **데이터 캐시 레이어 제거** | `DONE` |
 | 2026-07-10 | 프로필 상세·타임라인 구분선·위키 DnD·티켓 CC·상세 시트 정련 등 in-product UX 다수 (커밋 `66f8eb5` + 후속) | `DONE`\* |
@@ -25,6 +27,35 @@
 \* 코드·빌드·테스트 검증 완료. 실렌더(mermaid/표/강조)는 로그인 게이트라 브라우저 확인 필요.
 
 ---
+
+## 2026-07-17 — 위키/타임라인/레이아웃 22건 (브랜치 `feat/wiki-editor-layout-improvements`)
+
+사용자 요청 22건을 파일 겹침 기준 5개 워크스트림으로 나눠 **git worktree 병렬**로 구현(WS1 사이드바·WS4 휴지통·WS5 셸은 백그라운드 서브에이전트, WS2 타임라인·WS3 에디터는 메인 트리). 각 worktree 는 `tsc`+`eslint` 로만 검증(Turbopack 이 worktree symlink node_modules 거부, [gotchas §6]) 후 브랜치로 커밋 → 메인 통합 브랜치에 병합. 통합 후 tsc 0 · eslint 0 · `next build` OK · vitest 106 pass. **상호작용/시각(슬래시 메뉴·표 드래그 추가·색상·폴더 접힘 영속·사이드바 리사이즈)은 로그인 게이트라 브라우저 실확인 후속 필요.**
+
+- **통합 전 함정**: 메인의 생성 Prisma client 가 checked-in `schema.prisma`(WikiImage `data Bytes`)와 어긋나 있었다(형제 worktree 의 S3 `s3Key` 스키마로 생성돼 있던 잔재) → 위키 이미지 라우트 tsc 3건 에러. `npx prisma generate` 로 재생성해 해소. [gotchas §30]
+
+### WS1 사이드바 — 폴더 접힘 유지·새 하위폴더 즉시노출·토글/리사이즈 (`page-tree.tsx`, `wiki-sidebar.tsx`, `wiki/layout.tsx`)
+- **폴더 접힘 상태 유지**: 근본원인은 부모 접힘 시 자식 `<ul>` 이 언마운트돼 재오픈 때 자식 `useState(true)` 가 재초기화되던 것. 열림/닫힘을 `FolderItem`/`PageItem` 로컬 state 에서 빼내 **`PageTree` 소유 `collapsedIds: Set`**(id 네임스페이스 `f:`/`p:`)로 승격, `open=!collapsedIds.has(key)`. localStorage `wiki:collapsed` 영속. [gotchas §31]
+- **새 하위폴더/페이지 즉시 노출**: 생성 시 부모를 `collapsedIds` 에서 빼 강제 펼침(`expand`) + 새 노드도 펼침.
+- **사이드바 토글/리사이즈**: `wiki/layout.tsx` 의 서버 `aside` 를 클라이언트 `WikiSidebar` 로 추출(접힘 `wiki:sidebar`, 폭 `wiki:sidebarW` 200~480, 타임라인 `onResizeStart` 패턴 재사용). 데스크톱 전용(`hidden md:block`), 모바일은 `WikiNavSheet` 유지.
+
+### WS2 타임라인 — 막대 위 라벨 제거 (`epic-timeline.tsx`)
+- 에픽 막대 내부 sticky 라벨(`N 태스크`/종료일) 제거 → 순수 막대만. 좌측 이름 열·상단 월/일 축·`일정 미설정` placeholder 는 유지. 제목은 hover `title` 로만.
+
+### WS3 에디터 (`editor.tsx`, `wiki-detail.tsx`, `extensions.ts`, `slash-*.ts(x)`, `globals.css`)
+- **저장/취소 헤더 이동**: `WikiEditor` 를 `forwardRef`+`useImperativeHandle({commit,cancel})` 로, `onStateChange` 로 상태 상향. `WikiDetail` 의 sticky 헤더에서 `...` 메뉴 좌측에 취소·저장·상태 렌더 → 긴 본문 스크롤에도 고정.
+- **슬래시 커맨드(/)**: `@tiptap/suggestion` 기반 `SlashCommand` 확장 + `SlashMenu`. 제목1~6·글머리/번호/체크 목록·인용·코드·표·mermaid·구분선. 코드블록 내부·단어 중간 트리거 제외.
+- **글자 색상**: `@tiptap/extension-text-style`+`@tiptap/extension-color`(정확히 3.27.1 핀 — `^` 은 core 3.28.0 를 끌어와 peer 충돌) + 툴바 팔레트 버튼.
+- **표**: 삽입 버튼에 hover 크기 그리드 픽커(최대 8×8). hover 컨트롤 + 버튼을 드래그하면 거리만큼 열/행 다중 추가, 인라인 삭제(−) 버튼 추가.
+- **제목/툴바**: heading `levels:[1..6]` + h4~h6 CSS. 툴바에서 H1/H2/H3·목록/체크 아이콘 제거(#·마크다운·슬래시로). 아이콘 툴팁을 네이티브 `title` → Base UI Tooltip(≈150ms).
+- **코드 하이라이팅**: `.hljs-*` 팔레트 채도 상향 + 토큰 클래스 보강(키워드 빨강·문자열 초록·숫자 파랑·함수 보라·타입/속성 주황).
+
+### WS4 휴지통 — 다중선택·다중삭제·비우기 (`trash-list.tsx`, `actions/wiki.ts`)
+- `TrashList` 를 선택 state 소유로(행 `Checkbox`+전체 선택). 신규 액션 `purgeWikiPages(ids)`·`emptyWikiTrash()` — `canManage`(작성자/ADMIN, [authz]) 통과분만 삭제(권한 없는 항목은 배치 중단 없이 건너뜀). `ConfirmDelete` 재사용(확인·토스트·refresh 담당).
+
+### WS5 전역 셸 — 모바일 드로어 닫힘·사이드바 리사이즈 (`layout.tsx`, `sidebar-collapse.tsx`, `mobile-nav.tsx`)
+- 전역 모바일 `Sheet` 를 클라이언트 `MobileNav` 로 추출 → 경로 변경 시 자동 닫힘(`WikiNavSheet` 의 render-중 조건부 setState 패턴). 데스크톱 레일은 불변.
+- `SidebarProvider` 에 `width`(localStorage `app:sidebarW`, 200~400) 추가. `DesktopSidebar` 펼침 시 인라인 폭 + 우측 드래그 핸들(접힘 레일 땐 숨김).
 
 ## 2026-07-15 — 폼/목록/타임라인/위키 UX 다수 (브랜치 `fix/dialog-form-reset-owner-default`)
 

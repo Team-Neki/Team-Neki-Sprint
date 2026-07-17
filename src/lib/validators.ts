@@ -140,3 +140,10 @@ export type TaskInput = z.infer<typeof taskSchema>;
 export type LabelInput = z.infer<typeof labelSchema>;
 export type WikiPageInput = z.infer<typeof wikiPageSchema>;
 export type WikiFolderInput = z.infer<typeof wikiFolderSchema>;
+
+export const createBranchSchema = z.object({
+  taskId: z.string(),
+  repoFullName: z.string().min(1),
+  branchName: z.string().min(1),
+  base: z.string().nullish(),
+});
