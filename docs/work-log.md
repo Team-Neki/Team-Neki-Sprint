@@ -40,6 +40,7 @@
   - 드래그 **양방향**: 반대로 끌면 끝에서부터 삭제하되 **빈 행/열까지만**(내용 셀에서 멈춤).
   - 셀 **우클릭 컨텍스트 메뉴**(`table-context-menu.tsx`): 셀=좌/우 열·위/아래 행 추가+열/행 삭제, 행 전체 선택=행 메뉴, 열 전체 선택=열 메뉴.
   - **단축키**(`table-controls.ts`): Ctrl+Opt+←/→/↑/↓ 커서 기준 열/행 추가, 행/열 전체 선택 후 Ctrl+Backspace 삭제(표 전체 선택이면 표 삭제 — prosemirror-tables 는 전행/전열 삭제를 거부).
+- **읽기 경로 인덱스 3종**(후속 리뷰에서 추가): Postgres 는 FK 에 인덱스가 자동 생성되지 않아, 계속 자라는 테이블의 FK 조회가 seq scan 이었다 → `WikiRevision @@index([pageId, createdAt])`(버전 히스토리·저장마다 1건씩 쌓임), `Comment @@index([taskId, createdAt])`(태스크 상세 댓글), `WikiPageTaskLink @@index([taskId])`(태스크→위키 역방향, PK 는 pageId 선두라 못 탐). cascade 삭제 시 자식 스캔 비용도 함께 해소. 검색(`contains`)은 B-tree 대상이 아니므로 데이터가 커지면 `pg_trgm` 별도 검토.
 
 ## 2026-07-17 — 위키/타임라인/레이아웃 22건 (브랜치 `feat/wiki-editor-layout-improvements`)
 
