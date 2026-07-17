@@ -474,6 +474,23 @@ export function getTask(id: string) {
   });
 }
 
+/** 태스크에 연결된 GitHub 브랜치/PR 링크. 최신순. */
+export function getTaskGithubLinks(taskId: string) {
+  return prisma.githubBranchLink.findMany({
+    where: { taskId },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      repoFullName: true,
+      branchName: true,
+      branchUrl: true,
+      prNumber: true,
+      prState: true,
+      prUrl: true,
+    },
+  });
+}
+
 // ---------- Label (C8) ----------
 
 /** 라벨 전체 + 사용 카운트(태스크/에픽/프로젝트). 관리 페이지·배지 표시용. 이름순. */

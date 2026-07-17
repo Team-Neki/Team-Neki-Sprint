@@ -8,6 +8,7 @@
 
 | 날짜 | 세션 | 상태 |
 |---|---|---|
+| 2026-07-17 | GitHub 연동(Task->Branch->PR 양방향): 태스크 상세에서 브랜치 생성(`prefix/KEY-slug`, 레포 생성 시 선택), webhook(`/api/github/webhook`) 으로 PR open->IN_PROGRESS·merge->DONE 자동 전이 + 이름규칙 자동연결. GitHub App(installation token), 신규 npm 의존성 없이 fetch+node:crypto. 모델 `GithubInstallation`/`GithubBranchLink`. 설계 `specs/2026-07-17-github-integration-design.md`, 계획 `plans/2026-07-17-github-integration.md` | `DONE`\* |
 | 2026-07-17 | 위키/타임라인/레이아웃 22건(worktree 5-스트림 병렬): 사이드바 폴더 접힘 유지·새 하위폴더 즉시노출·토글/리사이즈, 저장/취소 헤더 이동, 타임라인 막대 라벨 제거, 에디터(슬래시커맨드·글자색·표 크기픽커/드래그 다중추가·삭제·h1~h6·툴팁 속도·코드강조 채도↑·툴바 H/목록 아이콘 제거), 휴지통 다중선택·다중삭제·비우기, 전역 모바일드로어 이동시 닫힘·사이드바 리사이즈 | `DONE`\* |
 | 2026-07-15 | 폼/목록/타임라인/위키 UX 다수: 담당자 기본값·폼 리셋 버그, 목록 컬럼 통일+빈 헤더, 타임라인 무한스크롤·2색, round 축소, 위키 코드블록(복사·언어·자동닫기·들여쓰기)·표 편집(삭제·추가버튼·리사이즈), 스프린트 컬럼·MD 소수점 | `DONE`\* |
 | 2026-07-13 | 위키 저장 후 사이드바 제목 stale 버그 근본원인 = `unstable_cache` 가 멀티 replica 에서 pod-local → **데이터 캐시 레이어 제거** | `DONE` |
