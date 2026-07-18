@@ -60,6 +60,12 @@ import {
   saveWikiDraft,
   discardWikiDraft,
 } from "@/server/actions/wiki";
+import {
+  UploadPlaceholder,
+  addUploadPlaceholder,
+  findUploadPlaceholder,
+  removeUploadPlaceholder,
+} from "@/components/wiki/upload-placeholder";
 
 /** 이미지 파일을 업로드하고 서빙 URL 을 반환. 실패 시 토스트 + null(본문 이미지 첨부). */
 async function uploadImage(file: File): Promise<string | null> {
@@ -97,23 +103,36 @@ function htmlHasText(html: string): boolean {
 /**
  * 이미지 파일들을 병렬 업로드하고, 성공분만 원래 순서대로 본문에 삽입.
  * dropPos 가 있으면 그 위치(드롭 좌표)에, 없으면 현재 커서에 삽입한다.
+ *
+ * 업로드 동안 사용자가 계속 타이핑/편집할 수 있으므로 완료 시점의 selection/
+ * 좌표를 쓰면 원래 붙여넣기·드롭한 위치를 벗어난다. 호출 시점에 placeholder
+ * 위젯을 먼저 넣고 ProseMirror mapping 으로 추적한 뒤(upload-placeholder.ts),
+ * 완료 시 그 위치에 삽입한다. 업로드 중 사용자가 placeholder 자리를 지우면
+ * 삽입도 취소한다(위젯이 사라지는 것이 보이므로 의도된 취소로 간주).
  */
 async function uploadAndInsertImages(
   editor: Editor | null,
   files: File[],
   dropPos?: number,
 ) {
-  const urls = (await Promise.all(files.map((f) => uploadImage(f)))).filter(
-    (u): u is string => u !== null,
-  );
-  if (!editor || editor.isDestroyed || urls.length === 0) return;
-  const nodes = urls.map((src) => ({ type: "image", attrs: { src } }));
-  if (dropPos != null) {
-    // 업로드 동안 문서가 짧아졌을 수 있으니 삽입 위치를 문서 범위로 클램프.
-    const pos = Math.min(dropPos, editor.state.doc.content.size);
+  if (!editor || editor.isDestroyed || files.length === 0) return;
+  const id = {};
+  if (dropPos == null) {
+    // 붙여넣기·툴바 첨부: 기존 insertContent 동작과 같이 선택 영역을 대체한다.
+    editor.chain().focus().deleteSelection().run();
+  }
+  addUploadPlaceholder(editor.view, id, dropPos ?? editor.state.selection.from);
+  try {
+    const urls = (await Promise.all(files.map((f) => uploadImage(f)))).filter(
+      (u): u is string => u !== null,
+    );
+    if (editor.isDestroyed || urls.length === 0) return;
+    const pos = findUploadPlaceholder(editor.state, id);
+    if (pos == null) return;
+    const nodes = urls.map((src) => ({ type: "image", attrs: { src } }));
     editor.chain().insertContentAt(pos, nodes).run();
-  } else {
-    editor.chain().focus().insertContent(nodes).run();
+  } finally {
+    if (!editor.isDestroyed) removeUploadPlaceholder(editor.view, id);
   }
 }
 
@@ -159,7 +178,12 @@ export const WikiEditor = forwardRef<WikiEditorHandle, WikiEditorProps>(
 
     const editor = useEditor({
       immediatelyRender: false,
-      extensions: wikiExtensions({ placeholder: "내용을 입력하세요…" }),
+      extensions: [
+        ...wikiExtensions({ placeholder: "내용을 입력하세요…" }),
+        // 이미지 업로드 중 삽입 위치를 표시·추적하는 위젯(편집 모드 전용 —
+        // 데코레이션이라 스키마/저장 내용에는 영향 없음).
+        UploadPlaceholder,
+      ],
       content: draft?.content ?? initialContent,
       editorProps: {
         attributes: { class: "tiptap focus:outline-none" },
