@@ -5,13 +5,16 @@ import type { JSONContent } from "@tiptap/react";
 import {
   getWikiPage,
   getWikiTree,
+  getWikiFolders,
   getWikiRevisions,
   isWikiPageFavorited,
   getWikiComments,
   getWikiDraft,
 } from "@/server/queries";
 import { requireUser } from "@/lib/session";
+import { buildWikiBreadcrumb } from "@/lib/wiki-breadcrumb";
 import { WikiDetail } from "@/components/wiki/wiki-detail";
+import { WikiBreadcrumb } from "@/components/wiki/wiki-breadcrumb";
 import { LinkedTickets } from "@/components/wiki/linked-tickets";
 
 export const dynamic = "force-dynamic";
@@ -67,16 +70,19 @@ export default async function WikiPageView({
 }) {
   const { id } = await params;
   const user = await requireUser();
-  const [page, tree, revisions, favorited, threads, draftRow] =
+  const [page, tree, folders, revisions, favorited, threads, draftRow] =
     await Promise.all([
       getWikiPage(id),
       getWikiTree(),
+      getWikiFolders(),
       getWikiRevisions(id),
       isWikiPageFavorited(user.id, id),
       getWikiComments(id),
       getWikiDraft(id, user.id),
     ]);
   if (!page) notFound();
+
+  const breadcrumb = buildWikiBreadcrumb(id, tree, folders);
 
   const linkedTickets = page.taskLinks.map((l) => ({
     id: l.task.id,
@@ -102,6 +108,7 @@ export default async function WikiPageView({
     // 스크롤 컨테이너 자기 하단 패딩이라 overflow 끝에서 무시될 수 있어(WebKit), 여백을
     // 스크롤 높이에 포함되는 자식 블록에 준다. (연결된 티켓이 바닥에 딱 붙던 문제)
     <div className="pb-16">
+      <WikiBreadcrumb items={breadcrumb} />
       <WikiDetail
         pageId={page.id}
         title={page.title}
