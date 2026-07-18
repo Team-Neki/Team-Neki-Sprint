@@ -297,6 +297,31 @@
   min-width: 0 !important;
 }
 
+/* 표 상단/좌측 열·행 선택 스트립(T22 후속). 평소 거의 안 보이고 hover 시 진해진다.
+   클릭 = 해당 열/행 전체 CellSelection(이후 우클릭 메뉴·Ctrl+Backspace·배경색 연계). */
+.wiki-table-pick {
+  position: absolute;
+  z-index: 10;
+  border-radius: 9999px;
+  background: color-mix(in oklch, var(--muted-foreground) 22%, transparent);
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.wiki-table-pick:hover {
+  opacity: 1;
+  background: color-mix(in oklch, var(--link) 55%, transparent);
+}
+.tiptap-editor-area:hover .wiki-table-pick,
+.wiki-table-pick-visible {
+  opacity: 0.45;
+}
+.wiki-table-pick-col {
+  height: 5px;
+}
+.wiki-table-pick-row {
+  width: 5px;
+}
+
 /* 표 가장자리 hover 열/행 추가 버튼(T17). 표 우측/하단에 겹쳐 그리는 오버레이 —
    스트립에 hover 하면 + 버튼이 나타난다. 편집기 좌표 컨테이너(.relative) 기준 절대배치. */
 .wiki-table-add {

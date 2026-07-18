@@ -56,6 +56,9 @@ import {
   appendRowEnd,
   removeLastColumnIfEmpty,
   removeLastRowIfEmpty,
+  selectColumn,
+  selectRow,
+  setHeaderRowBackground,
 } from "@/components/wiki/table-edit";
 import { TableContextMenu } from "@/components/wiki/table-context-menu";
 import {
@@ -72,6 +75,7 @@ import {
 import {
   TEXT_COLORS,
   BG_COLORS,
+  CELL_COLORS,
   type PaletteColor,
 } from "@/components/wiki/colors";
 // 노션식 줄(블록) 핸들 — 선택/드래그 이동/블록 메뉴. 편집 모드 전용.
@@ -418,7 +422,7 @@ export const WikiEditor = forwardRef<WikiEditorHandle, WikiEditorProps>(
 
         {editor && <Toolbar editor={editor} />}
 
-        <div ref={editorAreaRef} className="relative mt-4">
+        <div ref={editorAreaRef} className="tiptap-editor-area relative mt-4">
           <EditorContent editor={editor} />
           {editor && (
             <>
@@ -468,6 +472,10 @@ export function TableHoverControls({
     width: number;
     height: number;
   } | null>(null);
+  // 열/행 선택 스트립(상단/좌측). 첫 행 셀들의 x/폭, 각 tr 의 y/높이로 계산한다.
+  // (첫 행에 colspan 이 있으면 병합 폭 기준 — 팀 사용 패턴상 단순 표가 대부분)
+  const [cols, setCols] = useState<{ left: number; width: number }[]>([]);
+  const [rows, setRows] = useState<{ top: number; height: number }[]>([]);
 
   useEffect(() => {
     function update() {
@@ -502,6 +510,19 @@ export function TableHoverControls({
         width: tr.width,
         height: tr.height,
       });
+      const trEls = Array.from(tableEl.querySelectorAll("tr"));
+      setRows(
+        trEls.map((el) => {
+          const r = el.getBoundingClientRect();
+          return { top: r.top - cr.top, height: r.height };
+        }),
+      );
+      setCols(
+        Array.from(trEls[0]?.children ?? []).map((el) => {
+          const r = (el as HTMLElement).getBoundingClientRect();
+          return { left: r.left - cr.left, width: r.width };
+        }),
+      );
     }
     update();
     editor.on("selectionUpdate", update);
@@ -569,6 +590,32 @@ export function TableHoverControls({
   if (!rect) return null;
   return (
     <>
+      {/* 상단: 열별 선택 스트립(클릭 = 열 전체 CellSelection → 우클릭 메뉴/단축키 연계) */}
+      {cols.map((c, i) => (
+        <button
+          key={`col-${i}`}
+          type="button"
+          aria-label={`${i + 1}열 선택`}
+          title="열 선택"
+          className="wiki-table-pick wiki-table-pick-col"
+          style={{ top: rect.top - 8, left: c.left, width: c.width }}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => selectColumn(editor, i)}
+        />
+      ))}
+      {/* 좌측: 행별 선택 스트립(클릭 = 행 전체 CellSelection) */}
+      {rows.map((r, i) => (
+        <button
+          key={`row-${i}`}
+          type="button"
+          aria-label={`${i + 1}행 선택`}
+          title="행 선택"
+          className="wiki-table-pick wiki-table-pick-row"
+          style={{ top: r.top, left: rect.left - 8, height: r.height }}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => selectRow(editor, i)}
+        />
+      ))}
       {/* 우측: 열 추가(드래그로 여러 개) + 열 삭제 */}
       <div
         className="wiki-table-add wiki-table-add-col"
@@ -1248,6 +1295,41 @@ function TableButton({ editor }: { editor: Editor }) {
             >
               헤더 행 토글
             </TableMenuItem>
+            <Separator className="my-1" />
+            {/* 헤더(첫 행) 배경색 일괄 적용. '기본'은 --muted 인셋으로 복원. */}
+            <div className="px-2 py-1.5">
+              <p className="text-muted-foreground mb-1 text-xs">헤더 배경색</p>
+              <div className="flex flex-wrap gap-1">
+                {CELL_COLORS.map((c) => (
+                  <button
+                    key={c.value}
+                    type="button"
+                    aria-label={c.name}
+                    title={c.name}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      setHeaderRowBackground(editor, c.value);
+                      setOpen(false);
+                    }}
+                    className="border-border size-5 rounded border"
+                    style={{ background: c.value }}
+                  />
+                ))}
+                <button
+                  type="button"
+                  aria-label="기본 배경"
+                  title="기본 배경"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    setHeaderRowBackground(editor, null);
+                    setOpen(false);
+                  }}
+                  className="border-border text-muted-foreground size-5 rounded border text-[10px] leading-none"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
             <Separator className="my-1" />
             <TableMenuItem
               onClick={() => {

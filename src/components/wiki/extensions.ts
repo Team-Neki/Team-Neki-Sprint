@@ -29,6 +29,11 @@ import { CommentMark } from "@/components/wiki/comment-mark";
 import { MermaidBlock } from "@/components/wiki/mermaid-block";
 // 표 편집 보조 키맵(경계에서 표 선택·삭제).
 import { TableControls } from "@/components/wiki/table-controls";
+// 표 셀/헤더 배경색 attr 확장.
+import {
+  WikiTableCell,
+  WikiTableHeader,
+} from "@/components/wiki/table-cells";
 // 슬래시 커맨드(/) — 블록 삽입 메뉴. 자기완결 모듈, 여기 한 줄만 추가.
 import { SlashCommand } from "@/components/wiki/slash-command";
 
@@ -94,8 +99,15 @@ export function wikiExtensions(opts?: { placeholder?: string }) {
         };
       },
     }).configure({ lowlight, defaultLanguage: "plaintext" }),
-    // 표(header row 있는 리사이즈 가능 테이블).
-    TableKit.configure({ table: { resizable: true } }),
+    // 표(header row 있는 리사이즈 가능 테이블). 셀/헤더는 배경색 attr 을 얹은
+    // 확장(table-cells.ts)으로 교체 — TableKit 쪽은 끈다(중복 등록 방지).
+    TableKit.configure({
+      table: { resizable: true },
+      tableCell: false,
+      tableHeader: false,
+    }),
+    WikiTableCell,
+    WikiTableHeader,
     // 표 경계 키맵(ArrowLeft 로 표 선택 → 삭제).
     TableControls,
     // mermaid 다이어그램 블록.
