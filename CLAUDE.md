@@ -49,6 +49,7 @@
 - **전역 검색/⌘K**: `command-palette.tsx`(토픽바 마운트, `queries.globalSearch` + `globalSearchAction`). 새 엔티티 추가 시 검색 그룹에 반영 고려.
 - **라벨**: `Label` 스키마를 태스크에 표면화(`/labels` 관리, 부여 팝오버, `?label=` 필터, 색 뱃지). 에픽·프로젝트 라벨 부여는 스키마만 있고 UI 미구현(후속).
 - **위키 리치 렌더링**: `wikiExtensions()`(에디터·뷰 공유)에 표(`TableKit`+`TableControls`)·구문강조 코드(`CodeBlockLowlight`)·mermaid(`MermaidBlock` atom NodeView, 지연 로드)·글자색(`TextStyle`+`Color`)·슬래시 커맨드(`SlashCommand`) 포함. 확장은 이 한 곳에만 추가. 함정은 [gotchas §18].
+  - **이미지**(`image-view.tsx` NodeView + `image-utils.ts`): 편집 모드 선택 시 좌우 드래그 핸들 리사이즈(px, `attrs.width`, 최소 80px)·정렬 3버튼(`attrs.align`, 블록 정렬)·ALT 인라인 입력, 뷰 모드 더블클릭 라이트박스(원본 열기/다운로드). 노드 이름 `image` 유지(기존 문서 호환), width 는 `<img width>` 로 직렬화. width 커밋은 pointerup 1회(undo 1스텝).
   - **슬래시 커맨드(/)**: `slash-command.ts`(`@tiptap/suggestion` 기반 Extension) + `slash-menu.tsx`(목록/필터). 제목1~6·글머리/번호/체크 목록·인용·코드·표·mermaid·구분선. 커맨드 추가는 `SLASH_ITEMS`(slash-menu) 한 곳에. 코드블록 내부·단어 중간 `/` 는 트리거 제외(`allow`).
   - **제목/툴바**: heading `levels:[1..6]`(`#` 개수만큼 h1~h6). 편집 툴바엔 H1/H2/H3·목록/체크 아이콘 없음 — 제목·목록은 `#`/`-`/`1.`/`[ ]` 또는 슬래시로. 툴바 아이콘 툴팁은 Base UI `Tooltip`(≈150ms), 네이티브 `title` 아님.
   - **저장/취소는 에디터가 아니라 헤더에**: `WikiEditor` 는 `forwardRef`+`useImperativeHandle({commit,cancel})`+`onStateChange`. `WikiDetail` 의 sticky 헤더(`...` 메뉴 좌측)에서 호출 — 긴 본문 스크롤에도 고정.

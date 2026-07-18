@@ -8,6 +8,7 @@
 
 | 날짜 | 세션 | 상태 |
 |---|---|---|
+| 2026-07-19 | 위키 이미지 관리 강화: 편집 모드 드래그 리사이즈(px, `attrs.width`)·정렬 3종(`attrs.align`)·ALT 인라인 편집, 뷰 모드 더블클릭 라이트박스(원본 열기/다운로드). `image-view.tsx` React NodeView 하나로 편집/뷰 공용, 순수 로직 `image-utils.ts`(+vitest 8) | `DONE`\* |
 | 2026-07-18 | 가입 승인 게이트(`UserStatus`): 신규 가입 `PENDING` 기본 → 관리자가 DB 에서 수동 `APPROVED` 전환. `requireUser` 가 PENDING 을 `/pending` 대기 화면으로, `authenticateBearer` 가 PENDING 토큰을 거부. 오픈 가입(도메인 제한 미설정) 상태에서 낯선 계정의 앱/API 접근 차단 목적 | worktree 검증 완료, 병합·마이그레이션·기존 유저 UPDATE 대기 |
 | 2026-07-18 | 위키 이미지 붙여넣기/드롭 재작업: DOM 리스너 → `editorProps.handlePaste/handleDrop`(혼합 클립보드 이중 삽입 방지·텍스트 보존), 다중 이미지 병렬 업로드·순서 유지, 첨부 버튼 `multiple` | `DONE`\* |
 | 2026-07-18 | 대시보드/멘션/공지/캐시/표 편집 9건+: 최근 활동 위키 제목 표기, 팀 멘션(`teamMention`+팀원 확장 알림), 공지(`Announcement` 모델·대시보드 상단 카드·상세/작성/수정, 삭제는 작성자만), TTL 인메모리 캐시(`lib/server-cache`, 검색/멘션 자동완성 적용), 위키 수정 버튼 헤더 이동, 표 편집(끝 추가·양방향 드래그·우클릭 메뉴·Ctrl+Opt+방향키/Ctrl+Backspace 단축키) | `DONE`\* |
@@ -31,6 +32,19 @@
 \* 코드·빌드·테스트 검증 완료. 실렌더(mermaid/표/강조)는 로그인 게이트라 브라우저 확인 필요.
 
 ---
+
+## 2026-07-19 — 위키 이미지 관리 강화: 리사이즈·정렬·ALT·라이트박스 (브랜치 `feat/wiki-image-controls`)
+
+본문 이미지는 순정 `@tiptap/extension-image` 를 `<img class="wiki-image">` 로만 렌더해 크기 조절·정렬·확대가 불가능했다. `Image.extend()` + React NodeView(`image-view.tsx`) 로 편집/뷰 양쪽 기능을 한 모듈에 담았다. 설계는 `docs/superpowers/specs/2026-07-19-wiki-image-management-design.md`, 계획은 `docs/superpowers/plans/2026-07-19-wiki-image-controls.md`.
+
+- **스키마**: 노드 이름 `image` 유지(기존 문서 무마이그레이션). `width` 는 순정 attr 을 px 숫자로 정규화(`<img width="N">` 직렬화, 복붙 라운드트립), `align`(left/center/right)은 `data-align` 으로 추가. 미지정 시 기존 렌더와 동일.
+- **리사이즈(편집)**: 선택 시 좌우 pill 핸들 → 드래그로 px 조절. 드래그 중엔 로컬 state 로만 반영하고 `pointerup` 에 `updateAttributes` 1회(undo 1스텝). 클램프는 `image-utils.resizeWidth`(최소 80px, 최대 본문 컬럼 폭, 컬럼이 더 좁으면 컬럼 우선). `pointercancel` 정리 포함(editor.tsx `resizeByDrag` 와 동일 함정).
+- **정렬·ALT(편집)**: 선택 시 좌상단 오버레이 바(code-block 복사 버튼 패턴) — 정렬 3버튼, 원본 크기(width 리셋, width 있을 때만), ALT 인라인 입력(Enter 저장/Esc 취소, 커밋 시 1회 반영).
+- **라이트박스(뷰)**: 읽기전용에서만 더블클릭 → body 포털 오버레이(ESC·배경 클릭 닫기, body 스크롤 잠금) + 원본 새 탭/다운로드(same-origin URL). `cursor: zoom-in` 으로 어포던스 표시.
+- **레이아웃**: `.wiki-image-frame`(fit-content shrink-wrap)이 핸들/바의 좌표 기준. 정렬은 frame margin(블록 정렬, 텍스트 감싸기 없음). img 의 기존 `margin: 0.5em 0` 은 wrapper 로 이동 — img 에 margin 이 남으면 핸들 위치가 밀린다.
+- **적용 범위**: `wikiExtensions()` 공유로 위키 에디터/뷰·버전 미리보기·공지·댓글 뷰 전부 자동 반영.
+
+검증: tsc 0 · eslint 0 · vitest 191 pass(신규 `image-utils.test.ts` 8 포함). 드래그/라이트박스 실상호작용은 로그인 게이트라 브라우저 수동 확인 후속 필요.
 
 ## 2026-07-18 — 가입 승인 게이트: UserStatus PENDING/APPROVED (브랜치 `feat/user-approval`)
 
