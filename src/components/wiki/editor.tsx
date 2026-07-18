@@ -11,6 +11,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
+import { BubbleMenu } from "@tiptap/react/menus";
 import { wikiExtensions } from "@/components/wiki/extensions";
 import {
   Bold,
@@ -28,6 +29,7 @@ import {
   RotateCcw,
   Plus,
   Trash2,
+  ChevronLeft,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { JSONContent } from "@tiptap/react";
@@ -80,6 +82,41 @@ async function uploadImage(file: File): Promise<string | null> {
   }
 }
 
+/** FileList 에서 이미지 파일만 추출. */
+function imageFilesFrom(files: FileList | null | undefined): File[] {
+  return Array.from(files ?? []).filter((f) => f.type.startsWith("image/"));
+}
+
+/** 클립보드 HTML 에 이미지 외 실질 텍스트 콘텐츠가 있는지. */
+function htmlHasText(html: string): boolean {
+  if (!html) return false;
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  return (doc.body.textContent ?? "").trim().length > 0;
+}
+
+/**
+ * 이미지 파일들을 병렬 업로드하고, 성공분만 원래 순서대로 본문에 삽입.
+ * dropPos 가 있으면 그 위치(드롭 좌표)에, 없으면 현재 커서에 삽입한다.
+ */
+async function uploadAndInsertImages(
+  editor: Editor | null,
+  files: File[],
+  dropPos?: number,
+) {
+  const urls = (await Promise.all(files.map((f) => uploadImage(f)))).filter(
+    (u): u is string => u !== null,
+  );
+  if (!editor || editor.isDestroyed || urls.length === 0) return;
+  const nodes = urls.map((src) => ({ type: "image", attrs: { src } }));
+  if (dropPos != null) {
+    // 업로드 동안 문서가 짧아졌을 수 있으니 삽입 위치를 문서 범위로 클램프.
+    const pos = Math.min(dropPos, editor.state.doc.content.size);
+    editor.chain().insertContentAt(pos, nodes).run();
+  } else {
+    editor.chain().focus().insertContent(nodes).run();
+  }
+}
+
 /** 저장/취소 버튼을 헤더(WikiDetail)에서 호출할 수 있도록 노출하는 핸들. */
 export type WikiEditorHandle = {
   commit: () => void;
@@ -117,6 +154,8 @@ export const WikiEditor = forwardRef<WikiEditorHandle, WikiEditorProps>(
     const dirtyRef = useRef(false);
     // 표 hover 열/행 추가 버튼(T17)의 좌표 기준 컨테이너.
     const editorAreaRef = useRef<HTMLDivElement>(null);
+    // editorProps 핸들러(생성 시점 클로저)에서 editor 인스턴스에 접근하기 위한 ref.
+    const editorRef = useRef<Editor | null>(null);
 
     const editor = useEditor({
       immediatelyRender: false,
@@ -124,9 +163,43 @@ export const WikiEditor = forwardRef<WikiEditorHandle, WikiEditorProps>(
       content: draft?.content ?? initialContent,
       editorProps: {
         attributes: { class: "tiptap focus:outline-none" },
+        // 이미지 붙여넣기. ProseMirror 기본 paste 보다 먼저 실행되는 handlePaste 로
+        // 가로챈다 — DOM paste 리스너는 PM 기본 처리 이후에 실행돼 HTML+파일 혼합
+        // 클립보드(브라우저 '이미지 복사' 등)에서 핫링크+업로드본이 이중 삽입된다.
+        // 업로드 성공 URL 만 삽입(base64 금지).
+        // - 이미지 파일만(스크린샷·Finder 파일 복사·'이미지 복사'): 업로드 후 삽입,
+        //   여러 장이면 순서 유지. Finder 가 넣는 파일명 text/plain 은 무시.
+        // - HTML 에 텍스트가 함께 있으면(웹페이지 선택 복사·엑셀 표 등): 기본
+        //   붙여넣기로 텍스트를 보존하고, 파일로 중복 동봉된 이미지는 HTML 쪽이
+        //   정본이므로 업로드하지 않는다.
+        handlePaste: (_view, event) => {
+          const files = imageFilesFrom(event.clipboardData?.files);
+          if (files.length === 0) return false;
+          const html = event.clipboardData?.getData("text/html") ?? "";
+          if (htmlHasText(html)) return false;
+          void uploadAndInsertImages(editorRef.current, files);
+          return true;
+        },
+        // 이미지 파일 드롭 → 드롭 좌표에 순서대로 삽입. moved(에디터 내 노드 이동)는
+        // 기본 처리에 맡긴다.
+        handleDrop: (view, event, _slice, moved) => {
+          if (moved) return false;
+          const files = imageFilesFrom(event.dataTransfer?.files);
+          if (files.length === 0) return false;
+          const pos = view.posAtCoords({
+            left: event.clientX,
+            top: event.clientY,
+          })?.pos;
+          void uploadAndInsertImages(editorRef.current, files, pos);
+          return true;
+        },
       },
       onUpdate: () => markDirty(),
     });
+
+    useEffect(() => {
+      editorRef.current = editor;
+    }, [editor]);
 
     const markDirty = useCallback(() => {
       dirtyRef.current = true;
@@ -227,61 +300,6 @@ export const WikiEditor = forwardRef<WikiEditorHandle, WikiEditorProps>(
       return () => window.removeEventListener("keydown", onKey, true);
     }, [commit]);
 
-    // 이미지 붙여넣기/드롭 → 업로드 후 본문에 삽입. editorProps 대신 DOM 리스너로
-    // 처리(editor 생성 이후 attach). 업로드 성공 URL 만 삽입(base64 금지).
-    useEffect(() => {
-      if (!editor) return;
-      const dom = editor.view.dom;
-      async function insertImageFiles(files: FileList, dropPos?: number) {
-        const images = Array.from(files).filter((f) =>
-          f.type.startsWith("image/"),
-        );
-        for (const file of images) {
-          const url = await uploadImage(file);
-          if (!url || !editor) continue;
-          if (dropPos != null) {
-            editor
-              .chain()
-              .insertContentAt(dropPos, { type: "image", attrs: { src: url } })
-              .run();
-          } else {
-            editor.chain().focus().setImage({ src: url }).run();
-          }
-        }
-      }
-      function hasImage(files: FileList | undefined) {
-        return (
-          !!files &&
-          files.length > 0 &&
-          Array.from(files).some((f) => f.type.startsWith("image/"))
-        );
-      }
-      function onPaste(e: ClipboardEvent) {
-        const files = e.clipboardData?.files;
-        if (hasImage(files)) {
-          e.preventDefault();
-          void insertImageFiles(files as FileList);
-        }
-      }
-      function onDrop(e: DragEvent) {
-        const files = e.dataTransfer?.files;
-        if (hasImage(files)) {
-          e.preventDefault();
-          const pos = editor?.view.posAtCoords({
-            left: e.clientX,
-            top: e.clientY,
-          })?.pos;
-          void insertImageFiles(files as FileList, pos);
-        }
-      }
-      dom.addEventListener("paste", onPaste);
-      dom.addEventListener("drop", onDrop);
-      return () => {
-        dom.removeEventListener("paste", onPaste);
-        dom.removeEventListener("drop", onDrop);
-      };
-    }, [editor]);
-
     // 디바운스 임시저장 반영 전 이탈 시 편집 유실 경고(draft 로 대부분 보호되지만 안전장치).
     useEffect(() => {
       function onBeforeUnload(e: BeforeUnloadEvent) {
@@ -347,7 +365,22 @@ export const WikiEditor = forwardRef<WikiEditorHandle, WikiEditorProps>(
           <EditorContent editor={editor} />
           {editor && (
             <>
-              <TableHoverControls editor={editor} containerRef={editorAreaRef} />
+              {/* 텍스트 선택 시 뜨는 버블 툴바(굵게·기울임·취소선·인라인코드·링크·색상).
+                  코드블록/빈 선택에선 숨김. */}
+              <BubbleMenu
+                editor={editor}
+                shouldShow={({ editor: ed, state }) =>
+                  !state.selection.empty &&
+                  ed.isEditable &&
+                  !ed.isActive("codeBlock")
+                }
+              >
+                <BubbleToolbar editor={editor} />
+              </BubbleMenu>
+              <TableHoverControls
+                editor={editor}
+                containerRef={editorAreaRef}
+              />
               <TableContextMenu editor={editor} containerRef={editorAreaRef} />
             </>
           )}
@@ -541,6 +574,171 @@ export function TableHoverControls({
   );
 }
 
+/** 버블 툴바용 소형 버튼. onMouseDown preventDefault 로 클릭 시 에디터 선택이 풀리지 않게 한다. */
+function BubbleBtn({
+  label,
+  active,
+  onClick,
+  children,
+}: {
+  label: string;
+  active?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      aria-label={label}
+      title={label}
+      aria-pressed={active}
+      className={cn("size-7", active && "bg-accent text-accent-foreground")}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={onClick}
+    >
+      {children}
+    </Button>
+  );
+}
+
+/**
+ * 텍스트 선택 시 뜨는 버블 툴바. 상단 툴바로 이동하지 않고 그 자리에서 서식을 준다.
+ * 링크/색상은 별도 Popover(포털) 대신 버블 내부 모드 전환으로 처리해, 인풋 포커스 이동에도
+ * 선택/버블이 유지되게 한다(포털 오버레이는 선택 해제로 버블이 닫히는 문제가 있음).
+ */
+function BubbleToolbar({ editor }: { editor: Editor }) {
+  const [mode, setMode] = useState<"menu" | "link" | "color">("menu");
+  const [url, setUrl] = useState("");
+
+  const shell =
+    "bg-popover text-popover-foreground ring-foreground/10 flex items-center gap-0.5 rounded-lg p-1 shadow-md ring-1";
+
+  function openLink() {
+    const prev = editor.getAttributes("link").href as string | undefined;
+    setUrl(prev ?? "");
+    setMode("link");
+  }
+
+  function applyLink() {
+    const href = url.trim();
+    if (href === "") {
+      editor.chain().focus().extendMarkRange("link").unsetLink().run();
+    } else {
+      editor.chain().focus().extendMarkRange("link").setLink({ href }).run();
+    }
+    setMode("menu");
+  }
+
+  if (mode === "link") {
+    return (
+      <div className={shell}>
+        <BubbleBtn label="뒤로" onClick={() => setMode("menu")}>
+          <ChevronLeft className="size-4" />
+        </BubbleBtn>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            applyLink();
+          }}
+          className="flex items-center gap-1"
+        >
+          <Input
+            autoFocus
+            type="url"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://example.com"
+            className="h-7 w-52"
+          />
+          <Button type="submit" size="sm" className="h-7 shrink-0">
+            {editor.isActive("link") ? "변경" : "추가"}
+          </Button>
+        </form>
+      </div>
+    );
+  }
+
+  if (mode === "color") {
+    return (
+      <div className={shell}>
+        <BubbleBtn label="뒤로" onClick={() => setMode("menu")}>
+          <ChevronLeft className="size-4" />
+        </BubbleBtn>
+        {TEXT_COLORS.map((c) => (
+          <button
+            key={c.value}
+            type="button"
+            aria-label={c.name}
+            title={c.name}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              editor.chain().focus().setColor(c.value).run();
+              setMode("menu");
+            }}
+            className="border-border size-5 rounded-md border"
+            style={{ background: c.value }}
+          />
+        ))}
+        <BubbleBtn
+          label="기본 색"
+          onClick={() => {
+            editor.chain().focus().unsetColor().run();
+            setMode("menu");
+          }}
+        >
+          <RotateCcw className="size-3.5" />
+        </BubbleBtn>
+      </div>
+    );
+  }
+
+  return (
+    <div className={shell}>
+      <BubbleBtn
+        label="굵게"
+        active={editor.isActive("bold")}
+        onClick={() => editor.chain().focus().toggleBold().run()}
+      >
+        <Bold className="size-4" />
+      </BubbleBtn>
+      <BubbleBtn
+        label="기울임"
+        active={editor.isActive("italic")}
+        onClick={() => editor.chain().focus().toggleItalic().run()}
+      >
+        <Italic className="size-4" />
+      </BubbleBtn>
+      <BubbleBtn
+        label="취소선"
+        active={editor.isActive("strike")}
+        onClick={() => editor.chain().focus().toggleStrike().run()}
+      >
+        <Strikethrough className="size-4" />
+      </BubbleBtn>
+      <BubbleBtn
+        label="인라인 코드"
+        active={editor.isActive("code")}
+        onClick={() => editor.chain().focus().toggleCode().run()}
+      >
+        <Code className="size-4" />
+      </BubbleBtn>
+      <Separator orientation="vertical" className="mx-0.5 h-5" />
+      <BubbleBtn
+        label="링크"
+        active={editor.isActive("link")}
+        onClick={openLink}
+      >
+        <LinkIcon className="size-4" />
+      </BubbleBtn>
+      <BubbleBtn label="글자 색" onClick={() => setMode("color")}>
+        <Baseline className="size-4" />
+      </BubbleBtn>
+    </div>
+  );
+}
+
 export function Toolbar({ editor }: { editor: Editor }) {
   // 제목(H1~3)·목록(글머리/번호/체크) 아이콘은 제거했다 — 제목은 '#'(개수만큼 h1~h6),
   // 목록은 '-'/'1.'/'[ ]' 또는 슬래시 커맨드(/)로 만든다. (공지 에디터도 재사용 — export)
@@ -703,19 +901,19 @@ function ColorButton({ editor }: { editor: Editor }) {
   );
 }
 
-/** 이미지 첨부 버튼: 파일 선택 → 업로드 → 본문에 삽입. 붙여넣기/드롭도 지원(useEffect). */
+/** 이미지 첨부 버튼: 파일 선택(여러 장 가능) → 업로드 → 순서대로 본문에 삽입.
+ * 붙여넣기/드롭은 editorProps handlePaste/handleDrop 에서 처리. */
 function ImageButton({ editor }: { editor: Editor }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
 
   async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+    const files = imageFilesFrom(e.target.files);
     e.target.value = ""; // 같은 파일 재선택 허용
-    if (!file) return;
+    if (files.length === 0) return;
     setBusy(true);
     try {
-      const url = await uploadImage(file);
-      if (url) editor.chain().focus().setImage({ src: url }).run();
+      await uploadAndInsertImages(editor, files);
     } finally {
       setBusy(false);
     }
@@ -727,6 +925,7 @@ function ImageButton({ editor }: { editor: Editor }) {
         ref={inputRef}
         type="file"
         accept="image/png,image/jpeg,image/gif,image/webp"
+        multiple
         className="hidden"
         onChange={onPick}
       />
