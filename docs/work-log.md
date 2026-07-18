@@ -8,6 +8,7 @@
 
 | 날짜 | 세션 | 상태 |
 |---|---|---|
+| 2026-07-18 | 위키 이미지 붙여넣기/드롭 재작업: DOM 리스너 → `editorProps.handlePaste/handleDrop`(혼합 클립보드 이중 삽입 방지·텍스트 보존), 다중 이미지 병렬 업로드·순서 유지, 첨부 버튼 `multiple` | `DONE`\* |
 | 2026-07-18 | 대시보드/멘션/공지/캐시/표 편집 9건+: 최근 활동 위키 제목 표기, 팀 멘션(`teamMention`+팀원 확장 알림), 공지(`Announcement` 모델·대시보드 상단 카드·상세/작성/수정, 삭제는 작성자만), TTL 인메모리 캐시(`lib/server-cache`, 검색/멘션 자동완성 적용), 위키 수정 버튼 헤더 이동, 표 편집(끝 추가·양방향 드래그·우클릭 메뉴·Ctrl+Opt+방향키/Ctrl+Backspace 단축키) | `DONE`\* |
 | 2026-07-17 | GitHub 연동(Task->Branch->PR 양방향): 태스크 상세에서 브랜치 생성(`prefix/KEY-slug`, 레포 생성 시 선택), webhook(`/api/github/webhook`) 으로 PR open->IN_PROGRESS·merge->DONE 자동 전이 + 이름규칙 자동연결. GitHub App(installation token), 신규 npm 의존성 없이 fetch+node:crypto. 모델 `GithubInstallation`/`GithubBranchLink`. 설계 `specs/2026-07-17-github-integration-design.md`, 계획 `plans/2026-07-17-github-integration.md` | `DONE`\* |
 | 2026-07-17 | 위키/타임라인/레이아웃 22건(worktree 5-스트림 병렬): 사이드바 폴더 접힘 유지·새 하위폴더 즉시노출·토글/리사이즈, 저장/취소 헤더 이동, 타임라인 막대 라벨 제거, 에디터(슬래시커맨드·글자색·표 크기픽커/드래그 다중추가·삭제·h1~h6·툴팁 속도·코드강조 채도↑·툴바 H/목록 아이콘 제거), 휴지통 다중선택·다중삭제·비우기, 전역 모바일드로어 이동시 닫힘·사이드바 리사이즈 | `DONE`\* |
@@ -28,6 +29,17 @@
 \* 코드·빌드·테스트 검증 완료. 실렌더(mermaid/표/강조)는 로그인 게이트라 브라우저 확인 필요.
 
 ---
+
+## 2026-07-18 — 위키 이미지 붙여넣기/드롭 다중·혼합 클립보드 처리 (브랜치 `feat/wiki-image-s3`)
+
+`editor.tsx` 의 이미지 paste/drop 을 DOM 리스너에서 `editorProps.handlePaste`/`handleDrop` 로 이전. [gotchas §32]
+
+- **근본 문제**: DOM `paste` 리스너는 ProseMirror 기본 paste **이후**에 실행된다(리스너 등록 순서). HTML+파일이 함께 담긴 클립보드(브라우저 '이미지 복사' 등)에선 PM 이 HTML 의 `<img>`(외부 핫링크)를 먼저 삽입한 뒤 리스너가 업로드본을 또 삽입 → 이중 삽입. `handlePaste` 는 PM 기본 처리 전에 실행되고 `true` 반환으로 차단 가능.
+- **텍스트+이미지 혼합 붙여넣기**: 클립보드 HTML 에 실질 텍스트가 있으면(웹페이지 선택·엑셀 표 등) 기본 붙여넣기에 맡겨 텍스트를 보존하고, 파일로 중복 동봉된 이미지는 업로드하지 않는다(HTML 쪽이 정본 — 종전엔 텍스트를 버리거나 이중 삽입). 텍스트 없이 이미지 파일만이면 업로드 경로(Finder 파일 복사가 넣는 파일명 `text/plain` 은 의도적으로 무시).
+- **여러 장**: 장당 순차 업로드 → `Promise.all` 병렬 업로드 후 성공분만 원래 순서로 한 번에 삽입. 드롭 시 같은 `dropPos` 에 반복 `insertContentAt` 해 역순이 되던 버그 해결(+업로드 동안 문서가 짧아진 경우 대비 삽입 위치 클램프).
+- **이미지 첨부 버튼**: `multiple` 허용, 붙여넣기와 동일 헬퍼(`uploadAndInsertImages`) 재사용.
+
+검증: tsc 0 · eslint 0 · vitest 통과. 실브라우저 클립보드 조합(스크린샷/Finder 다중 파일/웹페이지 선택/엑셀 표/브라우저 '이미지 복사')은 로그인 게이트라 수동 확인 후속 필요.
 
 ## 2026-07-18 — 대시보드/멘션/공지/캐시/표 편집 (브랜치 `feat/dashboard-notice-editor-improvements`)
 
