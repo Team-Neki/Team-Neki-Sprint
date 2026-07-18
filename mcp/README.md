@@ -1,4 +1,4 @@
-# Sprint MCP 서버 (`@team-neki/sprint-mcp`)
+# Sprint MCP 서버 (`@neki-team/sprint-mcp`)
 
 Claude Code / Claude Desktop / Cursor 등 MCP 클라이언트에서 Sprint 트래커의 **티켓·위키**를
 다루는 MCP 서버. 배포된 앱의 `/api/mcp/v1/*` HTTP API를 **개인 토큰(Bearer)** 으로 호출하는
@@ -57,7 +57,7 @@ npm에 게시된 패키지를 `npx`로 실행한다.
   "mcpServers": {
     "sprint": {
       "command": "npx",
-      "args": ["-y", "@team-neki/sprint-mcp"],
+      "args": ["-y", "@neki-team/sprint-mcp"],
       "env": {
         "SPRINT_API_URL": "https://<배포_도메인>",
         "SPRINT_API_TOKEN": "sprint_pat_..."
