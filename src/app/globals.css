@@ -471,17 +471,106 @@
   white-space: pre-wrap;
 }
 
-/* 본문 첨부 이미지. 본문 폭에 맞춰 축소 + 카드 라운드/hairline. */
+/* 본문 첨부 이미지(image-view.tsx NodeView). frame 이 이미지를 shrink-wrap 해
+   핸들/오버레이의 기준이 되고, 정렬은 frame 의 margin 으로(블록 정렬, 텍스트
+   감싸기 없음), 크기는 img 의 width(px) + max-width 캡으로 표현한다. */
+.tiptap .wiki-image-block {
+  margin: 0.5em 0;
+}
+.tiptap .wiki-image-block[data-align="center"] .wiki-image-frame {
+  margin-inline: auto;
+}
+.tiptap .wiki-image-block[data-align="right"] .wiki-image-frame {
+  margin-left: auto;
+}
+.tiptap .wiki-image-frame {
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+}
+.tiptap .wiki-image-frame[data-selected] {
+  outline: 2px solid color-mix(in oklch, var(--link) 40%, transparent);
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+}
 .tiptap img.wiki-image {
+  display: block;
   max-width: 100%;
   height: auto;
   border-radius: 0.5rem;
   border: 1px solid var(--border);
-  margin: 0.5em 0;
 }
-.tiptap img.wiki-image.ProseMirror-selectednode {
-  outline: 2px solid color-mix(in oklch, var(--link) 40%, transparent);
-  outline-offset: 2px;
+/* 읽기전용 뷰에서 더블클릭 확대 가능함을 커서로 알린다. */
+.tiptap[contenteditable="false"] img.wiki-image {
+  cursor: zoom-in;
+}
+/* 리사이즈 핸들(선택 시). 좌우 모서리 안쪽 pill. */
+.tiptap .wiki-image-handle {
+  position: absolute;
+  top: 50%;
+  width: 0.375rem;
+  height: 2.5rem;
+  max-height: 50%;
+  transform: translateY(-50%);
+  border-radius: 9999px;
+  background: color-mix(in oklch, var(--foreground) 60%, transparent);
+  box-shadow: 0 0 0 1px var(--background);
+  cursor: ew-resize;
+  touch-action: none;
+}
+.tiptap .wiki-image-handle[data-side="left"] {
+  left: 0.375rem;
+}
+.tiptap .wiki-image-handle[data-side="right"] {
+  right: 0.375rem;
+}
+/* 선택 시 좌상단 오버레이 컨트롤(정렬/원본 크기/ALT). */
+.tiptap .wiki-image-bar {
+  position: absolute;
+  top: 0.375rem;
+  left: 0.375rem;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 0.375rem;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--card) 92%, transparent);
+}
+.tiptap .wiki-image-bar button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 0.25rem;
+  border-radius: 0.25rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
+}
+.tiptap .wiki-image-bar button:hover {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+.tiptap .wiki-image-bar button[data-active] {
+  background: var(--accent);
+  color: var(--foreground);
+}
+.tiptap .wiki-image-bar form {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.tiptap .wiki-image-bar input {
+  width: 11rem;
+  height: 1.5rem;
+  padding: 0 0.375rem;
+  font-size: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  background: var(--background);
+  outline: none;
 }
 
 /* 이미지 업로드 중 placeholder 위젯(upload-placeholder.ts). 삽입될 위치를
