@@ -5,10 +5,12 @@ declare module "next-auth" {
     user: {
       id: string;
       role: "ADMIN" | "MEMBER";
+      status: "PENDING" | "APPROVED";
     } & DefaultSession["user"];
   }
 
   interface User {
     role?: "ADMIN" | "MEMBER";
+    status?: "PENDING" | "APPROVED";
   }
 }

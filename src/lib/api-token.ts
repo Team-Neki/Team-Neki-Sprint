@@ -46,10 +46,12 @@ export async function authenticateBearer(
     select: {
       id: true,
       lastUsedAt: true,
-      user: { select: { id: true, role: true } },
+      user: { select: { id: true, role: true, status: true } },
     },
   });
   if (!token) return null;
+  // 가입 승인 전(PENDING) 계정의 토큰은 유효해도 거부한다.
+  if (token.user.status !== "APPROVED") return null;
 
   const now = Date.now();
   const last = token.lastUsedAt?.getTime() ?? 0;
