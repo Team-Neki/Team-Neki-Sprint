@@ -51,6 +51,7 @@ import {
   deleteWikiFolder,
   renameWikiPage,
   deleteWikiPage,
+  restoreWikiPage,
   toggleWikiFavorite,
   moveWikiPage,
 } from "@/server/actions/wiki";
@@ -984,6 +985,7 @@ function PageItem({
         open={confirmDelete}
         onOpenChange={setConfirmDelete}
         onConfirm={() => deleteWikiPage(page.id)}
+        undo={() => restoreWikiPage(page.id)}
         redirectTo={active ? "/wiki" : undefined}
         title="이 페이지를 삭제할까요?"
         description={deleteDescription}

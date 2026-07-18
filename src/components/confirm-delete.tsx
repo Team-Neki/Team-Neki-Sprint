@@ -16,6 +16,7 @@ import {
 
 export function ConfirmDelete({
   onConfirm,
+  undo,
   trigger,
   title = "삭제하시겠어요?",
   description = "이 작업은 되돌릴 수 없습니다.",
@@ -24,6 +25,8 @@ export function ConfirmDelete({
   onOpenChange,
 }: {
   onConfirm: () => Promise<void>;
+  /** 제공되면 삭제 성공 토스트에 '실행취소' 버튼을 붙인다(soft-delete 등 복원 가능한 경우만). */
+  undo?: () => Promise<void>;
   /** 없으면 controlled 모드(open/onOpenChange 로 외부 제어). 예: 컨텍스트 메뉴에서 열기. */
   trigger?: React.ReactElement;
   title?: string;
@@ -38,14 +41,34 @@ export function ConfirmDelete({
   const setOpen = (v: boolean) => (onOpenChange ?? setInternalOpen)(v);
   const [pending, start] = useTransition();
 
+  // 실행취소: 복원 액션 호출 후 새로고침. 토스트 액션은 sonner 가 클릭 시 자동 닫는다.
+  function runUndo() {
+    if (!undo) return;
+    void (async () => {
+      try {
+        await undo();
+        router.refresh();
+        toast.success("복원했습니다");
+      } catch {
+        toast.error("복원에 실패했습니다");
+      }
+    })();
+  }
+
   function confirm() {
     start(async () => {
       try {
         await onConfirm();
-        toast.success("삭제했습니다");
         setOpen(false);
         if (redirectTo) router.push(redirectTo);
         else router.refresh();
+        if (undo) {
+          toast.success("삭제했습니다", {
+            action: { label: "실행취소", onClick: runUndo },
+          });
+        } else {
+          toast.success("삭제했습니다");
+        }
       } catch {
         toast.error("삭제에 실패했습니다");
       }

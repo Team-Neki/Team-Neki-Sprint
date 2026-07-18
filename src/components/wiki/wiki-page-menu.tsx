@@ -17,7 +17,11 @@ import {
   VersionHistory,
   type RevisionListItem,
 } from "@/components/wiki/version-history";
-import { toggleWikiFavorite, deleteWikiPage } from "@/server/actions/wiki";
+import {
+  toggleWikiFavorite,
+  deleteWikiPage,
+  restoreWikiPage,
+} from "@/server/actions/wiki";
 
 /**
  * 위키 상세 우측 상단 ⋯ 메뉴: 버전 기록 · 별표 토글 · 삭제.
@@ -93,6 +97,7 @@ export function WikiPageMenu({
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
         onConfirm={() => deleteWikiPage(pageId)}
+        undo={() => restoreWikiPage(pageId)}
         redirectTo="/wiki"
         title="이 페이지를 삭제할까요?"
         description={deleteDescription}

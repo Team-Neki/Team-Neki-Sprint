@@ -11,6 +11,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
+import { BubbleMenu } from "@tiptap/react/menus";
 import { wikiExtensions } from "@/components/wiki/extensions";
 import {
   Bold,
@@ -28,6 +29,7 @@ import {
   RotateCcw,
   Plus,
   Trash2,
+  ChevronLeft,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { JSONContent } from "@tiptap/react";
@@ -347,7 +349,22 @@ export const WikiEditor = forwardRef<WikiEditorHandle, WikiEditorProps>(
           <EditorContent editor={editor} />
           {editor && (
             <>
-              <TableHoverControls editor={editor} containerRef={editorAreaRef} />
+              {/* 텍스트 선택 시 뜨는 버블 툴바(굵게·기울임·취소선·인라인코드·링크·색상).
+                  코드블록/빈 선택에선 숨김. */}
+              <BubbleMenu
+                editor={editor}
+                shouldShow={({ editor: ed, state }) =>
+                  !state.selection.empty &&
+                  ed.isEditable &&
+                  !ed.isActive("codeBlock")
+                }
+              >
+                <BubbleToolbar editor={editor} />
+              </BubbleMenu>
+              <TableHoverControls
+                editor={editor}
+                containerRef={editorAreaRef}
+              />
               <TableContextMenu editor={editor} containerRef={editorAreaRef} />
             </>
           )}
@@ -538,6 +555,171 @@ export function TableHoverControls({
         </button>
       </div>
     </>
+  );
+}
+
+/** 버블 툴바용 소형 버튼. onMouseDown preventDefault 로 클릭 시 에디터 선택이 풀리지 않게 한다. */
+function BubbleBtn({
+  label,
+  active,
+  onClick,
+  children,
+}: {
+  label: string;
+  active?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      aria-label={label}
+      title={label}
+      aria-pressed={active}
+      className={cn("size-7", active && "bg-accent text-accent-foreground")}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={onClick}
+    >
+      {children}
+    </Button>
+  );
+}
+
+/**
+ * 텍스트 선택 시 뜨는 버블 툴바. 상단 툴바로 이동하지 않고 그 자리에서 서식을 준다.
+ * 링크/색상은 별도 Popover(포털) 대신 버블 내부 모드 전환으로 처리해, 인풋 포커스 이동에도
+ * 선택/버블이 유지되게 한다(포털 오버레이는 선택 해제로 버블이 닫히는 문제가 있음).
+ */
+function BubbleToolbar({ editor }: { editor: Editor }) {
+  const [mode, setMode] = useState<"menu" | "link" | "color">("menu");
+  const [url, setUrl] = useState("");
+
+  const shell =
+    "bg-popover text-popover-foreground ring-foreground/10 flex items-center gap-0.5 rounded-lg p-1 shadow-md ring-1";
+
+  function openLink() {
+    const prev = editor.getAttributes("link").href as string | undefined;
+    setUrl(prev ?? "");
+    setMode("link");
+  }
+
+  function applyLink() {
+    const href = url.trim();
+    if (href === "") {
+      editor.chain().focus().extendMarkRange("link").unsetLink().run();
+    } else {
+      editor.chain().focus().extendMarkRange("link").setLink({ href }).run();
+    }
+    setMode("menu");
+  }
+
+  if (mode === "link") {
+    return (
+      <div className={shell}>
+        <BubbleBtn label="뒤로" onClick={() => setMode("menu")}>
+          <ChevronLeft className="size-4" />
+        </BubbleBtn>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            applyLink();
+          }}
+          className="flex items-center gap-1"
+        >
+          <Input
+            autoFocus
+            type="url"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://example.com"
+            className="h-7 w-52"
+          />
+          <Button type="submit" size="sm" className="h-7 shrink-0">
+            {editor.isActive("link") ? "변경" : "추가"}
+          </Button>
+        </form>
+      </div>
+    );
+  }
+
+  if (mode === "color") {
+    return (
+      <div className={shell}>
+        <BubbleBtn label="뒤로" onClick={() => setMode("menu")}>
+          <ChevronLeft className="size-4" />
+        </BubbleBtn>
+        {TEXT_COLORS.map((c) => (
+          <button
+            key={c.value}
+            type="button"
+            aria-label={c.name}
+            title={c.name}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              editor.chain().focus().setColor(c.value).run();
+              setMode("menu");
+            }}
+            className="border-border size-5 rounded-md border"
+            style={{ background: c.value }}
+          />
+        ))}
+        <BubbleBtn
+          label="기본 색"
+          onClick={() => {
+            editor.chain().focus().unsetColor().run();
+            setMode("menu");
+          }}
+        >
+          <RotateCcw className="size-3.5" />
+        </BubbleBtn>
+      </div>
+    );
+  }
+
+  return (
+    <div className={shell}>
+      <BubbleBtn
+        label="굵게"
+        active={editor.isActive("bold")}
+        onClick={() => editor.chain().focus().toggleBold().run()}
+      >
+        <Bold className="size-4" />
+      </BubbleBtn>
+      <BubbleBtn
+        label="기울임"
+        active={editor.isActive("italic")}
+        onClick={() => editor.chain().focus().toggleItalic().run()}
+      >
+        <Italic className="size-4" />
+      </BubbleBtn>
+      <BubbleBtn
+        label="취소선"
+        active={editor.isActive("strike")}
+        onClick={() => editor.chain().focus().toggleStrike().run()}
+      >
+        <Strikethrough className="size-4" />
+      </BubbleBtn>
+      <BubbleBtn
+        label="인라인 코드"
+        active={editor.isActive("code")}
+        onClick={() => editor.chain().focus().toggleCode().run()}
+      >
+        <Code className="size-4" />
+      </BubbleBtn>
+      <Separator orientation="vertical" className="mx-0.5 h-5" />
+      <BubbleBtn
+        label="링크"
+        active={editor.isActive("link")}
+        onClick={openLink}
+      >
+        <LinkIcon className="size-4" />
+      </BubbleBtn>
+      <BubbleBtn label="글자 색" onClick={() => setMode("color")}>
+        <Baseline className="size-4" />
+      </BubbleBtn>
+    </div>
   );
 }
 

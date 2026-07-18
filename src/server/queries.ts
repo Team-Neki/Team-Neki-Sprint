@@ -94,30 +94,30 @@ export function getMembers() {
 }
 
 export const getTeams = () =>
-    prisma.team.findMany({
-      orderBy: { key: "asc" },
-      include: {
-        members: { ...miniUser, orderBy: { name: "asc" } },
-        _count: { select: { epics: true, tasks: true, members: true } },
-      },
-    });
+  prisma.team.findMany({
+    orderBy: { key: "asc" },
+    include: {
+      members: { ...miniUser, orderBy: { name: "asc" } },
+      _count: { select: { epics: true, tasks: true, members: true } },
+    },
+  });
 
 /** 폼 select 등에 쓰는 팀 옵션(경량). */
 export const getTeamOptions = () =>
-    prisma.team.findMany({
-      orderBy: { key: "asc" },
-      select: { id: true, key: true, name: true, color: true },
-    });
+  prisma.team.findMany({
+    orderBy: { key: "asc" },
+    select: { id: true, key: true, name: true, color: true },
+  });
 
 // ---------- Sprint ----------
 
 export const getSprints = async () => {
-    const sprints = await prisma.sprint.findMany({
-      orderBy: [{ status: "asc" }, { startDate: "desc" }, { createdAt: "desc" }],
-    });
-    // 스프린트별 예상 MD 합: Task → Epic → Project → Sprint 로 이어지는 관계를
-    // groupBy 로는 못 타므로 raw 집계(태스크 estimatedMd 합)로 계산한다.
-    const mdRows = await prisma.$queryRaw<{ sprintId: string; md: number }[]>`
+  const sprints = await prisma.sprint.findMany({
+    orderBy: [{ status: "asc" }, { startDate: "desc" }, { createdAt: "desc" }],
+  });
+  // 스프린트별 예상 MD 합: Task → Epic → Project → Sprint 로 이어지는 관계를
+  // groupBy 로는 못 타므로 raw 집계(태스크 estimatedMd 합)로 계산한다.
+  const mdRows = await prisma.$queryRaw<{ sprintId: string; md: number }[]>`
       SELECT p."sprintId" AS "sprintId",
              COALESCE(SUM(t."estimatedMd"), 0)::float8 AS md
       FROM "Task" t
@@ -126,9 +126,9 @@ export const getSprints = async () => {
       WHERE p."sprintId" IS NOT NULL
       GROUP BY p."sprintId"
     `;
-    const mdBySprint = new Map(mdRows.map((r) => [r.sprintId, roundMd(r.md)]));
-    return sprints.map((s) => ({ ...s, estimatedMd: mdBySprint.get(s.id) ?? 0 }));
-  };
+  const mdBySprint = new Map(mdRows.map((r) => [r.sprintId, roundMd(r.md)]));
+  return sprints.map((s) => ({ ...s, estimatedMd: mdBySprint.get(s.id) ?? 0 }));
+};
 
 export async function getSprint(id: string) {
   const sprint = await prisma.sprint.findUnique({
@@ -149,20 +149,15 @@ export async function getSprint(id: string) {
 }
 
 export const getSprintOptions = () =>
-    prisma.sprint.findMany({
-      orderBy: [{ startDate: "desc" }, { createdAt: "desc" }],
-      select: { id: true, name: true, status: true },
-    });
+  prisma.sprint.findMany({
+    orderBy: [{ startDate: "desc" }, { createdAt: "desc" }],
+    select: { id: true, name: true, status: true },
+  });
 
 // ---------- Project (구 Initiative) ----------
 
 export type ProjectSortField =
-  | "title"
-  | "status"
-  | "priority"
-  | "dueDate"
-  | "createdAt"
-  | "updatedAt";
+  "title" | "status" | "priority" | "dueDate" | "createdAt" | "updatedAt";
 
 export type ProjectFilter = {
   ownerId?: string;
@@ -203,21 +198,21 @@ function projectOrderBy(
 }
 
 export const getProjects = async (filter: ProjectFilter = {}) => {
-    const projects = await prisma.project.findMany({
-      where: {
-        ownerId: filter.ownerId,
-        sprintId: filter.sprintId,
-      },
-      orderBy: projectOrderBy(filter.sort),
-      include: {
-        owner: miniUser,
-        sprint: { select: { id: true, name: true, status: true } },
-        labels: labelInclude,
-        _count: { select: { epics: true } },
-      },
-    });
-    return projects;
-  };
+  const projects = await prisma.project.findMany({
+    where: {
+      ownerId: filter.ownerId,
+      sprintId: filter.sprintId,
+    },
+    orderBy: projectOrderBy(filter.sort),
+    include: {
+      owner: miniUser,
+      sprint: { select: { id: true, name: true, status: true } },
+      labels: labelInclude,
+      _count: { select: { epics: true } },
+    },
+  });
+  return projects;
+};
 
 export async function getProject(id: string) {
   const project = await prisma.project.findUnique({
@@ -255,10 +250,10 @@ export async function getProject(id: string) {
 }
 
 export const getProjectOptions = () =>
-    prisma.project.findMany({
-      orderBy: { createdAt: "desc" },
-      select: { id: true, title: true },
-    });
+  prisma.project.findMany({
+    orderBy: { createdAt: "desc" },
+    select: { id: true, title: true },
+  });
 
 // ---------- Epic ----------
 
@@ -268,37 +263,37 @@ export type EpicFilter = {
 };
 
 export const getEpics = async (filter: EpicFilter = {}) => {
-    const epics = await prisma.epic.findMany({
-      where: {
-        ownerId: filter.ownerId,
-        teamId: filter.teamId,
-      },
-      // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO→BACKLOG) → 최신 생성 우선.
-      orderBy: [{ status: "desc" }, { createdAt: "desc" }],
-      include: {
-        owner: miniUser,
-        team: miniTeam,
-        project: { select: { id: true, title: true } },
-        labels: labelInclude,
-        _count: { select: { tasks: true } },
-      },
-    });
-    const ids = epics.map((e) => e.id);
-    // MD 롤업(하위 태스크 estimatedMd 합). Epic 엔 자체 MD 필드가 없어
-    // 목록의 MD 컬럼은 하위 예상 MD 합(읽기전용)으로 표시한다.
-    const mdGroups = await prisma.task.groupBy({
-      by: ["epicId"],
-      where: { epicId: { in: ids } },
-      _sum: { estimatedMd: true },
-    });
-    const mdByEpicId = new Map(
-      mdGroups.map((g) => [g.epicId, roundMd(g._sum.estimatedMd ?? 0)]),
-    );
-    return epics.map((e) => ({
-      ...e,
-      estimatedMd: mdByEpicId.get(e.id) ?? 0,
-    }));
-  };
+  const epics = await prisma.epic.findMany({
+    where: {
+      ownerId: filter.ownerId,
+      teamId: filter.teamId,
+    },
+    // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO→BACKLOG) → 최신 생성 우선.
+    orderBy: [{ status: "desc" }, { createdAt: "desc" }],
+    include: {
+      owner: miniUser,
+      team: miniTeam,
+      project: { select: { id: true, title: true } },
+      labels: labelInclude,
+      _count: { select: { tasks: true } },
+    },
+  });
+  const ids = epics.map((e) => e.id);
+  // MD 롤업(하위 태스크 estimatedMd 합). Epic 엔 자체 MD 필드가 없어
+  // 목록의 MD 컬럼은 하위 예상 MD 합(읽기전용)으로 표시한다.
+  const mdGroups = await prisma.task.groupBy({
+    by: ["epicId"],
+    where: { epicId: { in: ids } },
+    _sum: { estimatedMd: true },
+  });
+  const mdByEpicId = new Map(
+    mdGroups.map((g) => [g.epicId, roundMd(g._sum.estimatedMd ?? 0)]),
+  );
+  return epics.map((e) => ({
+    ...e,
+    estimatedMd: mdByEpicId.get(e.id) ?? 0,
+  }));
+};
 
 export async function getEpic(id: string) {
   const epic = await prisma.epic.findUnique({
@@ -321,15 +316,15 @@ export async function getEpic(id: string) {
 
 /** 에픽 옵션(폼 select). 태스크 생성 시 에픽의 팀을 상속하기 위해 team도 함께. */
 export const getEpicOptions = () =>
-    prisma.epic.findMany({
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        title: true,
-        number: true,
-        team: { select: { id: true, key: true } },
-      },
-    });
+  prisma.epic.findMany({
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      title: true,
+      number: true,
+      team: { select: { id: true, key: true } },
+    },
+  });
 
 // ---------- Task ----------
 
@@ -339,32 +334,32 @@ export type BoardFilter = {
 };
 
 export const getBoardTasks = async (filter: BoardFilter = {}) => {
-    const rows = await prisma.task.findMany({
-      where: {
-        assigneeId: filter.assigneeId,
-        teamId: filter.teamId,
-      },
-      // 칸반 컬럼 내 순서(B7-board). 재정렬로 부여한 boardOrder 우선, 미정렬(null)은 하단.
-      // id 최종 tiebreaker 로 동점(boardOrder null + 같은 createdAt) 카드의 순서 흔들림 방지.
-      orderBy: [
-        { boardOrder: { sort: "asc", nulls: "last" } },
-        { createdAt: "asc" },
-        { id: "asc" },
-      ],
-      include: {
-        assignee: miniUser,
-        team: miniTeam,
-        epic: { select: { id: true, title: true } },
-        labels: labelInclude,
-        // 차단됨 배지용: 미완료 blocker 존재 여부만 계산(상태만 로드).
-        blockedBy: { select: { blocker: { select: { status: true } } } },
-      },
-    });
-    return rows.map(({ blockedBy, ...t }) => ({
-      ...t,
-      blocked: blockedBy.some((d) => d.blocker.status !== "DONE"),
-    }));
-  };
+  const rows = await prisma.task.findMany({
+    where: {
+      assigneeId: filter.assigneeId,
+      teamId: filter.teamId,
+    },
+    // 칸반 컬럼 내 순서(B7-board). 재정렬로 부여한 boardOrder 우선, 미정렬(null)은 하단.
+    // id 최종 tiebreaker 로 동점(boardOrder null + 같은 createdAt) 카드의 순서 흔들림 방지.
+    orderBy: [
+      { boardOrder: { sort: "asc", nulls: "last" } },
+      { createdAt: "asc" },
+      { id: "asc" },
+    ],
+    include: {
+      assignee: miniUser,
+      team: miniTeam,
+      epic: { select: { id: true, title: true } },
+      labels: labelInclude,
+      // 차단됨 배지용: 미완료 blocker 존재 여부만 계산(상태만 로드).
+      blockedBy: { select: { blocker: { select: { status: true } } } },
+    },
+  });
+  return rows.map(({ blockedBy, ...t }) => ({
+    ...t,
+    blocked: blockedBy.some((d) => d.blocker.status !== "DONE"),
+  }));
+};
 
 export type TaskFilter = {
   status?: Status;
@@ -376,43 +371,41 @@ export type TaskFilter = {
 };
 
 export const getTasks = async (filter: TaskFilter = {}) => {
-    const rows = await prisma.task.findMany({
-      where: {
-        status: filter.status,
-        assigneeId: filter.assigneeId,
-        epicId: filter.epicId,
-        teamId: filter.teamId,
-        // 라벨 필터: 해당 라벨이 붙은 태스크만(m:n 조인 some).
-        labels: filter.labelId
-          ? { some: { labelId: filter.labelId } }
-          : undefined,
-        title: filter.q
-          ? { contains: filter.q, mode: "insensitive" }
-          : undefined,
-      },
-      // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO→BACKLOG) 우선.
-      // id 를 마지막 tiebreaker 로 추가 → (status,priority,createdAt) 동점 행들도
-      // 결정적 순서 보장. 없으면 MD 등 수정 시 동점 구간이 재배열돼 순서가 흔들린다.
-      orderBy: [
-        { status: "desc" },
-        { priority: "asc" },
-        { createdAt: "desc" },
-        { id: "asc" },
-      ],
-      include: {
-        assignee: miniUser,
-        team: miniTeam,
-        epic: { select: { id: true, title: true } },
-        labels: labelInclude,
-        // 차단됨 배지용: 미완료 blocker 존재 여부만 계산(상태만 로드).
-        blockedBy: { select: { blocker: { select: { status: true } } } },
-      },
-    });
-    return rows.map(({ blockedBy, ...t }) => ({
-      ...t,
-      blocked: blockedBy.some((d) => d.blocker.status !== "DONE"),
-    }));
-  };
+  const rows = await prisma.task.findMany({
+    where: {
+      status: filter.status,
+      assigneeId: filter.assigneeId,
+      epicId: filter.epicId,
+      teamId: filter.teamId,
+      // 라벨 필터: 해당 라벨이 붙은 태스크만(m:n 조인 some).
+      labels: filter.labelId
+        ? { some: { labelId: filter.labelId } }
+        : undefined,
+      title: filter.q ? { contains: filter.q, mode: "insensitive" } : undefined,
+    },
+    // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO→BACKLOG) 우선.
+    // id 를 마지막 tiebreaker 로 추가 → (status,priority,createdAt) 동점 행들도
+    // 결정적 순서 보장. 없으면 MD 등 수정 시 동점 구간이 재배열돼 순서가 흔들린다.
+    orderBy: [
+      { status: "desc" },
+      { priority: "asc" },
+      { createdAt: "desc" },
+      { id: "asc" },
+    ],
+    include: {
+      assignee: miniUser,
+      team: miniTeam,
+      epic: { select: { id: true, title: true } },
+      labels: labelInclude,
+      // 차단됨 배지용: 미완료 blocker 존재 여부만 계산(상태만 로드).
+      blockedBy: { select: { blocker: { select: { status: true } } } },
+    },
+  });
+  return rows.map(({ blockedBy, ...t }) => ({
+    ...t,
+    blocked: blockedBy.some((d) => d.blocker.status !== "DONE"),
+  }));
+};
 
 export function getTask(id: string) {
   return prisma.task.findUnique({
@@ -495,22 +488,22 @@ export function getTaskGithubLinks(taskId: string) {
 
 /** 라벨 전체 + 사용 카운트(태스크/에픽/프로젝트). 관리 페이지·배지 표시용. 이름순. */
 export const getLabels = () =>
-    prisma.label.findMany({
-      orderBy: { name: "asc" },
-      select: {
-        id: true,
-        name: true,
-        color: true,
-        _count: { select: { tasks: true, epics: true, projects: true } },
-      },
-    });
+  prisma.label.findMany({
+    orderBy: { name: "asc" },
+    select: {
+      id: true,
+      name: true,
+      color: true,
+      _count: { select: { tasks: true, epics: true, projects: true } },
+    },
+  });
 
 /** 필터/할당 컨트롤용 경량 라벨 옵션(카운트 없음). 이름순. */
 export const getLabelOptions = () =>
-    prisma.label.findMany({
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, color: true },
-    });
+  prisma.label.findMany({
+    orderBy: { name: "asc" },
+    select: { id: true, name: true, color: true },
+  });
 
 // ---------- Activity (업무 히스토리, B8) ----------
 
@@ -562,18 +555,18 @@ export function getTimelineEpics() {
 
 /** Full page tree (small dataset for a 20-person team). */
 export const getWikiTree = () =>
-    prisma.wikiPage.findMany({
-      where: { deletedAt: null },
-      orderBy: [{ position: "asc" }, { createdAt: "asc" }],
-      select: {
-        id: true,
-        title: true,
-        parentId: true,
-        folderId: true,
-        position: true,
-        updatedAt: true,
-      },
-    });
+  prisma.wikiPage.findMany({
+    where: { deletedAt: null },
+    orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+    select: {
+      id: true,
+      title: true,
+      parentId: true,
+      folderId: true,
+      position: true,
+      updatedAt: true,
+    },
+  });
 
 /** 휴지통(soft-delete)된 페이지 목록. 최근 삭제순. parentId 로 '삭제 루트'를 화면에서 판별. */
 export function getTrashedWikiPages() {
@@ -607,10 +600,10 @@ export async function getWikiDraft(pageId: string, userId: string) {
 
 /** 문서 폴더(사이드바 그룹핑). 페이지와 별개 타입. */
 export const getWikiFolders = () =>
-    prisma.wikiFolder.findMany({
-      orderBy: [{ position: "asc" }, { createdAt: "asc" }],
-      select: { id: true, name: true, parentId: true, position: true },
-    });
+  prisma.wikiFolder.findMany({
+    orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+    select: { id: true, name: true, parentId: true, position: true },
+  });
 
 /** 페이지의 버전 기록 목록(경량: 내용 제외, 작성자·시각만). ⋯ 메뉴 버전 기록 리스트용. */
 export function getWikiRevisions(pageId: string) {
@@ -907,11 +900,14 @@ export async function globalSearch(query: string): Promise<GlobalSearchResult> {
     wiki: wiki.map((w) => {
       // 제목에 이미 매칭되면 발췌 불필요. 본문에서만 매칭됐을 때 왜 떴는지 보이게 발췌.
       const titleHit = w.title.toLowerCase().includes(q.toLowerCase());
-      const bodyHit = (w.searchText ?? "").toLowerCase().includes(q.toLowerCase());
+      const bodyHit = (w.searchText ?? "")
+        .toLowerCase()
+        .includes(q.toLowerCase());
       return {
         id: w.id,
         title: w.title,
-        subtitle: !titleHit && bodyHit ? searchExcerpt(w.searchText, q) : undefined,
+        subtitle:
+          !titleHit && bodyHit ? searchExcerpt(w.searchText, q) : undefined,
         href: `/wiki/${w.id}`,
       };
     }),
@@ -990,6 +986,8 @@ export function getUserProfile(id: string) {
       email: true,
       image: true,
       phone: true,
+      github: true,
+      figma: true,
       role: true,
       team: { select: { id: true, key: true, name: true, color: true } },
       assignedTasks: {
@@ -1078,46 +1076,52 @@ export async function getDashboardData(userId: string) {
   const myEpicIdSet = myEpicRows.map((e) => e.id);
   const myWikiIdSet = myWikiRows.map((w) => w.id);
 
-  const [statusCounts, totalTasks, myTasks, myActivityRaw, mentionRaw, projects] =
-    await Promise.all([
-      prisma.task.groupBy({ by: ["status"], _count: true }),
-      prisma.task.count(),
-      prisma.task.findMany({
-        where: { status: { not: "DONE" }, dueDate: { not: null } },
-        orderBy: { dueDate: "asc" },
-        take: 6,
-        include: {
-          assignee: miniUser,
-          team: { select: { key: true } },
-        },
-      }),
-      // 나와 관련된 엔티티에 일어난 활동(행위자 무관 — 남이 내 티켓을 수정해도 뜬다).
-      prisma.activity.findMany({
-        where: {
-          OR: [
-            { entityType: "task", entityId: { in: myTaskIdSet } },
-            { entityType: "epic", entityId: { in: myEpicIdSet } },
-            { entityType: "wiki", entityId: { in: myWikiIdSet } },
-          ],
-        },
-        orderBy: { createdAt: "desc" },
-        take: 12,
-        include: { user: miniUser },
-      }),
-      // 나를 멘션한 알림(활동 피드에 함께 노출).
-      prisma.notification.findMany({
-        where: { userId, type: "mention" },
-        orderBy: { createdAt: "desc" },
-        take: 12,
-        include: { actor: miniUser },
-      }),
-      prisma.project.findMany({
-        where: { status: { not: "DONE" } },
-        orderBy: { createdAt: "desc" },
-        take: 5,
-        include: { _count: { select: { epics: true } } },
-      }),
-    ]);
+  const [
+    statusCounts,
+    totalTasks,
+    myTasks,
+    myActivityRaw,
+    mentionRaw,
+    projects,
+  ] = await Promise.all([
+    prisma.task.groupBy({ by: ["status"], _count: true }),
+    prisma.task.count(),
+    prisma.task.findMany({
+      where: { status: { not: "DONE" }, dueDate: { not: null } },
+      orderBy: { dueDate: "asc" },
+      take: 6,
+      include: {
+        assignee: miniUser,
+        team: { select: { key: true } },
+      },
+    }),
+    // 나와 관련된 엔티티에 일어난 활동(행위자 무관 — 남이 내 티켓을 수정해도 뜬다).
+    prisma.activity.findMany({
+      where: {
+        OR: [
+          { entityType: "task", entityId: { in: myTaskIdSet } },
+          { entityType: "epic", entityId: { in: myEpicIdSet } },
+          { entityType: "wiki", entityId: { in: myWikiIdSet } },
+        ],
+      },
+      orderBy: { createdAt: "desc" },
+      take: 12,
+      include: { user: miniUser },
+    }),
+    // 나를 멘션한 알림(활동 피드에 함께 노출).
+    prisma.notification.findMany({
+      where: { userId, type: "mention" },
+      orderBy: { createdAt: "desc" },
+      take: 12,
+      include: { actor: miniUser },
+    }),
+    prisma.project.findMany({
+      where: { status: { not: "DONE" } },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      include: { _count: { select: { epics: true } } },
+    }),
+  ]);
 
   // 멘션 알림을 활동 항목과 같은 모양으로 정규화(actor=행위자, action="mentioned",
   // 제목=notification.context=페이지/티켓 제목). 그 뒤 활동과 병합해 최신순 12개.
@@ -1132,7 +1136,10 @@ export async function getDashboardData(userId: string) {
     mentionTitle: n.context,
   }));
   const recentActivityRaw = [
-    ...myActivityRaw.map((a) => ({ ...a, mentionTitle: null as string | null })),
+    ...myActivityRaw.map((a) => ({
+      ...a,
+      mentionTitle: null as string | null,
+    })),
     ...mentionItems,
   ]
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())

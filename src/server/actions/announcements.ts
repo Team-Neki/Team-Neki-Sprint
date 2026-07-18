@@ -8,11 +8,6 @@ import { requireUser } from "@/lib/session";
 import { isRichDoc } from "@/lib/validators";
 import { newMentionRecipients } from "@/server/notify";
 
-const EMPTY_DOC: Prisma.InputJsonValue = {
-  type: "doc",
-  content: [{ type: "paragraph" }],
-};
-
 /** 공지 관련 화면 재검증(대시보드 목록 + 전체 목록 + 상세). */
 function revalidateAnnouncements(id?: string) {
   revalidatePath("/dashboard");
@@ -21,18 +16,40 @@ function revalidateAnnouncements(id?: string) {
 }
 
 /**
- * 새 공지 생성(위키의 new-page-button 패턴). 빈 문서로 만들고 상세로 이동해
- * 편집 모드에서 작성한다. 등록은 모든 멤버 가능.
+ * 새 공지 생성. 이전엔 '공지 작성' 클릭 즉시 빈 공지를 만들어(취소해도 남던 문제),
+ * 이제 /announcements/new 편집 화면에서 '저장'을 눌러야 이 액션이 호출돼 실제로 생성된다.
+ * 초기 본문의 멘션(사람+팀)에도 알림. 등록은 모든 멤버 가능.
  */
-export async function createAnnouncement() {
+export async function createAnnouncement(title: string, content: unknown) {
   const user = await requireUser();
+  if (!isRichDoc(content)) throw new Error("본문 형식이 올바르지 않습니다");
   const announcement = await prisma.announcement.create({
     data: {
-      title: "제목 없음",
-      content: EMPTY_DOC,
+      title: title.trim() || "제목 없음",
+      content: content as Prisma.InputJsonValue,
       authorId: user.id,
     },
   });
+
+  // 빈 문서 대비 '새 멘션' 전체를 알림(수정과 동일 규칙, B5).
+  const recipients = await newMentionRecipients(
+    { type: "doc", content: [{ type: "paragraph" }] } as JSONContent,
+    content,
+    user.id,
+  );
+  if (recipients.length > 0) {
+    await prisma.notification.createMany({
+      data: recipients.map((uid) => ({
+        userId: uid,
+        actorId: user.id,
+        type: "mention",
+        entityType: "announcement",
+        entityId: announcement.id,
+        context: announcement.title,
+      })),
+    });
+  }
+
   revalidateAnnouncements();
   return { id: announcement.id };
 }

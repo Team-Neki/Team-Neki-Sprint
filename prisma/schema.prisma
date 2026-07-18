@@ -22,6 +22,9 @@ model User {
   createdAt     DateTime  @default(now())
   // 프로필 연락처(B5, additive). 없을 수 있음.
   phone         String?
+  // 외부 계정 식별자(아이디 또는 이메일, additive). 없을 수 있음.
+  github        String?
+  figma         String?
 
   // 팀 소속(단일). 한 사람 = 한 팀. 배정은 팀 관리 UI에서 수동으로.
   teamId String?

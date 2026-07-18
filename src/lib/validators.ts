@@ -10,10 +10,12 @@ export const priorityEnum = priority;
 export const sprintStatusEnum = sprintStatus;
 export const assigneeIdSchema = z.string().min(1).nullable();
 
-// 본인 프로필 편집(내 정보). 이름은 필수, 연락처는 옵션(빈 값은 null).
+// 본인 프로필 편집(내 정보). 이름은 필수, 나머지(연락처·github·figma)는 옵션(빈 값은 null).
 export const profileSchema = z.object({
   name: z.string().trim().min(1, "이름을 입력하세요").max(100),
   phone: z.string().trim().max(30).nullish(),
+  github: z.string().trim().max(100).nullish(),
+  figma: z.string().trim().max(100).nullish(),
 });
 export type ProfileInput = z.infer<typeof profileSchema>;
 
