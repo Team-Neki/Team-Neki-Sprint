@@ -8,6 +8,7 @@
 
 | 날짜 | 세션 | 상태 |
 |---|---|---|
+| 2026-07-18 | 가입 승인 게이트(`UserStatus`): 신규 가입 `PENDING` 기본 → 관리자가 DB 에서 수동 `APPROVED` 전환. `requireUser` 가 PENDING 을 `/pending` 대기 화면으로, `authenticateBearer` 가 PENDING 토큰을 거부. 오픈 가입(도메인 제한 미설정) 상태에서 낯선 계정의 앱/API 접근 차단 목적 | worktree 검증 완료, 병합·마이그레이션·기존 유저 UPDATE 대기 |
 | 2026-07-18 | 위키 이미지 붙여넣기/드롭 재작업: DOM 리스너 → `editorProps.handlePaste/handleDrop`(혼합 클립보드 이중 삽입 방지·텍스트 보존), 다중 이미지 병렬 업로드·순서 유지, 첨부 버튼 `multiple` | `DONE`\* |
 | 2026-07-18 | 대시보드/멘션/공지/캐시/표 편집 9건+: 최근 활동 위키 제목 표기, 팀 멘션(`teamMention`+팀원 확장 알림), 공지(`Announcement` 모델·대시보드 상단 카드·상세/작성/수정, 삭제는 작성자만), TTL 인메모리 캐시(`lib/server-cache`, 검색/멘션 자동완성 적용), 위키 수정 버튼 헤더 이동, 표 편집(끝 추가·양방향 드래그·우클릭 메뉴·Ctrl+Opt+방향키/Ctrl+Backspace 단축키) | `DONE`\* |
 | 2026-07-17 | MCP 서버 추가(`mcp/`, `@team-neki/sprint-mcp`): 티켓 생성/수정/조회/검색 + 위키 생성/수정/조회/검색 도구. 앱에 `/api/mcp/v1/*` HTTP API + 개인 API 토큰(설정 페이지 발급, sha-256 해시 저장) 추가, mutation core를 actor 주입형으로 리팩터링. 팀 배포: 레포 `.mcp.json`(Claude Code) + npm(Desktop/Cursor). 설계·계획은 `docs/superpowers/{specs,plans}`. 병합 후 main에서 `prisma migrate`(ApiToken)+`prisma generate` 필요 | worktree 검증 완료, 병합·마이그레이션 대기 |
@@ -30,6 +31,26 @@
 \* 코드·빌드·테스트 검증 완료. 실렌더(mermaid/표/강조)는 로그인 게이트라 브라우저 확인 필요.
 
 ---
+
+## 2026-07-18 — 가입 승인 게이트: UserStatus PENDING/APPROVED (브랜치 `feat/user-approval`)
+
+배경: 배포 환경이 `ALLOWED_EMAIL_DOMAIN` 미설정(팀원이 개인 Gmail 사용)이라 아무 Google 계정이나
+가입 → `MEMBER` 권한 + PAT 발급 → 웹/MCP API 로 전체 데이터 접근이 가능했다. MCP 클라이언트
+공개 배포(npm/.mcpb) 전 선결 과제로 가입 승인 게이트를 추가.
+
+- **스키마**: `enum UserStatus { PENDING APPROVED }` + `User.status @default(PENDING)`
+  (마이그레이션 `20260718050000_add_user_status`). 기존 유저는 마이그레이션 직후 운영자가
+  DB 에서 `UPDATE "User" SET "status" = 'APPROVED'` 로 일괄 승인(운영 절차, 코드 밖).
+  상태 전환 UI 는 당분간 없음 — 관리자가 DB 에서 수동 관리.
+- **웹 게이트**: `session.ts` `requireUser` 한 곳에서 강제 — PENDING 이면 `/pending` 리다이렉트.
+  requireUser 를 쓰는 모든 (app) 페이지·서버 액션(토큰 발급 `createApiToken` 포함)이 함께 잠긴다.
+  `auth.ts` session 콜백이 `session.user.status` 를 노출(미확정 시 PENDING 폴백).
+- **대기 화면**: `src/app/pending/page.tsx` — (app) 그룹 밖(앱 셸의 requireUser 와 루프 방지),
+  로그인 카드와 같은 구성. 미로그인 → `/login`, 승인됨 → `/dashboard` 리다이렉트.
+- **API 게이트**: `api-token.ts` `authenticateBearer` 가 토큰 소유자 `status !== 'APPROVED'` 면
+  null 반환 — 유효 토큰이라도 승인 전/회수 계정은 MCP API 전체 거부.
+- **주의**: database 세션 전략이라 상태 변경은 다음 요청부터 즉시 반영(재로그인 불필요).
+  병합 후 main 에서 `npx prisma migrate deploy`(또는 dev)+`npx prisma generate`+dev 서버 재시작 필요.
 
 ## 2026-07-18 — 위키 이미지 붙여넣기/드롭 다중·혼합 클립보드 처리 (브랜치 `feat/wiki-image-s3`)
 

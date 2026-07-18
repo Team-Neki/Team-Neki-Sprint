@@ -44,6 +44,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (session.user) {
         session.user.id = user.id;
         session.user.role = (user as { role?: "ADMIN" | "MEMBER" }).role ?? "MEMBER";
+        // 미확정 시 PENDING 으로 폴백해 승인 게이트가 열리는 일이 없게 한다.
+        session.user.status =
+          (user as { status?: "PENDING" | "APPROVED" }).status ?? "PENDING";
       }
       return session;
     },
