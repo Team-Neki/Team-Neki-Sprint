@@ -484,6 +484,25 @@
   outline-offset: 2px;
 }
 
+/* 이미지 업로드 중 placeholder 위젯(upload-placeholder.ts). 삽입될 위치를
+   표시하고, 업로드 완료 시 이미지로 교체된다. */
+.tiptap .wiki-image-uploading {
+  display: inline-block;
+  margin: 0.5em 0;
+  padding: 0.4rem 0.7rem;
+  border: 1px dashed var(--border);
+  border-radius: 0.5rem;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font-size: 0.8rem;
+  animation: wiki-image-uploading-pulse 1.6s ease-in-out infinite;
+}
+@keyframes wiki-image-uploading-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
 .tiptap ul[data-type="taskList"] {
   list-style: none;
   padding-left: 0.25rem;
