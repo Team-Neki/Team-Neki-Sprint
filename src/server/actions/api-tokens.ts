@@ -20,7 +20,8 @@ export async function createApiToken(name: string) {
   await prisma.apiToken.create({
     data: { userId: user.id, name: parsed, tokenHash: hash, prefix },
   });
-  revalidatePath("/settings/tokens");
+  // 토큰 UI는 본인 프로필 페이지에 있다.
+  revalidatePath(`/users/${user.id}`);
   return { raw };
 }
 
@@ -31,5 +32,5 @@ export async function revokeApiToken(id: string) {
     where: { id, userId: user.id, revokedAt: null },
     data: { revokedAt: new Date() },
   });
-  revalidatePath("/settings/tokens");
+  revalidatePath(`/users/${user.id}`);
 }

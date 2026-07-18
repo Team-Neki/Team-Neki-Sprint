@@ -13,7 +13,6 @@ import {
   Users,
   Tag,
   BookText,
-  KeyRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSidebar } from "@/components/app-shell/sidebar-collapse";
@@ -39,10 +38,6 @@ const NAV = [
     ],
   },
   { group: "문서", items: [{ href: "/wiki", label: "위키", icon: BookText }] },
-  {
-    group: "설정",
-    items: [{ href: "/settings/tokens", label: "API 토큰", icon: KeyRound }],
-  },
 ];
 
 /**
