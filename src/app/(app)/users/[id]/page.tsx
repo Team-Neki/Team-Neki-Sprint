@@ -4,11 +4,13 @@ import { Mail, Pencil, Phone } from "lucide-react";
 import type { Status } from "@prisma/client";
 import { requireUser } from "@/lib/session";
 import { getUserProfile } from "@/server/queries";
+import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { BackButton } from "@/components/detail/back-button";
 import { ProfileDialog } from "@/components/forms/profile-dialog";
+import { TokenManager } from "@/components/settings/token-manager";
 import { initialsOf } from "@/components/user-badge";
 import { STATUS_META, formatIssueKey } from "@/lib/constants";
 import { cn } from "@/lib/utils";
@@ -35,6 +37,21 @@ export default async function UserProfilePage({
 
   const label = user.name ?? user.email;
   const isSelf = currentUser.id === user.id;
+
+  // 본인 프로필에서만 MCP 개인 API 토큰을 발급/폐기한다.
+  const apiTokens = isSelf
+    ? await prisma.apiToken.findMany({
+        where: { userId: currentUser.id, revokedAt: null },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          name: true,
+          prefix: true,
+          lastUsedAt: true,
+          createdAt: true,
+        },
+      })
+    : [];
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -112,6 +129,17 @@ export default async function UserProfilePage({
         items={user.assignedTasks}
         hrefBase="/tasks"
       />
+
+      {isSelf && (
+        <section className="mt-8">
+          <h2 className="text-sm font-medium">API 토큰</h2>
+          <p className="text-muted-foreground mt-1 mb-3 text-sm">
+            MCP 연동에 사용할 개인 토큰입니다. 생성 시 한 번만 표시되니 안전하게
+            보관하세요.
+          </p>
+          <TokenManager tokens={apiTokens} />
+        </section>
+      )}
     </div>
   );
 }

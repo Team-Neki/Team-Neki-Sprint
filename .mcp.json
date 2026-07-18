@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "sprint": {
+      "command": "node",
+      "args": ["mcp/dist/index.js"],
+      "env": {
+        "SPRINT_API_URL": "${SPRINT_API_URL:-https://SET-YOUR-SPRINT-DOMAIN}",
+        "SPRINT_API_TOKEN": "${SPRINT_API_TOKEN}"
+      }
+    }
+  }
+}

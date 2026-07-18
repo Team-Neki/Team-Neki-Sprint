@@ -11,10 +11,15 @@ import { isValueEmpty } from "@/lib/rich-content";
 import { wouldCreateCycle } from "@/lib/task-deps";
 import { formatIssueKey } from "@/lib/constants";
 import { nextTeamNumber } from "@/server/keys";
-import { assertCanManage } from "@/lib/authz";
+import { assertCanManage, type Actor } from "@/lib/authz";
 
 export async function createTask(input: unknown) {
   const user = await requireUser();
+  return createTaskCore(user, input);
+}
+
+/** createTask의 actor 주입 코어. 서버 액션과 MCP API 라우트가 공유한다. */
+export async function createTaskCore(actor: Actor, input: unknown) {
   const data = taskSchema.parse(input);
 
   const task = await prisma.$transaction(async (tx) => {
@@ -36,12 +41,12 @@ export async function createTask(input: unknown) {
     });
     const boardOrder = (agg._max.boardOrder ?? 0) + 1;
     return tx.task.create({
-      data: { ...data, teamId, number, reporterId: user.id, boardOrder },
+      data: { ...data, teamId, number, reporterId: actor.id, boardOrder },
     });
   });
 
   await logActivity({
-    userId: user.id,
+    userId: actor.id,
     entityType: "task",
     entityId: task.id,
     action: "created",
@@ -195,6 +200,15 @@ const TASK_EDITABLE = {
  */
 export async function updateTaskFields(id: string, input: unknown) {
   const user = await requireUser();
+  return updateTaskFieldsCore(user, id, input);
+}
+
+/** updateTaskFields의 actor 주입 코어. 서버 액션과 MCP API 라우트가 공유한다. */
+export async function updateTaskFieldsCore(
+  actor: Actor,
+  id: string,
+  input: unknown,
+) {
   const patch = taskSchema.partial().parse(input) as Record<string, unknown>;
   // 팀(teamId)과 번호는 생성 후 불변 — patch 에서 제외.
   delete patch.teamId;
@@ -213,7 +227,7 @@ export async function updateTaskFields(id: string, input: unknown) {
   await Promise.all(
     changes.map((c) =>
       logActivity({
-        userId: user.id,
+        userId: actor.id,
         entityType: "task",
         entityId: id,
         action: "field_changed",
@@ -226,7 +240,7 @@ export async function updateTaskFields(id: string, input: unknown) {
   const descChange = changes.find((c) => c.field === "description");
   if (descChange) {
     await notifyNewMentions({
-      actorId: user.id,
+      actorId: actor.id,
       entityType: "task",
       entityId: id,
       context: task.title,

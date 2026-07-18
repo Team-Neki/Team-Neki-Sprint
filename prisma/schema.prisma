@@ -30,23 +30,25 @@ model User {
   accounts Account[]
   sessions Session[]
 
-  ownedProjects Project[]  @relation("ProjectOwner")
-  ownedEpics    Epic[]     @relation("EpicOwner")
-  assignedTasks Task[]     @relation("TaskAssignee")
-  createdTasks  Task[]     @relation("TaskReporter")
+  ownedProjects     Project[]      @relation("ProjectOwner")
+  ownedEpics        Epic[]         @relation("EpicOwner")
+  assignedTasks     Task[]         @relation("TaskAssignee")
+  createdTasks      Task[]         @relation("TaskReporter")
   // 참조(c.c.)로 걸린 태스크들(다대다).
-  ccTasks       Task[]     @relation("TaskCc")
-  comments      Comment[]
-  wikiComments  WikiComment[]
-  authoredPages WikiPage[] @relation("PageAuthor")
-  editedPages   WikiPage[] @relation("PageEditor")
-  editedRevisions WikiRevision[] @relation("RevisionEditor")
-  wikiFavorites WikiFavorite[]
-  wikiDrafts    WikiDraft[]
-  activities    Activity[]
+  ccTasks           Task[]         @relation("TaskCc")
+  comments          Comment[]
+  wikiComments      WikiComment[]
+  authoredPages     WikiPage[]     @relation("PageAuthor")
+  editedPages       WikiPage[]     @relation("PageEditor")
+  editedRevisions   WikiRevision[] @relation("RevisionEditor")
+  wikiFavorites     WikiFavorite[]
+  wikiDrafts        WikiDraft[]
+  activities        Activity[]
   // 알림(B5). 수신자/행위자 양방향.
   notifications     Notification[] @relation("NotifRecipient")
   sentNotifications Notification[] @relation("NotifActor")
+  // MCP 연동용 개인 API 토큰.
+  apiTokens         ApiToken[]
   announcements     Announcement[] @relation("AnnouncementAuthor")
 }
 
@@ -89,6 +91,24 @@ model Notification {
 enum Role {
   ADMIN
   MEMBER
+}
+
+/**
+ * MCP 연동용 개인 API 토큰(B: 셀프서비스 발급). 원문은 저장하지 않고 sha-256 해시만
+ * 보관하며, 생성 시 1회만 노출한다. revokedAt 로 소프트 폐기.
+ */
+model ApiToken {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  tokenHash  String    @unique
+  prefix     String
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+  revokedAt  DateTime?
+
+  @@index([userId])
 }
 
 model Account {
@@ -245,15 +265,15 @@ model Task {
 
   // 참조(c.c.) 수신자(다대다, implicit m2m). 담당자/보고자와 별개로, 티켓을 함께
   // 참조하도록 선택된 사용자들. 순서/역할 없이 집합만 관리한다.
-  ccUsers   User[]           @relation("TaskCc")
+  ccUsers User[] @relation("TaskCc")
 
   comments  Comment[]
   labels    LabelsOnTasks[]
   wikiLinks WikiPageTaskLink[]
   // 의존성(blocks/blockedBy). blocking=내가 blocker 인 엣지(내가 막는 태스크들),
   // blockedBy=내가 blocked 인 엣지(나를 막는 태스크들). 관계 해석은 TaskDependency 참조.
-  blocking  TaskDependency[] @relation("BlockerTask")
-  blockedBy TaskDependency[] @relation("BlockedTask")
+  blocking  TaskDependency[]   @relation("BlockerTask")
+  blockedBy TaskDependency[]   @relation("BlockedTask")
 
   githubLinks GithubBranchLink[]
 
@@ -359,33 +379,33 @@ model WikiImage {
 }
 
 model WikiPage {
-  id        String     @id @default(cuid())
-  title     String
-  content   Json       @default("{}") // Tiptap JSON document
+  id         String      @id @default(cuid())
+  title      String
+  content    Json        @default("{}") // Tiptap JSON document
   // 본문(content)의 순수 텍스트 사본. 전역 검색(globalSearch)의 본문 매칭용.
   // 저장 시 docToPlainText(content) 로 채운다(제목은 별도 검색). null=미백필.
   searchText String?
-  parentId  String?
-  parent    WikiPage?  @relation("PageTree", fields: [parentId], references: [id], onDelete: Cascade)
-  children  WikiPage[] @relation("PageTree")
+  parentId   String?
+  parent     WikiPage?   @relation("PageTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children   WikiPage[]  @relation("PageTree")
   // 폴더는 페이지 삭제와 무관하므로 폴더 삭제 시 페이지는 보존(SetNull)한다.
-  folderId  String?
-  folder    WikiFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
-  position  Int        @default(0)
-  authorId  String?
-  author    User?      @relation("PageAuthor", fields: [authorId], references: [id])
-  editorId  String?
-  editor    User?      @relation("PageEditor", fields: [editorId], references: [id])
+  folderId   String?
+  folder     WikiFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  position   Int         @default(0)
+  authorId   String?
+  author     User?       @relation("PageAuthor", fields: [authorId], references: [id])
+  editorId   String?
+  editor     User?       @relation("PageEditor", fields: [editorId], references: [id])
   // soft-delete(휴지통). null=활성, 값=휴지통에 있는 시각. 목록/트리는 null 만 노출.
-  deletedAt DateTime?
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  deletedAt  DateTime?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
 
-  revisions WikiRevision[]
-  taskLinks WikiPageTaskLink[]
-  favorites WikiFavorite[]
+  revisions      WikiRevision[]
+  taskLinks      WikiPageTaskLink[]
+  favorites      WikiFavorite[]
   commentThreads WikiCommentThread[]
-  drafts    WikiDraft[]
+  drafts         WikiDraft[]
 
   @@index([deletedAt])
 }
