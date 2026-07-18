@@ -66,6 +66,11 @@ import {
   findUploadPlaceholder,
   removeUploadPlaceholder,
 } from "@/components/wiki/upload-placeholder";
+import {
+  TEXT_COLORS,
+  BG_COLORS,
+  type PaletteColor,
+} from "@/components/wiki/colors";
 
 /** 이미지 파일을 업로드하고 서빙 URL 을 반환. 실패 시 토스트 + null(본문 이미지 첨부). */
 async function uploadImage(file: File): Promise<string | null> {
@@ -708,35 +713,64 @@ function BubbleToolbar({ editor }: { editor: Editor }) {
   }
 
   if (mode === "color") {
+    // 글자 색/배경색 2단. 스와치는 정본(colors.ts) 공유, 각 단 끝에 리셋 버튼.
     return (
-      <div className={shell}>
+      <div className={cn(shell, "items-start")}>
         <BubbleBtn label="뒤로" onClick={() => setMode("menu")}>
           <ChevronLeft className="size-4" />
         </BubbleBtn>
-        {TEXT_COLORS.map((c) => (
-          <button
-            key={c.value}
-            type="button"
-            aria-label={c.name}
-            title={c.name}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => {
-              editor.chain().focus().setColor(c.value).run();
-              setMode("menu");
-            }}
-            className="border-border size-5 rounded-md border"
-            style={{ background: c.value }}
-          />
-        ))}
-        <BubbleBtn
-          label="기본 색"
-          onClick={() => {
-            editor.chain().focus().unsetColor().run();
-            setMode("menu");
-          }}
-        >
-          <RotateCcw className="size-3.5" />
-        </BubbleBtn>
+        <div className="flex flex-col gap-1 py-0.5">
+          <div className="flex items-center gap-1">
+            <span className="text-muted-foreground w-7 shrink-0 text-[10px]">
+              글자
+            </span>
+            {TEXT_COLORS.map((c) => (
+              <Swatch
+                key={c.value}
+                color={c}
+                size="size-5"
+                onClick={() => {
+                  editor.chain().focus().setColor(c.value).run();
+                  setMode("menu");
+                }}
+              />
+            ))}
+            <BubbleBtn
+              label="기본 색"
+              onClick={() => {
+                editor.chain().focus().unsetColor().run();
+                setMode("menu");
+              }}
+            >
+              <RotateCcw className="size-3.5" />
+            </BubbleBtn>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-muted-foreground w-7 shrink-0 text-[10px]">
+              배경
+            </span>
+            {BG_COLORS.map((c) => (
+              <Swatch
+                key={c.value}
+                color={c}
+                size="size-5"
+                onClick={() => {
+                  editor.chain().focus().setBackgroundColor(c.value).run();
+                  setMode("menu");
+                }}
+              />
+            ))}
+            <BubbleBtn
+              label="배경 없음"
+              onClick={() => {
+                editor.chain().focus().unsetBackgroundColor().run();
+                setMode("menu");
+              }}
+            >
+              <RotateCcw className="size-3.5" />
+            </BubbleBtn>
+          </div>
+        </div>
       </div>
     );
   }
@@ -858,18 +892,30 @@ export function Toolbar({ editor }: { editor: Editor }) {
   );
 }
 
-// 큐레이트 글자 색 팔레트. DESIGN 은 새 액센트 남용을 금하지만 본문 글자색은 사용자
-// 콘텐츠(상태 태그 예외와 동일)라 제한된 팔레트로만 허용한다.
-const TEXT_COLORS: { name: string; value: string }[] = [
-  { name: "회색", value: "#6b7280" },
-  { name: "빨강", value: "#e5484d" },
-  { name: "주황", value: "#f76808" },
-  { name: "노랑", value: "#d97706" },
-  { name: "초록", value: "#30a46c" },
-  { name: "파랑", value: "#0070f3" },
-  { name: "보라", value: "#8e4ec6" },
-  { name: "분홍", value: "#e93d82" },
-];
+// 팔레트 정본은 colors.ts(TEXT_COLORS/BG_COLORS) — 툴바·버블·테이블이 공유한다.
+
+/** 색상 스와치 버튼. onMouseDown preventDefault 로 에디터 선택 유지. */
+function Swatch({
+  color,
+  size = "size-6",
+  onClick,
+}: {
+  color: PaletteColor;
+  size?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={color.name}
+      title={color.name}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={onClick}
+      className={cn("border-border shrink-0 rounded-md border", size)}
+      style={{ background: color.value }}
+    />
+  );
+}
 
 /**
  * 팝오버 트리거 버튼에 빠른 Tooltip 을 입힌다(네이티브 title 지연 대신). Base UI 는 render
@@ -891,22 +937,27 @@ function TooltipPopoverTrigger({
   );
 }
 
-/** 글자 색상 선택(Color 확장). 팔레트 스와치 클릭 → setColor, '기본 색' → unsetColor. */
+/** 글자 색/배경색 선택(Color·BackgroundColor 확장). 스와치 → set, '기본/없음' → unset. */
 function ColorButton({ editor }: { editor: Editor }) {
   const [open, setOpen] = useState(false);
-  const current = editor.getAttributes("textStyle").color as string | undefined;
+  const attrs = editor.getAttributes("textStyle");
+  const current = attrs.color as string | undefined;
+  const currentBg = attrs.backgroundColor as string | undefined;
+
+  const resetBtn =
+    "hover:bg-accent w-full rounded px-2 py-1 text-left text-sm";
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <TooltipPopoverTrigger label="글자 색">
+      <TooltipPopoverTrigger label="글자 색 · 배경색">
         <Button
           type="button"
           variant="ghost"
           size="icon"
-          aria-label="글자 색"
+          aria-label="글자 색 · 배경색"
           className={cn(
             "size-8",
-            current && "bg-accent text-accent-foreground",
+            (current || currentBg) && "bg-accent text-accent-foreground",
           )}
         >
           <Baseline
@@ -916,32 +967,52 @@ function ColorButton({ editor }: { editor: Editor }) {
         </Button>
       </TooltipPopoverTrigger>
       <PopoverContent align="start" className="w-auto p-2">
-        <div className="grid grid-cols-4 gap-1">
+        <p className="text-muted-foreground mb-1 text-xs">글자 색</p>
+        <div className="grid grid-cols-5 gap-1">
           {TEXT_COLORS.map((c) => (
-            <button
+            <Swatch
               key={c.value}
-              type="button"
-              aria-label={c.name}
-              title={c.name}
+              color={c}
               onClick={() => {
                 editor.chain().focus().setColor(c.value).run();
                 setOpen(false);
               }}
-              className="border-border size-6 rounded-md border"
-              style={{ background: c.value }}
             />
           ))}
         </div>
-        <Separator className="my-2" />
         <button
           type="button"
+          className={cn(resetBtn, "mt-1")}
           onClick={() => {
             editor.chain().focus().unsetColor().run();
             setOpen(false);
           }}
-          className="hover:bg-accent w-full rounded px-2 py-1 text-left text-sm"
         >
           기본 색
+        </button>
+        <Separator className="my-2" />
+        <p className="text-muted-foreground mb-1 text-xs">배경색</p>
+        <div className="grid grid-cols-5 gap-1">
+          {BG_COLORS.map((c) => (
+            <Swatch
+              key={c.value}
+              color={c}
+              onClick={() => {
+                editor.chain().focus().setBackgroundColor(c.value).run();
+                setOpen(false);
+              }}
+            />
+          ))}
+        </div>
+        <button
+          type="button"
+          className={cn(resetBtn, "mt-1")}
+          onClick={() => {
+            editor.chain().focus().unsetBackgroundColor().run();
+            setOpen(false);
+          }}
+        >
+          배경 없음
         </button>
       </PopoverContent>
     </Popover>
