@@ -34,3 +34,30 @@ export async function revokeApiToken(id: string) {
   });
   revalidatePath(`/users/${user.id}`);
 }
+
+/**
+ * 토큰 재발급(rotate): 기존 토큰을 폐기하고 같은 이름으로 새 토큰을 발급한다.
+ * 새 원문은 이 응답에서만 반환한다. 본인 소유의 활성 토큰만 대상.
+ */
+export async function rotateApiToken(id: string) {
+  const user = await requireUser();
+  const { raw, hash, prefix } = buildToken();
+  const rotated = await prisma.$transaction(async (tx) => {
+    const existing = await tx.apiToken.findFirst({
+      where: { id, userId: user.id, revokedAt: null },
+      select: { name: true },
+    });
+    if (!existing) return null;
+    await tx.apiToken.update({
+      where: { id },
+      data: { revokedAt: new Date() },
+    });
+    await tx.apiToken.create({
+      data: { userId: user.id, name: existing.name, tokenHash: hash, prefix },
+    });
+    return { raw };
+  });
+  if (!rotated) throw new Error("토큰을 찾을 수 없습니다");
+  revalidatePath(`/users/${user.id}`);
+  return rotated;
+}

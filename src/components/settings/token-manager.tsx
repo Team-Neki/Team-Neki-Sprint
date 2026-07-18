@@ -5,7 +5,11 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { createApiToken, revokeApiToken } from "@/server/actions/api-tokens";
+import {
+  createApiToken,
+  revokeApiToken,
+  rotateApiToken,
+} from "@/server/actions/api-tokens";
 
 type TokenRow = {
   id: string;
@@ -29,6 +33,33 @@ export function TokenManager({ tokens }: { tokens: TokenRow[] }) {
       setName("");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "생성 실패");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onRotate(id: string) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const { raw } = await rotateApiToken(id);
+      setNewToken(raw);
+      toast.success("재발급됨");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "재발급 실패");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onRevoke(id: string) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await revokeApiToken(id);
+      toast.success("폐기됨");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "폐기 실패");
     } finally {
       setBusy(false);
     }
@@ -93,19 +124,22 @@ export function TokenManager({ tokens }: { tokens: TokenRow[] }) {
                       : "없음"}
                   </p>
                 </div>
-                <Button
-                  variant="outline"
-                  onClick={async () => {
-                    try {
-                      await revokeApiToken(t.id);
-                      toast.success("폐기됨");
-                    } catch (e) {
-                      toast.error(e instanceof Error ? e.message : "폐기 실패");
-                    }
-                  }}
-                >
-                  폐기
-                </Button>
+                <div className="flex shrink-0 gap-2">
+                  <Button
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() => onRotate(t.id)}
+                  >
+                    재발급
+                  </Button>
+                  <Button
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() => onRevoke(t.id)}
+                  >
+                    폐기
+                  </Button>
+                </div>
               </div>
             ))
           )}
