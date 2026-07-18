@@ -22,6 +22,9 @@ import {
   Table as TableIcon,
   Workflow,
   Baseline,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
   Image as ImageIcon,
   Link as LinkIcon,
   Undo,
@@ -816,6 +819,17 @@ function BubbleToolbar({ editor }: { editor: Editor }) {
       <BubbleBtn label="글자 색" onClick={() => setMode("color")}>
         <Baseline className="size-4" />
       </BubbleBtn>
+      <Separator orientation="vertical" className="mx-0.5 h-5" />
+      {TEXT_ALIGNS.map(({ value, label, Icon }) => (
+        <BubbleBtn
+          key={value}
+          label={label}
+          active={editor.isActive({ textAlign: value })}
+          onClick={() => editor.chain().focus().setTextAlign(value).run()}
+        >
+          <Icon className="size-4" />
+        </BubbleBtn>
+      ))}
     </div>
   );
 }
@@ -848,6 +862,7 @@ export function Toolbar({ editor }: { editor: Editor }) {
           <Strikethrough className="size-4" />
         </Btn>
         <ColorButton editor={editor} />
+        <AlignButton editor={editor} />
         <Sep />
         <Btn
           label="인용"
@@ -894,6 +909,17 @@ export function Toolbar({ editor }: { editor: Editor }) {
 
 // 팔레트 정본은 colors.ts(TEXT_COLORS/BG_COLORS) — 툴바·버블·테이블이 공유한다.
 
+// 텍스트 정렬(TextAlign, 블록 단위). 툴바 팝오버·버블 툴바가 공유한다.
+const TEXT_ALIGNS: {
+  value: "left" | "center" | "right";
+  label: string;
+  Icon: typeof AlignLeft;
+}[] = [
+  { value: "left", label: "왼쪽 정렬", Icon: AlignLeft },
+  { value: "center", label: "가운데 정렬", Icon: AlignCenter },
+  { value: "right", label: "오른쪽 정렬", Icon: AlignRight },
+];
+
 /** 색상 스와치 버튼. onMouseDown preventDefault 로 에디터 선택 유지. */
 function Swatch({
   color,
@@ -934,6 +960,49 @@ function TooltipPopoverTrigger({
       <TooltipTrigger render={<PopoverTrigger render={children} />} />
       <TooltipContent>{label}</TooltipContent>
     </Tooltip>
+  );
+}
+
+/** 텍스트 정렬 팝오버(블록 단위). 현재 정렬 아이콘을 트리거에 표시한다. */
+function AlignButton({ editor }: { editor: Editor }) {
+  const [open, setOpen] = useState(false);
+  const current =
+    TEXT_ALIGNS.find((a) => editor.isActive({ textAlign: a.value })) ??
+    TEXT_ALIGNS[0];
+  const CurrentIcon = current.Icon;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <TooltipPopoverTrigger label="정렬">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label="정렬"
+          className={cn(
+            "size-8",
+            current.value !== "left" && "bg-accent text-accent-foreground",
+          )}
+        >
+          <CurrentIcon className="size-4" />
+        </Button>
+      </TooltipPopoverTrigger>
+      <PopoverContent align="start" className="flex w-auto gap-0.5 p-1">
+        {TEXT_ALIGNS.map(({ value, label, Icon }) => (
+          <Btn
+            key={value}
+            label={label}
+            active={editor.isActive({ textAlign: value })}
+            onClick={() => {
+              editor.chain().focus().setTextAlign(value).run();
+              setOpen(false);
+            }}
+          >
+            <Icon className="size-4" />
+          </Btn>
+        ))}
+      </PopoverContent>
+    </Popover>
   );
 }
 

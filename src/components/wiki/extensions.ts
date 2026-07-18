@@ -5,6 +5,7 @@ import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import { TextStyle, BackgroundColor } from "@tiptap/extension-text-style";
 import { Color } from "@tiptap/extension-color";
+import TextAlign from "@tiptap/extension-text-align";
 import { TableKit } from "@tiptap/extension-table";
 import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
 import { ReactNodeViewRenderer } from "@tiptap/react";
@@ -63,6 +64,9 @@ export function wikiExtensions(opts?: { placeholder?: string }) {
     TextStyle,
     Color,
     BackgroundColor,
+    // 텍스트 정렬(블록 단위 — 문단/제목별 적용). style="text-align:..." 직렬화라
+    // 뷰도 자동 렌더. 기본 단축키 Cmd+Shift+L/E/R 내장.
+    TextAlign.configure({ types: ["heading", "paragraph"] }),
     // 슬래시 커맨드(/) — 입력 시에만 동작(읽기전용 뷰에선 트리거 없음).
     SlashCommand,
     // 구문 강조 코드블록 + 우측 상단 복사 버튼 NodeView + 괄호/따옴표 자동 닫기.
