@@ -239,3 +239,10 @@
 - **증상**: 상위 폴더를 접었다 펴면 하위 폴더가 이전 상태와 무관하게 모두 열림으로 리셋.
 - **원인**: `FolderItem`/`PageItem` 이 각자 `useState(true)`(열림 기본)로 접힘을 가졌는데, **부모 접힘 시 렌더 게이트(`hasChildren && open && <ul>`)가 자식 서브트리를 언마운트** → 재오픈 때 자식이 재마운트되며 `useState(true)` 로 초기화. (`router.refresh` 아님.)
 - **해결**: 접힘을 **`PageTree`(트리 최상단, 항목 언마운트와 무관)** 소유의 `collapsedIds: Set` 으로 승격. "열림이 기본, 닫은 것만 기억" = `open = !collapsedIds.has(key)`. 폴더/페이지 id 충돌 방지로 `f:`/`p:` 네임스페이스. localStorage `wiki:collapsed` 영속(initializer 에서 `typeof window` 가드). 새 하위항목 생성 시 부모를 `expand(key)` 로 강제 펼쳐 즉시 노출.
+
+## 32. 에디터 이벤트 가로채기는 DOM 리스너가 아니라 `editorProps` 핸들러로 (2026-07-18)
+
+- **증상**: 브라우저 '이미지 복사'(클립보드에 HTML `<img>` + 이미지 파일이 함께 담김)를 위키에 붙여넣으면 이미지가 두 개 삽입됨 — 외부 핫링크본 + 업로드본.
+- **원인**: 이미지 paste 를 `editor.view.dom.addEventListener("paste", ...)` 로 처리했는데, ProseMirror 는 view 생성 시점에 같은 DOM 에 자기 paste 리스너를 먼저 등록한다 → **PM 기본 paste(HTML 삽입)가 항상 먼저 실행**되고, 그 뒤에 실행되는 우리 리스너의 `preventDefault()` 는 무력. 파일만 있는 클립보드(스크린샷)에선 PM 이 할 일이 없어 우연히 정상 동작해 눈에 안 띄었다.
+- **해결**: TipTap `editorProps.handlePaste`/`handleDrop` 사용 — PM 기본 처리 **이전**에 호출되고 `true` 반환으로 기본 처리를 차단한다. `editor` 인스턴스는 생성 시점 클로저에 없으므로 ref(`editorRef`)로 접근.
+- **일반화**: 에디터 동작을 가로채려면 PM 파이프라인 안(`editorProps.handle*`, keymap)에서. DOM 리스너로 이기려면 캡처 단계 + `stopPropagation` 이 필요하다(Cmd+Enter 저장이 이 방식 — `editor.tsx` 주석 참조). 버블 단계 DOM 리스너는 PM 보다 항상 늦는다.

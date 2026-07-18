@@ -367,13 +367,15 @@ model WikiFolder {
 }
 
 /**
- * 위키 본문에 첨부한 이미지. 바이너리를 DB 에 저장(파일시스템 가정 없이 포터블)하고
- * GET /api/wiki/image/[id] 로 서빙한다. content-addressed(cuid) 라 캐시 immutable.
+ * 위키 본문에 첨부한 이미지. 바이너리는 S3(또는 S3 호환 스토리지)에 두고 DB 에는
+ * 객체 키(s3Key)만 저장한다. GET /api/wiki/image/[id] 가 S3 에서 받아 서빙하며,
+ * URL 은 여전히 content-addressed(cuid PK) 라 캐시 immutable. mimeType 은 서빙 시
+ * Content-Type 헤더로 재사용(S3 응답에 의존하지 않음).
  * uploaderId 는 감사용 스칼라(FK 관계 없음 — 유저 삭제와 무관하게 이미지 보존).
  */
 model WikiImage {
   id         String   @id @default(cuid())
-  data       Bytes
+  s3Key      String
   mimeType   String
   name       String?
   size       Int

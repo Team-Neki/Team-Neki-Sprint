@@ -8,11 +8,13 @@
 
 | 날짜 | 세션 | 상태 |
 |---|---|---|
+| 2026-07-18 | 위키 이미지 붙여넣기/드롭 재작업: DOM 리스너 → `editorProps.handlePaste/handleDrop`(혼합 클립보드 이중 삽입 방지·텍스트 보존), 다중 이미지 병렬 업로드·순서 유지, 첨부 버튼 `multiple` | `DONE`\* |
 | 2026-07-18 | 대시보드/멘션/공지/캐시/표 편집 9건+: 최근 활동 위키 제목 표기, 팀 멘션(`teamMention`+팀원 확장 알림), 공지(`Announcement` 모델·대시보드 상단 카드·상세/작성/수정, 삭제는 작성자만), TTL 인메모리 캐시(`lib/server-cache`, 검색/멘션 자동완성 적용), 위키 수정 버튼 헤더 이동, 표 편집(끝 추가·양방향 드래그·우클릭 메뉴·Ctrl+Opt+방향키/Ctrl+Backspace 단축키) | `DONE`\* |
 | 2026-07-17 | MCP 서버 추가(`mcp/`, `@team-neki/sprint-mcp`): 티켓 생성/수정/조회/검색 + 위키 생성/수정/조회/검색 도구. 앱에 `/api/mcp/v1/*` HTTP API + 개인 API 토큰(설정 페이지 발급, sha-256 해시 저장) 추가, mutation core를 actor 주입형으로 리팩터링. 팀 배포: 레포 `.mcp.json`(Claude Code) + npm(Desktop/Cursor). 설계·계획은 `docs/superpowers/{specs,plans}`. 병합 후 main에서 `prisma migrate`(ApiToken)+`prisma generate` 필요 | worktree 검증 완료, 병합·마이그레이션 대기 |
 | 2026-07-17 | GitHub 연동(Task->Branch->PR 양방향): 태스크 상세에서 브랜치 생성(`prefix/KEY-slug`, 레포 생성 시 선택), webhook(`/api/github/webhook`) 으로 PR open->IN_PROGRESS·merge->DONE 자동 전이 + 이름규칙 자동연결. GitHub App(installation token), 신규 npm 의존성 없이 fetch+node:crypto. 모델 `GithubInstallation`/`GithubBranchLink`. 설계 `specs/2026-07-17-github-integration-design.md`, 계획 `plans/2026-07-17-github-integration.md` | `DONE`\* |
 | 2026-07-17 | 위키/타임라인/레이아웃 22건(worktree 5-스트림 병렬): 사이드바 폴더 접힘 유지·새 하위폴더 즉시노출·토글/리사이즈, 저장/취소 헤더 이동, 타임라인 막대 라벨 제거, 에디터(슬래시커맨드·글자색·표 크기픽커/드래그 다중추가·삭제·h1~h6·툴팁 속도·코드강조 채도↑·툴바 H/목록 아이콘 제거), 휴지통 다중선택·다중삭제·비우기, 전역 모바일드로어 이동시 닫힘·사이드바 리사이즈 | `DONE`\* |
 | 2026-07-15 | 폼/목록/타임라인/위키 UX 다수: 담당자 기본값·폼 리셋 버그, 목록 컬럼 통일+빈 헤더, 타임라인 무한스크롤·2색, round 축소, 위키 코드블록(복사·언어·자동닫기·들여쓰기)·표 편집(삭제·추가버튼·리사이즈), 스프린트 컬럼·MD 소수점 | `DONE`\* |
+| 2026-07-13 | 위키 본문 이미지 저장 DB(BYTEA) → S3 이관 | `DONE`\* |
 | 2026-07-13 | 위키 저장 후 사이드바 제목 stale 버그 근본원인 = `unstable_cache` 가 멀티 replica 에서 pod-local → **데이터 캐시 레이어 제거** | `DONE` |
 | 2026-07-10 | 프로필 상세·타임라인 구분선·위키 DnD·티켓 CC·상세 시트 정련 등 in-product UX 다수 (커밋 `66f8eb5` + 후속) | `DONE`\* |
 | 2026-07-09 | 추정 단위 MD 일원화 · 목록/상세/타임라인 UX 개선 · 리뷰 상태 제거 (커밋 `0984416`) | `DONE`\* |
@@ -28,6 +30,17 @@
 \* 코드·빌드·테스트 검증 완료. 실렌더(mermaid/표/강조)는 로그인 게이트라 브라우저 확인 필요.
 
 ---
+
+## 2026-07-18 — 위키 이미지 붙여넣기/드롭 다중·혼합 클립보드 처리 (브랜치 `feat/wiki-image-s3`)
+
+`editor.tsx` 의 이미지 paste/drop 을 DOM 리스너에서 `editorProps.handlePaste`/`handleDrop` 로 이전. [gotchas §32]
+
+- **근본 문제**: DOM `paste` 리스너는 ProseMirror 기본 paste **이후**에 실행된다(리스너 등록 순서). HTML+파일이 함께 담긴 클립보드(브라우저 '이미지 복사' 등)에선 PM 이 HTML 의 `<img>`(외부 핫링크)를 먼저 삽입한 뒤 리스너가 업로드본을 또 삽입 → 이중 삽입. `handlePaste` 는 PM 기본 처리 전에 실행되고 `true` 반환으로 차단 가능.
+- **텍스트+이미지 혼합 붙여넣기**: 클립보드 HTML 에 실질 텍스트가 있으면(웹페이지 선택·엑셀 표 등) 기본 붙여넣기에 맡겨 텍스트를 보존하고, 파일로 중복 동봉된 이미지는 업로드하지 않는다(HTML 쪽이 정본 — 종전엔 텍스트를 버리거나 이중 삽입). 텍스트 없이 이미지 파일만이면 업로드 경로(Finder 파일 복사가 넣는 파일명 `text/plain` 은 의도적으로 무시).
+- **여러 장**: 장당 순차 업로드 → `Promise.all` 병렬 업로드 후 성공분만 원래 순서로 한 번에 삽입. 드롭 시 같은 `dropPos` 에 반복 `insertContentAt` 해 역순이 되던 버그 해결(+업로드 동안 문서가 짧아진 경우 대비 삽입 위치 클램프).
+- **이미지 첨부 버튼**: `multiple` 허용, 붙여넣기와 동일 헬퍼(`uploadAndInsertImages`) 재사용.
+
+검증: tsc 0 · eslint 0 · vitest 통과. 실브라우저 클립보드 조합(스크린샷/Finder 다중 파일/웹페이지 선택/엑셀 표/브라우저 '이미지 복사')은 로그인 게이트라 수동 확인 후속 필요.
 
 ## 2026-07-18 — 대시보드/멘션/공지/캐시/표 편집 (브랜치 `feat/dashboard-notice-editor-improvements`)
 
@@ -110,6 +123,19 @@
 - **삭제**: 표 아래 블록 맨 앞에서 ArrowLeft → 표를 NodeSelection 선택 → Backspace/Delete 삭제(별도 `TableControls` 확장).
 - **hover 열/행 추가**: 커서가 표 안이면 표 DOM rect 추적해 우측(열)·하단(행) 스트립 오버레이, hover 시 + 버튼. 표 내부 로직 미변경(좌표만 읽음).
 - **리사이즈 폭 고정**: TableView 가 리사이즈로 세팅하는 table inline `width`/`min-width` 를 CSS `!important` 로 무시해 표를 컨테이너 100% 에 고정 → `table-layout:fixed` 상 경계선만 이동, 인접 열이 폭 나눔. [gotchas §29]
+
+---
+
+## 2026-07-13 — 위키 본문 이미지 저장 DB(BYTEA) → S3 이관
+
+위키 에디터 첨부 이미지를 DB `WikiImage.data`(BYTEA)에 인라인 저장하던 것을 S3(또는 S3 호환 스토리지) 오브젝트로 이관. 검증: tsc 0 · vitest 106 pass · eslint clean(변경 3파일). DB 스키마 변경 1건 — 타 환경 `prisma migrate deploy` 필요. 스키마 변경 후 dev 서버 재시작 필수([gotchas §1]). **기존 이미지 데이터 없음 전제**로 하드 컷오버(`data` 컬럼 제거).
+
+- **왜**: DB 비대화(바이너리 인라인) 해소 + 저장소 분리. presigned 대신 애플리케이션이 SDK 로 직접 저장/서빙하는 서버 프록시 방식 채택 — 트래픽이 낮아 서버 경유 오버헤드가 무의미하고, **"로그인 유저만 이미지 접근" 인증 게이트를 그대로 유지**할 수 있어서(presigned 는 이 보안 모델 재설계가 필요). URL 구조(`/api/wiki/image/<id>`)를 보존해 에디터·TipTap·`WikiPage.content` 는 무변경.
+- **스키마**: `WikiImage.data Bytes` → `s3Key String`. `mimeType`/`name`/`size`/`uploaderId` 유지(마이그레이션 `20260713000000_wiki_image_s3`, `DROP COLUMN data` + `ADD COLUMN s3Key NOT NULL`). URL PK 는 여전히 cuid 라 content-addressed·immutable.
+- **S3 래퍼**(`src/lib/s3.ts`): 지연 생성 싱글턴 `S3Client`(빌드 타임 env 부재로 안 터지게). 자격증명은 **코드에 두지 않고 AWS SDK 기본 credential provider chain**(k8s IRSA/IAM Role, 로컬 `~/.aws`/env) 사용. env 는 버킷·리전만(`S3_BUCKET`/`S3_REGION`), `S3_ENDPOINT`/`S3_FORCE_PATH_STYLE` 로 MinIO 등 S3 호환도 지원. `put`/`get`(웹 스트림)/`delete`(고아 정리용) 제공.
+- **업로드**(`POST /api/wiki/upload`): 형식(PNG·JPEG·GIF·WebP)·5MB·SVG 차단·인증 검증은 그대로. S3 `Put` 성공 후 DB 에 `s3Key` 기록(S3 실패→502, DB 실패→S3 고아만 남고 사용자엔 실패 응답).
+- **서빙**(`GET /api/wiki/image/[id]`): DB 에서 `s3Key`→S3 `Get` 스트림. 인증 게이트·`Cache-Control: private, immutable`·`nosniff`·`Content-Type`(DB `mimeType`) 그대로.
+- **운영 주의**: 실행 환경에 `S3_BUCKET`/`S3_REGION` + S3 접근 권한(IAM Role) 주입 필요. 앱과 버킷을 **같은 AWS 리전**에 두면 S3→서버 전송비 0(egress 절감). 이미지 삭제 경로는 원래 없었음(영구 보존 설계) — GC 미배선, 필요 시 `deleteWikiImage` 활용.
 
 ---
 
