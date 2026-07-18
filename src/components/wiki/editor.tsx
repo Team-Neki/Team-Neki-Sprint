@@ -74,6 +74,8 @@ import {
   BG_COLORS,
   type PaletteColor,
 } from "@/components/wiki/colors";
+// 노션식 줄(블록) 핸들 — 선택/드래그 이동/블록 메뉴. 편집 모드 전용.
+import { BlockHandle } from "@/components/wiki/block-handle";
 
 /** 이미지 파일을 업로드하고 서빙 URL 을 반환. 실패 시 토스트 + null(본문 이미지 첨부). */
 async function uploadImage(file: File): Promise<string | null> {
@@ -437,6 +439,7 @@ export const WikiEditor = forwardRef<WikiEditorHandle, WikiEditorProps>(
                 containerRef={editorAreaRef}
               />
               <TableContextMenu editor={editor} containerRef={editorAreaRef} />
+              <BlockHandle editor={editor} />
             </>
           )}
         </div>
