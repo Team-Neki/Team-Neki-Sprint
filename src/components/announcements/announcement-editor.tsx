@@ -20,7 +20,10 @@ import { wikiExtensions } from "@/components/wiki/extensions";
 import { Toolbar, TableHoverControls } from "@/components/wiki/editor";
 import { TableContextMenu } from "@/components/wiki/table-context-menu";
 import { Input } from "@/components/ui/input";
-import { updateAnnouncement } from "@/server/actions/announcements";
+import {
+  createAnnouncement,
+  updateAnnouncement,
+} from "@/server/actions/announcements";
 
 export type AnnouncementEditorHandle = {
   commit: () => void;
@@ -30,7 +33,8 @@ export type AnnouncementEditorHandle = {
 export type AnnouncementEditorState = { saving: boolean };
 
 type AnnouncementEditorProps = {
-  id: string;
+  /** 없으면 생성 모드 — 저장 시 createAnnouncement 로 새로 만들고 상세로 이동한다. */
+  id?: string;
   initialTitle: string;
   initialContent: JSONContent;
   /** 저장/취소로 편집을 마칠 때 호출(뷰 모드로 복귀). */
@@ -79,10 +83,17 @@ export const AnnouncementEditor = forwardRef<
     savingRef.current = true;
     setSaving(true);
     try {
-      await updateAnnouncement(id, title, content);
-      dirtyRef.current = false;
-      router.refresh();
-      onExit?.();
+      if (id) {
+        await updateAnnouncement(id, title, content);
+        dirtyRef.current = false;
+        router.refresh();
+        onExit?.();
+      } else {
+        // 생성 모드: 저장을 눌러야 비로소 DB 에 공지를 만든다(취소 시 아무것도 안 남음).
+        const { id: newId } = await createAnnouncement(title, content);
+        dirtyRef.current = false;
+        router.replace(`/announcements/${newId}`);
+      }
     } catch {
       toast.error("공지 저장에 실패했습니다");
     } finally {
