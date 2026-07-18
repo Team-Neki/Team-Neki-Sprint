@@ -26,12 +26,30 @@ const EMPTY_DOC: Prisma.InputJsonValue = {
 
 export async function createWikiPage(input: unknown) {
   const user = await requireUser();
-  return createWikiPageCore(user, input);
+  // UI 생성은 초안으로 시작 — 첫 저장(커밋) 때 정식 페이지로 전환된다.
+  return createWikiPageCore(user, input, { draft: true });
 }
 
-/** createWikiPage의 actor 주입 코어. 서버 액션과 MCP API 라우트가 공유한다. */
-export async function createWikiPageCore(actor: Actor, input: unknown) {
+/** createWikiPage의 actor 주입 코어. 서버 액션과 MCP API 라우트가 공유한다.
+ * MCP/API 는 본문을 갖고 생성하므로 draft 없이(false) 만든다. */
+export async function createWikiPageCore(
+  actor: Actor,
+  input: unknown,
+  opts?: { draft?: boolean },
+) {
   const data = wikiPageSchema.parse(input);
+  const draft = opts?.draft === true;
+
+  // 초안 아래에는 하위 페이지를 만들 수 없다(트리에서 버튼을 숨기지만 이중 방어).
+  if (data.parentId) {
+    const parent = await prisma.wikiPage.findUnique({
+      where: { id: data.parentId },
+      select: { isDraft: true },
+    });
+    if (parent?.isDraft) {
+      throw new Error("초안 페이지 아래에는 하위 페이지를 만들 수 없습니다");
+    }
+  }
 
   // position은 같은 컨테이너(부모 페이지 + 폴더) 안에서만 순서를 맞춘다.
   const siblingCount = await prisma.wikiPage.count({
@@ -48,16 +66,20 @@ export async function createWikiPageCore(actor: Actor, input: unknown) {
       position: siblingCount,
       authorId: actor.id,
       editorId: actor.id,
+      isDraft: draft,
     },
   });
 
-  await logActivity({
-    userId: actor.id,
-    entityType: "wiki",
-    entityId: page.id,
-    action: "created",
-    meta: { title: page.title },
-  });
+  // 초안 생성은 활동 로그를 남기지 않는다(취소되면 노이즈) — 첫 커밋 때 남긴다.
+  if (!draft) {
+    await logActivity({
+      userId: actor.id,
+      entityType: "wiki",
+      entityId: page.id,
+      action: "created",
+      meta: { title: page.title },
+    });
+  }
 
   revalidatePath("/wiki", "layout");
   return { id: page.id };
@@ -91,6 +113,23 @@ export async function updateWikiContentCore(
     current.title === nextTitle &&
     JSON.stringify(current.content) === JSON.stringify(content);
   if (unchanged) {
+    // 내용이 그대로여도 초안 상태에서 저장(커밋)했다면 정식 페이지로 전환한다.
+    // 리비전 스냅샷은 만들지 않는다(빈 초안의 스냅샷은 노이즈).
+    if (current.isDraft) {
+      await prisma.wikiPage.update({
+        where: { id },
+        data: { isDraft: false, editorId: actor.id },
+      });
+      await logActivity({
+        userId: actor.id,
+        entityType: "wiki",
+        entityId: id,
+        action: "created",
+        meta: { title: nextTitle },
+      });
+      revalidatePath("/wiki", "layout");
+      revalidatePath(`/wiki/${id}`);
+    }
     return { id };
   }
 
@@ -112,14 +151,18 @@ export async function updateWikiContentCore(
       // 전역 검색 본문 매칭용 순수 텍스트 사본(gotchas §16 참조).
       searchText: docToPlainText(content as JSONContent),
       editorId: actor.id,
+      // 첫 저장(커밋)이면 초안 → 정식 전환.
+      isDraft: false,
     },
   });
 
+  // 초안의 첫 커밋은 '생성', 그 외에는 '수정' 활동으로 남긴다.
   await logActivity({
     userId: actor.id,
     entityType: "wiki",
     entityId: id,
-    action: "updated",
+    action: current.isDraft ? "created" : "updated",
+    ...(current.isDraft ? { meta: { title: nextTitle } } : {}),
   });
 
   // 본문에 '새로 추가된' 멘션(사람 + 팀→팀원 전원 확장)에 대해 수신자별 알림 생성(B5).

@@ -151,6 +151,8 @@ type WikiEditorProps = {
   initialContent: JSONContent;
   /** 서버에서 불러온 임시저장본(있으면 이 내용으로 편집을 시작). */
   draft?: { title: string; content: JSONContent } | null;
+  /** 생성 직후 진입: 제목 인풋에 포커스(전체 선택), Enter 로 본문 이동. */
+  autoFocusTitle?: boolean;
   /** 저장/취소로 편집을 마칠 때 호출(뷰 모드로 복귀). */
   onExit?: () => void;
   /** 저장 상태를 부모(헤더)로 올려 저장/취소 버튼·상태 텍스트를 헤더에 렌더. */
@@ -159,7 +161,15 @@ type WikiEditorProps = {
 
 export const WikiEditor = forwardRef<WikiEditorHandle, WikiEditorProps>(
   function WikiEditor(
-    { pageId, initialTitle, initialContent, draft, onExit, onStateChange },
+    {
+      pageId,
+      initialTitle,
+      initialContent,
+      draft,
+      autoFocusTitle,
+      onExit,
+      onStateChange,
+    },
     ref,
   ) {
     const router = useRouter();
@@ -377,6 +387,19 @@ export const WikiEditor = forwardRef<WikiEditorHandle, WikiEditorProps>(
             onChange={(e) => {
               setTitle(e.target.value);
               markDirty();
+            }}
+            // 생성 직후(?edit=1): 제목부터 바로 입력하도록 포커스+전체 선택,
+            // Enter/Tab(또는 ↓)으로 본문 첫 위치로 이동해 이어서 작성한다.
+            autoFocus={autoFocusTitle}
+            onFocus={(e) => {
+              if (autoFocusTitle) e.currentTarget.select();
+            }}
+            onKeyDown={(e) => {
+              if (e.nativeEvent.isComposing) return;
+              if (e.key === "Enter" || e.key === "ArrowDown") {
+                e.preventDefault();
+                editor?.chain().focus("start").run();
+              }
             }}
             placeholder="제목 없음"
             className="border-none px-0 text-2xl font-semibold shadow-none focus-visible:ring-0 md:text-3xl"
