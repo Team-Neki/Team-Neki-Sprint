@@ -24,7 +24,12 @@ export function ProfileDialog({
   profile,
   trigger,
 }: {
-  profile: { name: string | null; phone: string | null };
+  profile: {
+    name: string | null;
+    phone: string | null;
+    github: string | null;
+    figma: string | null;
+  };
   trigger: React.ReactElement;
 }) {
   const router = useRouter();
@@ -33,6 +38,8 @@ export function ProfileDialog({
 
   const [name, setName] = useState(profile.name ?? "");
   const [phone, setPhone] = useState(profile.phone ?? "");
+  const [github, setGithub] = useState(profile.github ?? "");
+  const [figma, setFigma] = useState(profile.figma ?? "");
 
   function submit() {
     if (!name.trim()) {
@@ -41,7 +48,12 @@ export function ProfileDialog({
     }
     start(async () => {
       try {
-        await updateProfile({ name: name.trim(), phone: phone.trim() || null });
+        await updateProfile({
+          name: name.trim(),
+          phone: phone.trim() || null,
+          github: github.trim() || null,
+          figma: figma.trim() || null,
+        });
         toast.success("저장했습니다");
         setOpen(false);
         router.refresh();
@@ -75,6 +87,22 @@ export function ProfileDialog({
               onChange={(e) => setPhone(e.target.value)}
               placeholder="예: 010-1234-5678"
               inputMode="tel"
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label>GitHub</Label>
+            <Input
+              value={github}
+              onChange={(e) => setGithub(e.target.value)}
+              placeholder="아이디 또는 이메일"
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label>Figma</Label>
+            <Input
+              value={figma}
+              onChange={(e) => setFigma(e.target.value)}
+              placeholder="아이디 또는 이메일"
             />
           </div>
         </div>

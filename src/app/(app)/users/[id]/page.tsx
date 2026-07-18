@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Mail, Pencil, Phone } from "lucide-react";
+import { Code2, Mail, Palette, Pencil, Phone } from "lucide-react";
 import type { Status } from "@prisma/client";
 import { requireUser } from "@/lib/session";
 import { getUserProfile } from "@/server/queries";
@@ -86,7 +86,12 @@ export default async function UserProfilePage({
         </div>
         {isSelf && (
           <ProfileDialog
-            profile={{ name: user.name, phone: user.phone }}
+            profile={{
+              name: user.name,
+              phone: user.phone,
+              github: user.github,
+              figma: user.figma,
+            }}
             trigger={
               <Button variant="outline" size="sm" className="shrink-0">
                 <Pencil className="size-4" />
@@ -111,6 +116,31 @@ export default async function UserProfilePage({
             <a href={`tel:${user.phone}`} className="text-link hover:underline">
               {user.phone}
             </a>
+          ) : (
+            <span className="text-muted-foreground">미등록</span>
+          )}
+        </InfoRow>
+        <InfoRow icon={<Code2 className="size-4" />} label="GitHub">
+          {user.github ? (
+            user.github.includes("@") ? (
+              <span>{user.github}</span>
+            ) : (
+              <a
+                href={`https://github.com/${user.github}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-link hover:underline"
+              >
+                {user.github}
+              </a>
+            )
+          ) : (
+            <span className="text-muted-foreground">미등록</span>
+          )}
+        </InfoRow>
+        <InfoRow icon={<Palette className="size-4" />} label="Figma">
+          {user.figma ? (
+            <span>{user.figma}</span>
           ) : (
             <span className="text-muted-foreground">미등록</span>
           )}
