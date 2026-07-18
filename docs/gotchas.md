@@ -113,6 +113,7 @@
   - **실측 증명**: 같은 DB 에 각자 캐시를 가진 프로덕션 인스턴스 2개를 띄우고 → B 사이드바 워밍 → A 에서 제목 변경 저장 → B 는 옛 제목 유지. (재현 레시피는 이 커밋 세션 참조.)
 - **왜 "캐시 제거"를 택했나**: 대안은 (a) Redis 등 공유 `cacheHandler`, (b) `replicas: 1`, (c) sticky sessions. 20인 내부 툴에선 캐시 이득이 미미하고 DB 부하 무시가능 → **HA(2 replica) 유지 + 전 쿼리 정합성 확보 + 인프라 무추가**인 캐시 제거가 최선. `revalidatePath`/`router.refresh()` + force-dynamic + 클라이언트 라우터 캐시 `staleTime` 0 이면 read-your-own-writes·교차목록 반영 모두 보장된다(캐시가 없으니 애초에 stale 될 것이 없음).
 - **재도입 금지**: 멀티 replica 인 채로 `unstable_cache`(또는 `use cache`)를 다시 쓰려면 **반드시 공유 `cacheHandler`(Redis 등)** 를 먼저 설정한다. 안 그러면 이 버그가 재발한다.
+- **예외 — `lib/server-cache.ts`(2026-07-18, TTL 인메모리 캐시)**: 위 금지와 별개로, **정합성이 TTL 로만 보장돼도 되는 조회 전용 경로**(⌘K 전역 검색 15s·멘션 자동완성 30s)에는 자체 TTL 캐시를 쓴다. pod-local 이라 `cacheDelete`/`cacheClear` 는 같은 pod 에서만 유효한 best-effort — **무효화에 정합성을 의존하는 용도(목록/트리/옵션 등 read-your-own-writes 필요 경로)에 쓰면 §13 버그가 그대로 재발**하니 금지. 새 적용처를 늘릴 땐 "mutation 직후 이 화면이 옛 값을 보여도 되는가?"를 먼저 물을 것.
 
 ## 14. 아이콘 전용 인터랙티브 요소엔 접근 가능한 이름 필수 (D9 a11y)
 

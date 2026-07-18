@@ -8,12 +8,13 @@ import { wikiPageSchema, wikiFolderSchema } from "@/lib/validators";
 import {
   searchTasks,
   searchWikiPages,
-  searchMembers,
+  searchMentionTargets,
   getWikiRevision,
 } from "@/server/queries";
 import { logActivity } from "@/server/activity";
-import { extractMentionUserIds } from "@/lib/mentions";
+import { newMentionRecipients } from "@/server/notify";
 import { docToPlainText } from "@/lib/rich-content";
+import { cached } from "@/lib/server-cache";
 import type { JSONContent } from "@tiptap/core";
 import { assertCanManage, canManage, type Actor } from "@/lib/authz";
 import { z } from "zod";
@@ -121,14 +122,16 @@ export async function updateWikiContentCore(
     action: "updated",
   });
 
-  // 본문에 '새로 추가된' 사람 멘션에 대해 수신자별 알림 생성(B5).
+  // 본문에 '새로 추가된' 멘션(사람 + 팀→팀원 전원 확장)에 대해 수신자별 알림 생성(B5).
   // 저장 전/후 doc 의 멘션 차집합만 → 재저장마다 중복 알림 방지. 자기멘션 제외.
-  const before = extractMentionUserIds(current.content);
-  const after = extractMentionUserIds(content);
-  const added = [...after].filter((uid) => !before.has(uid) && uid !== actor.id);
-  if (added.length > 0) {
+  const recipients = await newMentionRecipients(
+    current.content,
+    content,
+    actor.id,
+  );
+  if (recipients.length > 0) {
     await prisma.notification.createMany({
-      data: added.map((uid) => ({
+      data: recipients.map((uid) => ({
         userId: uid,
         actorId: actor.id,
         type: "mention",
@@ -582,7 +585,12 @@ export async function searchWikiPagesAction(query: string) {
 }
 
 /** '@' 사람 멘션 드롭다운(B5). */
-export async function searchMembersAction(query: string) {
+// 멘션 자동완성은 타이핑마다 호출되는 조회 전용 경로 — 짧은 TTL 캐시로 DB 왕복을
+// 줄인다(pod 로컬, TTL 로만 만료. 멤버/팀 변경이 최대 30초 늦게 보이는 건 허용).
+const MENTION_SEARCH_TTL_MS = 30_000;
+
+export async function searchMentionTargetsAction(query: string) {
   await requireUser();
-  return searchMembers(query);
+  const key = `mentionTargets:${query.trim().toLowerCase()}`;
+  return cached(key, MENTION_SEARCH_TTL_MS, () => searchMentionTargets(query));
 }

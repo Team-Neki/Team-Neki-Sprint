@@ -8,6 +8,7 @@
 
 | 날짜 | 세션 | 상태 |
 |---|---|---|
+| 2026-07-18 | 대시보드/멘션/공지/캐시/표 편집 9건+: 최근 활동 위키 제목 표기, 팀 멘션(`teamMention`+팀원 확장 알림), 공지(`Announcement` 모델·대시보드 상단 카드·상세/작성/수정, 삭제는 작성자만), TTL 인메모리 캐시(`lib/server-cache`, 검색/멘션 자동완성 적용), 위키 수정 버튼 헤더 이동, 표 편집(끝 추가·양방향 드래그·우클릭 메뉴·Ctrl+Opt+방향키/Ctrl+Backspace 단축키) | `DONE`\* |
 | 2026-07-17 | MCP 서버 추가(`mcp/`, `@team-neki/sprint-mcp`): 티켓 생성/수정/조회/검색 + 위키 생성/수정/조회/검색 도구. 앱에 `/api/mcp/v1/*` HTTP API + 개인 API 토큰(설정 페이지 발급, sha-256 해시 저장) 추가, mutation core를 actor 주입형으로 리팩터링. 팀 배포: 레포 `.mcp.json`(Claude Code) + npm(Desktop/Cursor). 설계·계획은 `docs/superpowers/{specs,plans}`. 병합 후 main에서 `prisma migrate`(ApiToken)+`prisma generate` 필요 | worktree 검증 완료, 병합·마이그레이션 대기 |
 | 2026-07-17 | GitHub 연동(Task->Branch->PR 양방향): 태스크 상세에서 브랜치 생성(`prefix/KEY-slug`, 레포 생성 시 선택), webhook(`/api/github/webhook`) 으로 PR open->IN_PROGRESS·merge->DONE 자동 전이 + 이름규칙 자동연결. GitHub App(installation token), 신규 npm 의존성 없이 fetch+node:crypto. 모델 `GithubInstallation`/`GithubBranchLink`. 설계 `specs/2026-07-17-github-integration-design.md`, 계획 `plans/2026-07-17-github-integration.md` | `DONE`\* |
 | 2026-07-17 | 위키/타임라인/레이아웃 22건(worktree 5-스트림 병렬): 사이드바 폴더 접힘 유지·새 하위폴더 즉시노출·토글/리사이즈, 저장/취소 헤더 이동, 타임라인 막대 라벨 제거, 에디터(슬래시커맨드·글자색·표 크기픽커/드래그 다중추가·삭제·h1~h6·툴팁 속도·코드강조 채도↑·툴바 H/목록 아이콘 제거), 휴지통 다중선택·다중삭제·비우기, 전역 모바일드로어 이동시 닫힘·사이드바 리사이즈 | `DONE`\* |
@@ -27,6 +28,20 @@
 \* 코드·빌드·테스트 검증 완료. 실렌더(mermaid/표/강조)는 로그인 게이트라 브라우저 확인 필요.
 
 ---
+
+## 2026-07-18 — 대시보드/멘션/공지/캐시/표 편집 (브랜치 `feat/dashboard-notice-editor-improvements`)
+
+- **대시보드 최근 활동 위키 제목**: `getDashboardData` 가 wiki 활동의 `entityTitle` 을 채우지 않아 "위키 수정"만 떴다 → wiki id 로 제목 lookup 추가(휴지통 페이지도 제목만 보강 — 목록 유출 아님).
+- **팀 멘션**: `teamMention` 노드(`team-mention.tsx`) 신설, '@' suggestion(person-mention)이 팀+멤버 통합 노출(`searchMentionTargets`). 알림은 `server/notify.newMentionRecipients` 가 팀을 팀원 전원으로 확장(차집합·자기 제외 규칙 동일). 위키/태스크/에픽/프로젝트 설명·댓글 모두 적용.
+- **공지(Announcement)**: 새 모델(작성자 SetNull) + `/announcements`(목록)·`/announcements/[id]`(상세, `?edit=1` 로 생성 직후 편집 진입). 대시보드 최상단 강조 카드(잉크 아이콘+인셋 밴드, 새 액센트 색 없음). 에디터는 위키 구성요소(`wikiExtensions`·`Toolbar`·`TableHoverControls` export) 재사용, draft 시스템은 미사용. 수정은 전원, **삭제는 작성자만**(author null 이면 ADMIN). 본문 멘션 알림 지원(`entityType: "announcement"`).
+- **TTL 인메모리 캐시**(`lib/server-cache.ts`): `cached(key, ttl, loader)`+in-flight dedupe+FIFO 상한. **pod-local 이므로**(gotchas §13) read-your-own-writes 가 필요 없는 검색 경로에만 적용: 전역 검색 15s·멘션 자동완성 30s.
+- **위키 수정 버튼**: 본문 제목 행 → sticky 헤더 '...' 좌측으로 이동(저장/취소와 같은 자리).
+- **표 편집(T22)**: `table-edit.ts`(prosemirror-tables low-level) 신설.
+  - hover `+` 클릭/드래그 추가가 커서 무관 **항상 마지막 행/열 뒤**. 표 팝오버 메뉴도 동일("맨 아래/맨 오른쪽").
+  - 드래그 **양방향**: 반대로 끌면 끝에서부터 삭제하되 **빈 행/열까지만**(내용 셀에서 멈춤).
+  - 셀 **우클릭 컨텍스트 메뉴**(`table-context-menu.tsx`): 셀=좌/우 열·위/아래 행 추가+열/행 삭제, 행 전체 선택=행 메뉴, 열 전체 선택=열 메뉴.
+  - **단축키**(`table-controls.ts`): Ctrl+Opt+←/→/↑/↓ 커서 기준 열/행 추가, 행/열 전체 선택 후 Ctrl+Backspace 삭제(표 전체 선택이면 표 삭제 — prosemirror-tables 는 전행/전열 삭제를 거부).
+- **읽기 경로 인덱스 3종**(후속 리뷰에서 추가): Postgres 는 FK 에 인덱스가 자동 생성되지 않아, 계속 자라는 테이블의 FK 조회가 seq scan 이었다 → `WikiRevision @@index([pageId, createdAt])`(버전 히스토리·저장마다 1건씩 쌓임), `Comment @@index([taskId, createdAt])`(태스크 상세 댓글), `WikiPageTaskLink @@index([taskId])`(태스크→위키 역방향, PK 는 pageId 선두라 못 탐). cascade 삭제 시 자식 스캔 비용도 함께 해소. 검색(`contains`)은 B-tree 대상이 아니므로 데이터가 커지면 `pg_trgm` 별도 검토.
 
 ## 2026-07-17 — 위키/타임라인/레이아웃 22건 (브랜치 `feat/wiki-editor-layout-improvements`)
 

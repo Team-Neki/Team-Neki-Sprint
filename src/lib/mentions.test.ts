@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { extractMentionUserIds } from "@/lib/mentions";
+import { extractMentionUserIds, extractMentionTeamIds } from "@/lib/mentions";
 
 const doc = (content: unknown) => ({ type: "doc", content });
 const mention = (id: unknown) => ({ type: "personMention", attrs: { id } });
+const teamMention = (id: unknown) => ({ type: "teamMention", attrs: { id } });
 
 describe("extractMentionUserIds", () => {
   it("collects personMention ids across nested content", () => {
@@ -40,5 +41,32 @@ describe("extractMentionUserIds", () => {
     expect(extractMentionUserIds(null).size).toBe(0);
     expect(extractMentionUserIds(undefined).size).toBe(0);
     expect(extractMentionUserIds("nope").size).toBe(0);
+  });
+
+  it("does not pick up teamMention nodes", () => {
+    const value = doc([{ type: "paragraph", content: [teamMention("t1")] }]);
+    expect(extractMentionUserIds(value).size).toBe(0);
+  });
+});
+
+describe("extractMentionTeamIds", () => {
+  it("collects teamMention ids and ignores personMention", () => {
+    const value = doc([
+      {
+        type: "paragraph",
+        content: [teamMention("t1"), mention("u1"), teamMention("t2")],
+      },
+    ]);
+    expect([...extractMentionTeamIds(value)].sort()).toEqual(["t1", "t2"]);
+  });
+
+  it("dedupes and drops invalid ids", () => {
+    const value = doc([
+      {
+        type: "paragraph",
+        content: [teamMention("t1"), teamMention("t1"), teamMention("")],
+      },
+    ]);
+    expect([...extractMentionTeamIds(value)]).toEqual(["t1"]);
   });
 });

@@ -950,6 +950,36 @@ export function searchMembers(query: string, limit = 8) {
   });
 }
 
+/**
+ * '@' 멘션 드롭다운용 통합 검색: 멤버(이름/이메일) + 팀(이름/key).
+ * 팀을 고르면 팀 전원에게 알림이 가므로(teamMention) 팀은 소수만 노출한다.
+ */
+export async function searchMentionTargets(query: string) {
+  const q = query.trim();
+  const [users, teams] = await Promise.all([
+    searchMembers(query),
+    prisma.team.findMany({
+      where: q
+        ? {
+            OR: [
+              { name: { contains: q, mode: "insensitive" } },
+              { key: { contains: q, mode: "insensitive" } },
+            ],
+          }
+        : undefined,
+      orderBy: { name: "asc" },
+      take: 4,
+      select: {
+        id: true,
+        key: true,
+        name: true,
+        _count: { select: { members: true } },
+      },
+    }),
+  ]);
+  return { users, teams };
+}
+
 /** 프로필 페이지: 기본 정보 + 담당 태스크(진행 중) + 오너 에픽. */
 export function getUserProfile(id: string) {
   return prisma.user.findUnique({
@@ -1003,6 +1033,31 @@ export function getNotifications(userId: string, limit = 20) {
 
 export function getUnreadNotificationCount(userId: string) {
   return prisma.notification.count({ where: { userId, read: false } });
+}
+
+// ---------- 공지(Announcement) ----------
+
+/** 공지 목록(최신순). 대시보드(limit 지정)와 전체 목록이 공유. */
+export function getAnnouncements(limit?: number) {
+  return prisma.announcement.findMany({
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    select: {
+      id: true,
+      title: true,
+      createdAt: true,
+      updatedAt: true,
+      author: miniUser,
+    },
+  });
+}
+
+/** 공지 상세(본문 포함). */
+export function getAnnouncement(id: string) {
+  return prisma.announcement.findUnique({
+    where: { id },
+    include: { author: miniUser },
+  });
 }
 
 export async function getDashboardData(userId: string) {
@@ -1091,9 +1146,13 @@ export async function getDashboardData(userId: string) {
   const epicIds = recentActivityRaw
     .filter((a) => a.entityType === "epic")
     .map((a) => a.entityId);
+  const wikiIds = recentActivityRaw
+    .filter((a) => a.entityType === "wiki")
+    .map((a) => a.entityId);
   const [
     actTasks,
     actEpics,
+    actWikis,
     lookupMembers,
     lookupEpics,
     lookupProjects,
@@ -1121,6 +1180,15 @@ export async function getDashboardData(userId: string) {
           },
         })
       : Promise.resolve([]),
+    // 위키 활동에 "어떤 페이지인지" 제목을 붙인다. 휴지통(deletedAt≠null) 페이지도
+    // 포함 — 목록/검색 유출(gotchas §8)이 아니라 이미 노출된 활동 이력의 제목 보강이며,
+    // 제외하면 방금 삭제된 페이지의 과거 수정 활동이 제목 없이 뜬다.
+    wikiIds.length
+      ? prisma.wikiPage.findMany({
+          where: { id: { in: wikiIds } },
+          select: { id: true, title: true },
+        })
+      : Promise.resolve([]),
     prisma.user.findMany({ select: { id: true, name: true, email: true } }),
     prisma.epic.findMany({ select: { id: true, title: true } }),
     prisma.project.findMany({ select: { id: true, title: true } }),
@@ -1136,6 +1204,7 @@ export async function getDashboardData(userId: string) {
     keyMap.set(e.id, formatIssueKey(e.team.key, e.number));
     titleMap.set(e.id, e.title);
   }
+  for (const w of actWikis) titleMap.set(w.id, w.title);
   for (const p of lookupProjects) titleMap.set(p.id, p.title);
   for (const s of lookupSprints) titleMap.set(s.id, s.name);
 

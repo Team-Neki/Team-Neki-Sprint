@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import type { JSONContent } from "@tiptap/react";
+import { Pencil } from "lucide-react";
 import { UserBadge, type MiniUser } from "@/components/user-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -71,9 +72,13 @@ export function WikiDetail({
             {editor && <UserBadge user={editor} size="xs" />}
             <span className="shrink-0">{updatedLabel}</span>
           </div>
-          {/* 편집 중이면 '...' 메뉴 좌측에 상태·취소·저장을 둔다(에디터 내부 아님). */}
+          {/* '...' 메뉴 좌측: 뷰 모드는 '수정', 편집 중엔 상태·취소·저장(에디터 내부 아님). */}
           <div className="flex shrink-0 items-center gap-2">
-            {mode === "edit" && (
+            {mode === "view" ? (
+              <Button variant="outline" size="sm" onClick={() => setMode("edit")}>
+                <Pencil className="size-4" /> 수정
+              </Button>
+            ) : (
               <>
                 {editState.status && (
                   <span className="text-muted-foreground hidden text-xs sm:inline">
@@ -126,7 +131,6 @@ export function WikiDetail({
           threads={threads}
           currentUserId={currentUserId}
           updatedAt={updatedAt}
-          onEdit={() => setMode("edit")}
         />
       )}
     </div>

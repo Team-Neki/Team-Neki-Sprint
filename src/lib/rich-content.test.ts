@@ -6,6 +6,7 @@ import {
   plainTextOf,
   isValueEmpty,
   mentionsInValue,
+  teamMentionsInValue,
   searchExcerpt,
 } from "@/lib/rich-content";
 
@@ -95,6 +96,17 @@ describe("docToPlainText", () => {
       ],
     });
     expect(docToPlainText(doc)).toBe("cc @구태형");
+  });
+
+  it("teamMention 은 @label 로", () => {
+    const doc = docOf({
+      type: "paragraph",
+      content: [
+        { type: "text", text: "cc " },
+        { type: "teamMention", attrs: { id: "t1", label: "디자인" } },
+      ],
+    });
+    expect(docToPlainText(doc)).toBe("cc @디자인");
   });
 
   it("ticketMention 은 label 그대로", () => {
@@ -199,6 +211,23 @@ describe("mentionsInValue", () => {
   it("멘션 없는 값 → 빈 집합", () => {
     expect(mentionsInValue("plain text").size).toBe(0);
     expect(mentionsInValue(null).size).toBe(0);
+  });
+});
+
+describe("teamMentionsInValue", () => {
+  it("teamMention 의 teamId 집합 추출(사람 멘션 제외)", () => {
+    const stored = JSON.stringify(
+      docOf({
+        type: "paragraph",
+        content: [
+          { type: "teamMention", attrs: { id: "t1", label: "디자인" } },
+          { type: "personMention", attrs: { id: "u1", label: "A" } },
+          { type: "teamMention", attrs: { id: "t1", label: "디자인" } },
+        ],
+      }),
+    );
+    expect([...teamMentionsInValue(stored)]).toEqual(["t1"]);
+    expect(mentionsInValue(stored).size).toBe(1);
   });
 });
 

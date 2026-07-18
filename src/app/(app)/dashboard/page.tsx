@@ -1,13 +1,21 @@
 import Link from "next/link";
 import { formatDistanceToNow, format } from "date-fns";
 import { ko } from "date-fns/locale";
+import { Megaphone } from "lucide-react";
 import type { Status } from "@prisma/client";
-import { getDashboardData } from "@/server/queries";
+import { getDashboardData, getAnnouncements } from "@/server/queries";
 import { requireUser } from "@/lib/session";
 import { PageHeader } from "@/components/page-header";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { StatusBadge } from "@/components/badges";
 import { UserBadge } from "@/components/user-badge";
+import { NewAnnouncementButton } from "@/components/announcements/new-announcement-button";
 import { STATUS_ORDER, STATUS_META } from "@/lib/constants";
 import { buildLookups, activityDescription } from "@/lib/activity-format";
 
@@ -39,8 +47,10 @@ function ellipsize(s: string, n: number) {
 
 export default async function DashboardPage() {
   const user = await requireUser();
-  const { statusCounts, myTasks, recentActivity, projects, activityLookups } =
-    await getDashboardData(user.id);
+  const [
+    { statusCounts, myTasks, recentActivity, projects, activityLookups },
+    announcements,
+  ] = await Promise.all([getDashboardData(user.id), getAnnouncements(5)]);
   const lookups = buildLookups(activityLookups);
 
   const countByStatus = Object.fromEntries(
@@ -53,6 +63,52 @@ export default async function DashboardPage() {
         title="대시보드"
         description="팀의 진행 상황을 한눈에 확인하세요."
       />
+
+      {/* 공지: 전원이 봐야 하는 정보라 대시보드 최상단에 두고, 인셋 헤더 밴드 +
+          잉크 아이콘으로 다른 카드보다 한 단계 강조한다(새 액센트 색은 도입하지
+          않음 — DESIGN.md). */}
+      <Card className="mb-4 gap-0 pb-0">
+        <CardHeader className="border-b pb-3">
+          <CardTitle className="flex items-center gap-2 font-semibold">
+            <Megaphone className="size-4" aria-hidden /> 공지
+          </CardTitle>
+          <CardAction className="flex items-center gap-3">
+            <Link
+              href="/announcements"
+              className="text-muted-foreground hover:text-foreground text-xs"
+            >
+              전체 보기
+            </Link>
+            <NewAnnouncementButton />
+          </CardAction>
+        </CardHeader>
+        <CardContent className="bg-muted/40 flex flex-col gap-0.5 py-2">
+          {announcements.length === 0 && (
+            <p className="text-muted-foreground py-4 text-center text-sm">
+              등록된 공지가 없습니다. 첫 공지를 작성해 보세요.
+            </p>
+          )}
+          {announcements.map((a) => (
+            <Link
+              key={a.id}
+              href={`/announcements/${a.id}`}
+              className="hover:bg-accent/60 flex items-center gap-3 rounded-md px-2 py-2"
+            >
+              <span className="bg-foreground size-1.5 shrink-0 rounded-full" />
+              <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                {a.title}
+              </span>
+              <UserBadge user={a.author} size="xs" />
+              <span className="text-muted-foreground shrink-0 text-xs">
+                {formatDistanceToNow(a.createdAt, {
+                  addSuffix: true,
+                  locale: ko,
+                })}
+              </span>
+            </Link>
+          ))}
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {STATUS_ORDER.map((s) => (
