@@ -16,6 +16,8 @@ import { EntityLinkedPages } from "@/components/wiki/entity-linked-pages";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { RichContent } from "@/components/rich-text/rich-editor";
+import { isValueEmpty } from "@/lib/rich-content";
 import { ProjectsTable } from "@/components/tables/projects-table";
 import { SprintStatusBadge } from "@/components/badges";
 import { SprintDialog } from "@/components/forms/sprint-dialog";
@@ -87,6 +89,14 @@ export default async function SprintDetail({
       <div className="mb-6">
         <SprintStatusBadge status={sprint.status} />
       </div>
+
+      {!isValueEmpty(sprint.description) && (
+        <Card className="mb-6 p-5">
+          <h3 className="mb-2 text-sm font-medium">설명</h3>
+          {/* 마크다운/리치 본문(B9). 저장 평문은 parseDoc 이 마크다운으로 렌더. */}
+          <RichContent value={sprint.description} />
+        </Card>
+      )}
 
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-lg font-semibold">프로젝트 {sprint.projects.length}</h2>

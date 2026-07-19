@@ -43,6 +43,7 @@ const optionalMd = z.preprocess(
 
 export const sprintSchema = z.object({
   name: z.string().trim().min(1, "이름을 입력하세요").max(200),
+  description: z.string().optional().nullable(),
   status: sprintStatus.default("PLANNED"),
   startDate: optionalDate,
   endDate: optionalDate,
