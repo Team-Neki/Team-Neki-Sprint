@@ -4,12 +4,18 @@ import {
   getMembers,
   getSprintOptions,
   getLabelOptions,
+  getColumnPref,
   type ProjectSortField,
 } from "@/server/queries";
+import { requireUser } from "@/lib/session";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ProjectsTable } from "@/components/tables/projects-table";
+import {
+  ProjectsTable,
+  PROJECTS_COLUMNS_META,
+} from "@/components/tables/projects-table";
+import { ColumnSettings } from "@/components/tables/column-settings";
 import { OwnerFilter } from "@/components/filters/owner-filter";
 import { ProjectDialog } from "@/components/forms/project-dialog";
 
@@ -33,11 +39,13 @@ export default async function ProjectsPage({
   const sort = sortField
     ? { field: sortField, dir: sp.dir === "asc" ? ("asc" as const) : ("desc" as const) }
     : undefined;
-  const [projects, members, sprints, labels] = await Promise.all([
+  const user = await requireUser();
+  const [projects, members, sprints, labels, pref] = await Promise.all([
     getProjects({ ownerId: sp.owner || undefined, sort }),
     getMembers(),
     getSprintOptions(),
     getLabelOptions(),
+    getColumnPref(user.id, "projects"),
   ]);
 
   return (
@@ -57,7 +65,16 @@ export default async function ProjectsPage({
         />
       </PageHeader>
 
-      <OwnerFilter members={members} />
+      <div className="flex items-start justify-between gap-2">
+        <OwnerFilter members={members} />
+        <div className="mb-4 shrink-0">
+          <ColumnSettings
+            table="projects"
+            available={PROJECTS_COLUMNS_META}
+            pref={pref}
+          />
+        </div>
+      </div>
 
       {/* 항목이 없어도 컬럼 헤더가 보이도록 항상 표를 렌더한다(빈 안내는 표 안 EmptyRow). */}
       <Card className="overflow-hidden py-0">
@@ -65,6 +82,8 @@ export default async function ProjectsPage({
           projects={projects}
           emptyMessage="아직 프로젝트가 없습니다. 상단 ‘새 프로젝트’로 만들어보세요."
           edit={{ members, sprints, labels }}
+          sortable
+          columnPref={pref}
         />
       </Card>
     </div>

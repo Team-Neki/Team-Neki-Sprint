@@ -6,11 +6,14 @@ import {
   getTeamOptions,
   getMembers,
   getLabelOptions,
+  getColumnPref,
 } from "@/server/queries";
+import { requireUser } from "@/lib/session";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { TasksTable } from "@/components/tables/tasks-table";
+import { TasksTable, TASKS_COLUMNS_META } from "@/components/tables/tasks-table";
+import { ColumnSettings } from "@/components/tables/column-settings";
 import { TaskDialog } from "@/components/forms/task-dialog";
 import { TaskFilters } from "@/components/tasks/task-filters";
 
@@ -36,7 +39,8 @@ export default async function TasksPage({
     sp.label ||
     sp.q
   );
-  const [tasks, epics, teams, members, labels] = await Promise.all([
+  const user = await requireUser();
+  const [tasks, epics, teams, members, labels, pref] = await Promise.all([
     getTasks({
       status: (sp.status as Status) || undefined,
       assigneeId: sp.assignee || undefined,
@@ -48,6 +52,7 @@ export default async function TasksPage({
     getTeamOptions(),
     getMembers(),
     getLabelOptions(),
+    getColumnPref(user.id, "tasks"),
   ]);
 
   const epicOptions = epics.map((e) => ({
@@ -71,7 +76,16 @@ export default async function TasksPage({
         />
       </PageHeader>
 
-      <TaskFilters members={members} teams={teams} labels={labels} />
+      <div className="flex items-start justify-between gap-2">
+        <TaskFilters members={members} teams={teams} labels={labels} />
+        <div className="mb-4 shrink-0">
+          <ColumnSettings
+            table="tasks"
+            available={TASKS_COLUMNS_META}
+            pref={pref}
+          />
+        </div>
+      </div>
 
       {/* 항목이 없어도 컬럼 헤더가 보이도록 항상 표를 렌더한다(빈 안내는 표 안 EmptyRow). */}
       <Card className="overflow-hidden py-0">
@@ -83,6 +97,7 @@ export default async function TasksPage({
               : "아직 태스크가 없습니다. 상단 ‘새 태스크’로 만들어보세요."
           }
           edit={{ members, teams, epics: epicOptions, labels }}
+          columnPref={pref}
         />
       </Card>
     </div>
