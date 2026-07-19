@@ -413,6 +413,23 @@ model WikiImage {
   createdAt  DateTime @default(now())
 }
 
+/**
+ * 위키 본문에 첨부한 임의 파일(pdf·docx·xlsx·zip 등). WikiImage 와 동형으로 바이너리는
+ * S3 에 두고 DB 에는 객체 키(s3Key)만 저장한다. GET /api/wiki/file/[id] 가 S3 에서 받아
+ * 항상 첨부(Content-Disposition: attachment)로 내려준다(인라인 렌더 금지 — nosniff).
+ * 이미지와 달리 name 은 원본 파일명이라 항상 존재한다(다운로드 시 파일명으로 사용).
+ * uploaderId 는 감사용 스칼라(FK 관계 없음 — 유저 삭제와 무관하게 파일 보존).
+ */
+model WikiFile {
+  id         String   @id @default(cuid())
+  s3Key      String
+  mimeType   String
+  name       String
+  size       Int
+  uploaderId String?
+  createdAt  DateTime @default(now())
+}
+
 model WikiPage {
   id         String      @id @default(cuid())
   title      String

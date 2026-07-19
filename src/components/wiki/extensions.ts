@@ -11,6 +11,8 @@ import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 // 본문 이미지 NodeView(리사이즈/정렬/alt/라이트박스). 자기완결 모듈, 여기 한 줄만 추가.
 import { WikiImage } from "@/components/wiki/image-view";
+// 본문 파일 첨부 NodeView(다운로드 칩). 자기완결 모듈, 여기 한 줄만 추가.
+import { WikiFileAttachment } from "@/components/wiki/file-attachment";
 import { createLowlight, common } from "lowlight";
 // 코드블록 NodeView(우측 상단 복사 버튼). 구문강조는 CodeBlockLowlight 가 담당.
 import { CodeBlockView } from "@/components/wiki/code-block";
@@ -121,6 +123,8 @@ export function wikiExtensions(opts?: { placeholder?: string }) {
       allowBase64: false,
       HTMLAttributes: { class: "wiki-image" },
     }),
+    // 본문 파일 첨부(다운로드 칩). 업로드→노드 삽입만 허용, 서빙은 always-attachment.
+    WikiFileAttachment,
     TicketMention,
     PersonMention,
     TeamMention,

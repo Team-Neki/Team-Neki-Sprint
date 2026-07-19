@@ -26,6 +26,7 @@ import {
   AlignCenter,
   AlignRight,
   Image as ImageIcon,
+  Paperclip,
   Link as LinkIcon,
   Undo,
   Redo,
@@ -98,6 +99,35 @@ async function uploadImage(file: File): Promise<string | null> {
     return url;
   } catch {
     toast.error("이미지 업로드에 실패했습니다");
+    return null;
+  }
+}
+
+/** 첨부파일 업로드 결과(서버 응답 메타). fileAttachment 노드 attrs 로 그대로 매핑된다. */
+type UploadedFile = {
+  id: string;
+  url: string;
+  name: string;
+  size: number;
+  mimeType: string;
+};
+
+/** 임의 파일을 업로드하고 메타를 반환. 실패 시 토스트 + null(본문 파일 첨부). */
+async function uploadFile(file: File): Promise<UploadedFile | null> {
+  const fd = new FormData();
+  fd.append("file", file);
+  try {
+    const res = await fetch("/api/wiki/file", { method: "POST", body: fd });
+    if (!res.ok) {
+      const err = (await res.json().catch(() => null)) as {
+        error?: string;
+      } | null;
+      toast.error(err?.error ?? "파일 업로드에 실패했습니다");
+      return null;
+    }
+    return (await res.json()) as UploadedFile;
+  } catch {
+    toast.error("파일 업로드에 실패했습니다");
     return null;
   }
 }
@@ -938,6 +968,7 @@ export function Toolbar({ editor }: { editor: Editor }) {
           <Workflow className="size-4" />
         </Btn>
         <ImageButton editor={editor} />
+        <FileAttachButton editor={editor} />
         <LinkButton editor={editor} />
         <Sep />
         <Btn
@@ -1172,6 +1203,57 @@ function ImageButton({ editor }: { editor: Editor }) {
         active={busy}
       >
         <ImageIcon className="size-4" />
+      </Btn>
+    </>
+  );
+}
+
+/** 파일 첨부 버튼: 파일 선택 → 업로드 → fileAttachment 노드(다운로드 칩)로 삽입.
+ * 이미지 첨부(ImageButton)와 동형이지만 임의 파일을 다루고 인라인 렌더 없이 칩만 넣는다. */
+function FileAttachButton({ editor }: { editor: Editor }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // 같은 파일 재선택 허용
+    if (!file) return;
+    setBusy(true);
+    try {
+      const uploaded = await uploadFile(file);
+      if (!uploaded || editor.isDestroyed) return;
+      editor
+        .chain()
+        .focus()
+        .insertContent({
+          type: "fileAttachment",
+          attrs: {
+            id: uploaded.id,
+            name: uploaded.name,
+            size: uploaded.size,
+            mime: uploaded.mimeType,
+          },
+        })
+        .run();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        className="hidden"
+        onChange={onPick}
+      />
+      <Btn
+        label="파일 첨부"
+        onClick={() => inputRef.current?.click()}
+        active={busy}
+      >
+        <Paperclip className="size-4" />
       </Btn>
     </>
   );
