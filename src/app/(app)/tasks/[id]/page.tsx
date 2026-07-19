@@ -3,6 +3,7 @@ import {
   getTask,
   getEpicOptions,
   getMembers,
+  getTeamOptions,
   getEntityActivity,
   getLabelOptions,
   getTaskGithubLinks,
@@ -16,6 +17,7 @@ import { LinkedPages } from "@/components/wiki/linked-pages";
 import { BackButton } from "@/components/detail/back-button";
 import { HistoryPanel } from "@/components/detail/history-panel";
 import { EpicField } from "@/components/detail/epic-field";
+import { InlineAssignee } from "@/components/detail/inline-assignee";
 import { TaskLabels } from "@/components/detail/task-labels";
 import { TaskCc } from "@/components/detail/task-cc";
 import { TaskDependencies } from "@/components/detail/task-dependencies";
@@ -41,11 +43,12 @@ export default async function TaskDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [task, epics, members, activities, labelOptions, githubLinks] =
+  const [task, epics, members, teams, activities, labelOptions, githubLinks] =
     await Promise.all([
       getTask(id),
       getEpicOptions(),
       getMembers(),
+      getTeamOptions(),
       getEntityActivity("task", id),
       getLabelOptions(),
       getTaskGithubLinks(id),
@@ -109,6 +112,7 @@ export default async function TaskDetail({
             <HistoryPanel
               activities={activities}
               members={members}
+              teams={teams.map((t) => ({ id: t.id, name: t.name }))}
               epics={epics.map((e) => ({ id: e.id, title: e.title }))}
               title=""
             />
@@ -122,12 +126,12 @@ export default async function TaskDetail({
             <InlineStatus type="task" id={task.id} value={task.status} />
           </MetaRow>
           <MetaRow label="담당자">
-            <InlineMember
-              type="task"
-              id={task.id}
-              field="assigneeId"
-              value={task.assignee}
+            <InlineAssignee
+              taskId={task.id}
+              user={task.assignee}
+              team={task.assigneeTeam}
               members={members}
+              teams={teams}
             />
           </MetaRow>
           <MetaRow label="보고자">

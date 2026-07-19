@@ -20,6 +20,10 @@ export async function createTask(input: unknown) {
 /** createTask의 actor 주입 코어. 서버 액션과 MCP API 라우트가 공유한다. */
 export async function createTaskCore(actor: Actor, input: unknown) {
   const data = taskSchema.parse(input);
+  // 담당자 상호배타(B4): 둘 다 지정되면 유저 담당자를 우선(팀 담당자 제거).
+  if (data.assigneeId && data.assigneeTeamId) {
+    data.assigneeTeamId = null;
+  }
 
   const task = await prisma.$transaction(async (tx) => {
     // Task는 생성 시점 Epic의 팀을 상속(teamId 고정). 에픽이 없으면 폼 선택 팀 사용.
@@ -184,6 +188,7 @@ const TASK_EDITABLE = {
   status: true,
   priority: true,
   assigneeId: true,
+  assigneeTeamId: true,
   reporterId: true,
   epicId: true,
   startDate: true,
@@ -211,6 +216,14 @@ export async function updateTaskFieldsCore(
   const patch = taskSchema.partial().parse(input) as Record<string, unknown>;
   // 팀(teamId)과 번호는 생성 후 불변 — patch 에서 제외.
   delete patch.teamId;
+  // 담당자 상호배타(B4): 유저 담당자를 지정하면 팀 담당자를 비우고, 반대도 동일.
+  // 각 키가 patch 에 실제로 있을 때만(단일 필드 patch 안전) 상대 필드를 null 로 강제한다.
+  if ("assigneeId" in patch && patch.assigneeId != null) {
+    patch.assigneeTeamId = null;
+  }
+  if ("assigneeTeamId" in patch && patch.assigneeTeamId != null) {
+    patch.assigneeId = null;
+  }
 
   const current = await prisma.task.findUnique({
     where: { id },

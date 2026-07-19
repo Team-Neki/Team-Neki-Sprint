@@ -89,6 +89,7 @@ export const taskSchema = z.object({
   status: status.default("TODO"),
   priority: priority.default("MEDIUM"),
   assigneeId: optionalId,
+  assigneeTeamId: optionalId,
   reporterId: optionalId,
   teamId: requiredId,
   epicId: optionalId,
