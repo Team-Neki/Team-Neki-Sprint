@@ -40,6 +40,10 @@ export function docToPlainText(doc: JSONContent): string {
       out += (node.attrs?.label as string) ?? "";
       return;
     }
+    if (node.type === "wikiMention") {
+      out += (node.attrs?.label as string) ?? "";
+      return;
+    }
     if (typeof node.text === "string") out += node.text;
     if (Array.isArray(node.content)) {
       node.content.forEach(walk);

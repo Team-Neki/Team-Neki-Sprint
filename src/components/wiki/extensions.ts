@@ -24,6 +24,8 @@ import {
 import { TicketMention } from "@/components/wiki/ticket-mention";
 import { PersonMention } from "@/components/wiki/person-mention";
 import { TeamMention } from "@/components/wiki/team-mention";
+// '@' 위키 페이지 멘션(링크 칩). suggestion 은 PersonMention 이 겸한다.
+import { WikiMention } from "@/components/wiki/wiki-mention";
 // 인라인 댓글 앵커(B10). 편집/뷰가 동일 스키마로 파싱해야 하므로 여기서 공유한다.
 import { CommentMark } from "@/components/wiki/comment-mark";
 // mermaid 다이어그램 블록(atom + NodeView, mermaid 는 지연 로드).
@@ -122,6 +124,7 @@ export function wikiExtensions(opts?: { placeholder?: string }) {
     TicketMention,
     PersonMention,
     TeamMention,
+    WikiMention,
     CommentMark,
   ];
 }

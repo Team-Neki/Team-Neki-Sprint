@@ -8,6 +8,7 @@
 
 | 날짜 | 세션 | 상태 |
 |---|---|---|
+| 2026-07-19 | 엔티티 연동 3종(worktree 병렬 → PR #29/#30/#31): (1) sprint/project/epic→**위키 링크**(`WikiPage{Epic,Project,Sprint}Link` 조인, 태스크 `LinkedPages` 동형), (2) sprint/project/epic/task **댓글**(다형 `Comment`, 추가만·최신순·@멘션 알림, `addEntityComment`), (3) sprint/project/epic/task **위키 `@`멘션**(`@` 드롭다운에 위키 노출·`wikiMention` 링크 칩). 스키마 있는 (1)(2)는 순차, 없는 (3)은 병렬 서브에이전트 | worktree 검증(tsc0·eslint·vitest195) 완료, 병합 후 `migrate`+`generate` 필요 |
 | 2026-07-19 | 위키 이미지 관리 강화: 편집 모드 드래그 리사이즈(px, `attrs.width`)·정렬 3종(`attrs.align`)·ALT 인라인 편집, 뷰 모드 더블클릭 라이트박스(원본 열기/다운로드). `image-view.tsx` React NodeView 하나로 편집/뷰 공용, 순수 로직 `image-utils.ts`(+vitest 8) | `DONE`\* |
 | 2026-07-19 | 위키 에디터 개선 6종: 생성 모드+초안(`WikiPage.isDraft`, 작성자 전용 노출·[초안] 표시·첫 저장 시 정식 전환), 글자 색 10종+배경색 9종(`colors.ts`+`BackgroundColor`), 블록 단위 텍스트 정렬(`TextAlign`), 노션식 줄 핸들(`DragHandle` — 선택/드래그/복제·삭제), 표 셀·헤더 배경색+열/행 선택 스트립. tiptap 3.27→3.28 lockstep | `DONE`\* 병합 후 `migrate deploy`+`generate` 필요 |
 | 2026-07-18 | 가입 승인 게이트(`UserStatus`): 신규 가입 `PENDING` 기본 → 관리자가 DB 에서 수동 `APPROVED` 전환. `requireUser` 가 PENDING 을 `/pending` 대기 화면으로, `authenticateBearer` 가 PENDING 토큰을 거부. 오픈 가입(도메인 제한 미설정) 상태에서 낯선 계정의 앱/API 접근 차단 목적 | worktree 검증 완료, 병합·마이그레이션·기존 유저 UPDATE 대기 |
@@ -31,6 +32,18 @@
 | ~2026-07-08 | Phase 1~4 + 로드맵 v2 8건 (이하 15개 세션) | `DONE` |
 
 \* 코드·빌드·테스트 검증 완료. 실렌더(mermaid/표/강조)는 로그인 게이트라 브라우저 확인 필요.
+
+---
+
+## 2026-07-19 — 엔티티 연동 3종: 위키 링크 · 댓글 · 위키 `@`멘션 (worktree 병렬)
+
+sprint/project/epic/task 를 가로지르는 연동 기능 3종을 worktree 로 나눠 병렬 진행했다. 스키마를 건드리는 두 스트림은 순차(공유 `prisma generate` 경합 회피, [gotchas §2]), 스키마 없는 위키 멘션은 병렬 서브에이전트로.
+
+- **PR #29 `feat/entity-wiki-links`** — sprint/project/epic 에 "연결된 위키" 카드. 태스크의 `WikiPageTaskLink`+`LinkedPages` 를 그대로 확장: 조인 테이블 `WikiPage{Epic,Project,Sprint}Link`(PK=`(pageId, 엔티티id)`·역방향 index·Cascade), `actions/entity-wiki-links.ts`(link/unlink), `queries.getEntityWikiLinks`, 제네릭 `EntityLinkedPages`(태스크 컴포넌트는 미변경). 방향은 엔티티→위키만(역방향은 후속).
+- **PR #30 `feat/entity-comments`** — 댓글을 다형 `Comment`(taskId nullable + epic/project/sprintId)로 일반화. 추가만(대댓글 없음), **최신순(desc)**, 본문 @사람/@팀 멘션 알림·#티켓 멘션 링크. `addEntityComment`·`getEntityComments`·`EntityComments`/`EntityCommentForm`. 기존 `tasks.addComment`/`comment-form.tsx` 는 제거(일반화 대체), notification 라우팅에 sprint 추가.
+- **PR #31 `feat/wiki-mention`** — `@` 드롭다운(person-mention)이 사람·팀에 더해 **위키 페이지**도 노출·검색. 선택 시 `wikiMention` 링크 칩(→`/wiki/<id>`) 삽입. `searchMentionTargets` 에 위키(deletedAt/isDraft 필터 필수) 추가, `docToPlainText`·`wikiExtensions` 반영. 티켓 멘션처럼 알림은 없음(링크 전용).
+
+검증: 각 worktree `tsc --noEmit` 0 · `eslint` clean · `vitest` 195 pass · NUL 스캔 통과. **병합 후** main 에서 `prisma migrate deploy`(#29·#30 마이그레이션) + `prisma generate` 필요. 병합 순서: 스키마 있는 #29 → #30 먼저, 이후 #31. #29·#30 은 epic/project/sprint 상세의 import·`Promise.all`·sprint 하단 카드에서 "둘 다 유지"식 사소한 충돌만 가능.
 
 ---
 

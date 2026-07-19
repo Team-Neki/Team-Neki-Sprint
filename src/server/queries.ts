@@ -955,12 +955,13 @@ export function searchMembers(query: string, limit = 8) {
 }
 
 /**
- * '@' 멘션 드롭다운용 통합 검색: 멤버(이름/이메일) + 팀(이름/key).
+ * '@' 멘션 드롭다운용 통합 검색: 멤버(이름/이메일) + 팀(이름/key) + 위키(제목).
  * 팀을 고르면 팀 전원에게 알림이 가므로(teamMention) 팀은 소수만 노출한다.
+ * 위키 멘션은 링크 칩일 뿐 알림을 보내지 않는다(티켓 멘션과 동일).
  */
 export async function searchMentionTargets(query: string) {
   const q = query.trim();
-  const [users, teams] = await Promise.all([
+  const [users, teams, wiki] = await Promise.all([
     searchMembers(query),
     prisma.team.findMany({
       where: q
@@ -980,8 +981,19 @@ export async function searchMentionTargets(query: string) {
         _count: { select: { members: true } },
       },
     }),
+    // 소프트 삭제(휴지통)·초안 문서는 노출 금지(gotchas §8). deletedAt/isDraft 필터 필수.
+    prisma.wikiPage.findMany({
+      where: {
+        deletedAt: null,
+        isDraft: false,
+        ...(q ? { title: { contains: q, mode: "insensitive" } } : {}),
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 5,
+      select: { id: true, title: true },
+    }),
   ]);
-  return { users, teams };
+  return { users, teams, wiki };
 }
 
 /** 프로필 페이지: 기본 정보 + 담당 태스크(진행 중) + 오너 에픽. */
