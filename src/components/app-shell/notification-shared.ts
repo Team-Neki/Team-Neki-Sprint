@@ -22,6 +22,8 @@ export function notificationHref(n: NotifItem) {
       return `/epics/${n.entityId}`;
     case "project":
       return `/projects/${n.entityId}`;
+    case "sprint":
+      return `/sprints/${n.entityId}`;
     case "announcement":
       return `/announcements/${n.entityId}`;
     default:

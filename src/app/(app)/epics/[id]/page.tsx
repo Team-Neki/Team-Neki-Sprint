@@ -7,9 +7,11 @@ import {
   getMembers,
   getEntityActivity,
   getLabelOptions,
+  getEntityComments,
 } from "@/server/queries";
 import { deleteEpic } from "@/server/actions/epics";
 import { EpicLabels } from "@/components/detail/epic-labels";
+import { EntityComments } from "@/components/comments/entity-comments";
 import { formatIssueKey } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -38,7 +40,7 @@ export default async function EpicDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [epic, projects, teams, members, activities, labelOptions] =
+  const [epic, projects, teams, members, activities, labelOptions, comments] =
     await Promise.all([
       getEpic(id),
       getProjectOptions(),
@@ -46,6 +48,7 @@ export default async function EpicDetail({
       getMembers(),
       getEntityActivity("epic", id),
       getLabelOptions(),
+      getEntityComments("epic", id),
     ]);
   if (!epic) notFound();
 
@@ -101,6 +104,15 @@ export default async function EpicDetail({
           <TasksTable
             tasks={epic.tasks}
             emptyMessage="연결된 태스크가 없습니다."
+          />
+        </Card>
+
+        <Card className="mb-6 p-5">
+          <h3 className="mb-3 text-sm font-medium">댓글 {comments.length}</h3>
+          <EntityComments
+            entityType="epic"
+            entityId={epic.id}
+            comments={comments}
           />
         </Card>
 

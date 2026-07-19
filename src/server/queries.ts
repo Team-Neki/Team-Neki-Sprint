@@ -426,8 +426,9 @@ export function getTask(id: string) {
           project: { select: { id: true, title: true } },
         },
       },
+      // 최신순(최신 댓글이 위)으로 조회 — getEntityComments 와 정렬 일치.
       comments: {
-        orderBy: { createdAt: "asc" },
+        orderBy: { createdAt: "desc" },
         include: { author: miniUser },
       },
       // 연결된 위키(#3).
@@ -481,6 +482,31 @@ export function getTaskGithubLinks(taskId: string) {
       prState: true,
       prUrl: true,
     },
+  });
+}
+
+// ---------- Comment (task/epic/project/sprint 공용, 다형) ----------
+
+/**
+ * 엔티티(task/epic/project/sprint)의 댓글 목록. **최신순(createdAt desc — 최신이 위)**
+ * + 작성자. 대댓글 없이 플랫. 다형 Comment 라 엔티티별 FK 컬럼으로 필터한다.
+ */
+export function getEntityComments(
+  entityType: "task" | "epic" | "project" | "sprint",
+  id: string,
+) {
+  const where =
+    entityType === "task"
+      ? { taskId: id }
+      : entityType === "epic"
+        ? { epicId: id }
+        : entityType === "project"
+          ? { projectId: id }
+          : { sprintId: id };
+  return prisma.comment.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+    include: { author: miniUser },
   });
 }
 

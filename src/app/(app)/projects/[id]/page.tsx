@@ -7,8 +7,10 @@ import {
   getSprintOptions,
   getProjectOptions,
   getEntityActivity,
+  getEntityComments,
 } from "@/server/queries";
 import { deleteProject } from "@/server/actions/projects";
+import { EntityComments } from "@/components/comments/entity-comments";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EpicsTable } from "@/components/tables/epics-table";
@@ -36,7 +38,7 @@ export default async function ProjectDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [project, members, teams, sprints, projects, activities] =
+  const [project, members, teams, sprints, projects, activities, comments] =
     await Promise.all([
       getProject(id),
       getMembers(),
@@ -44,6 +46,7 @@ export default async function ProjectDetail({
       getSprintOptions(),
       getProjectOptions(),
       getEntityActivity("project", id),
+      getEntityComments("project", id),
     ]);
   if (!project) notFound();
 
@@ -93,6 +96,15 @@ export default async function ProjectDetail({
           <EpicsTable
             epics={project.epics}
             emptyMessage="연결된 에픽이 없습니다."
+          />
+        </Card>
+
+        <Card className="mb-6 p-5">
+          <h3 className="mb-3 text-sm font-medium">댓글 {comments.length}</h3>
+          <EntityComments
+            entityType="project"
+            entityId={project.id}
+            comments={comments}
           />
         </Card>
 
