@@ -175,6 +175,8 @@
 }
 .tiptap code {
   background: var(--muted);
+  /* 노션식 인라인 코드 강조(빨강). 코드블록(pre code)은 아래에서 원복한다. */
+  color: #e5484d;
   border-radius: 0.25rem;
   padding: 0.1em 0.35em;
   font-family: var(--font-mono);
@@ -188,6 +190,8 @@
 }
 .tiptap pre code {
   background: none;
+  /* 코드블록은 구문 강조(hljs)를 쓰므로 인라인 코드의 빨강을 상속하지 않게 원복. */
+  color: var(--foreground);
   padding: 0;
 }
 /* 코드블록 복사 버튼(NodeView). 세로 여백을 래퍼로 옮기고 pre 는 flush 로 붙여
