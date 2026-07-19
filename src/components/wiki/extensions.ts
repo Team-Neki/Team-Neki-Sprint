@@ -19,12 +19,12 @@ import {
   codeBlockAutoPairs,
   codeBlockEnterIndent,
 } from "@/components/wiki/code-block-pairs";
-// '#' 티켓 멘션(#4) / '@' 사람·팀 멘션(B5). 각각 자기완결 모듈, 여기 한 줄씩만 추가.
+// '#' 티켓·위키 페이지 멘션(#4) / '@' 사람·팀 멘션(B5). 각각 자기완결 모듈, 여기 한 줄씩만 추가.
 // 팀 멘션 suggestion 은 PersonMention 이 겸한다(같은 '@' 트리거 공유).
 import { TicketMention } from "@/components/wiki/ticket-mention";
 import { PersonMention } from "@/components/wiki/person-mention";
 import { TeamMention } from "@/components/wiki/team-mention";
-// '@' 위키 페이지 멘션(링크 칩). suggestion 은 PersonMention 이 겸한다.
+// 위키 페이지 멘션(링크 칩). suggestion 은 '#' TicketMention 이 티켓과 함께 겸한다.
 import { WikiMention } from "@/components/wiki/wiki-mention";
 // 인라인 댓글 앵커(B10). 편집/뷰가 동일 스키마로 파싱해야 하므로 여기서 공유한다.
 import { CommentMark } from "@/components/wiki/comment-mark";
