@@ -33,6 +33,7 @@ export function WikiDetail({
   threads,
   currentUserId,
   draft,
+  startInEdit = false,
 }: {
   pageId: string;
   title: string;
@@ -46,9 +47,13 @@ export function WikiDetail({
   threads: ThreadItem[];
   currentUserId: string;
   draft: { title: string; content: JSONContent } | null;
+  /** 생성 직후(?edit=1) 편집 모드로 시작 + 제목 인풋 포커스. */
+  startInEdit?: boolean;
 }) {
-  // 임시저장본이 있으면 편집 모드로 바로 진입(사용자가 편집을 이어가도록).
-  const [mode, setMode] = useState<"view" | "edit">(draft ? "edit" : "view");
+  // 임시저장본이 있거나 생성 직후(?edit=1)면 편집 모드로 바로 진입.
+  const [mode, setMode] = useState<"view" | "edit">(
+    draft || startInEdit ? "edit" : "view",
+  );
   // 저장/취소는 에디터가 아니라 이 sticky 헤더에서 호출한다(긴 본문 스크롤 시에도 고정).
   const editorRef = useRef<WikiEditorHandle>(null);
   const [editState, setEditState] = useState<WikiEditorState>({
@@ -120,7 +125,15 @@ export function WikiDetail({
           initialTitle={title}
           initialContent={content}
           draft={draft}
-          onExit={() => setMode("view")}
+          autoFocusTitle={startInEdit}
+          onExit={() => {
+            setMode("view");
+            // 생성 직후 진입 파라미터(?edit=1)를 URL 에서 제거 — 남겨두면
+            // 새로고침 때마다 편집 모드로 재진입한다. 내비게이션 없이 URL 만 교체.
+            if (startInEdit) {
+              window.history.replaceState(null, "", `/wiki/${pageId}`);
+            }
+          }}
           onStateChange={handleEditState}
         />
       ) : (

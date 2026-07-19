@@ -48,8 +48,12 @@
 
 - **전역 검색/⌘K**: `command-palette.tsx`(토픽바 마운트, `queries.globalSearch` + `globalSearchAction`). 새 엔티티 추가 시 검색 그룹에 반영 고려.
 - **라벨**: `Label` 스키마를 태스크에 표면화(`/labels` 관리, 부여 팝오버, `?label=` 필터, 색 뱃지). 에픽·프로젝트 라벨 부여는 스키마만 있고 UI 미구현(후속).
-- **위키 리치 렌더링**: `wikiExtensions()`(에디터·뷰 공유)에 표(`TableKit`+`TableControls`)·구문강조 코드(`CodeBlockLowlight`)·mermaid(`MermaidBlock` atom NodeView, 지연 로드)·글자색(`TextStyle`+`Color`)·슬래시 커맨드(`SlashCommand`) 포함. 확장은 이 한 곳에만 추가. 함정은 [gotchas §18].
+- **위키 리치 렌더링**: `wikiExtensions()`(에디터·뷰 공유)에 표(`TableKit`+`TableControls`+`table-cells.ts` 배경색 셀)·구문강조 코드(`CodeBlockLowlight`)·mermaid(`MermaidBlock` atom NodeView, 지연 로드)·글자색/배경색(`TextStyle`+`Color`+`BackgroundColor`)·정렬(`TextAlign`, heading/paragraph)·슬래시 커맨드(`SlashCommand`) 포함. 확장은 이 한 곳에만 추가. tiptap 은 **전 패키지 lockstep**(3.28) — 부분 업그레이드는 peer 정확핀 때문에 ERESOLVE. 함정은 [gotchas §18].
   - **이미지**(`image-view.tsx` NodeView + `image-utils.ts`): 편집 모드 선택 시 좌우 드래그 핸들 리사이즈(px, `attrs.width`, 최소 80px)·정렬 3버튼(`attrs.align`, 블록 정렬)·ALT 인라인 입력, 뷰 모드 더블클릭 라이트박스(원본 열기/다운로드). 노드 이름 `image` 유지(기존 문서 호환), width 는 `<img width>` 로 직렬화. width 커밋은 pointerup 1회(undo 1스텝).
+  - **생성 모드/초안**: UI '새 페이지'는 `WikiPage.isDraft=true` 로 생성 → `/wiki/{id}?edit=1`(편집 모드+제목 포커스, Enter/↓ 본문 이동). 첫 저장 시 정식 전환. 초안은 **작성자에게만** 노출(트리 흐림+[초안], 검색/링크검색 제외, 타인 URL `notFound`), 초안 하위 페이지 생성 불가. MCP/API 생성은 초안 아님.
+  - **색상/정렬 팔레트**: 정본은 `colors.ts`(`TEXT_COLORS` 10·`BG_COLORS` 9·`CELL_COLORS`) — 툴바/버블/표 메뉴가 공유, 새 색은 여기에만. 정렬은 툴바 팝오버+버블 3버튼.
+  - **줄(블록) 핸들**(`block-handle.tsx`): `@tiptap/extension-drag-handle-react`. 클릭=블록 NodeSelection+복제/삭제 메뉴, 드래그=이동. WikiEditor 전용(뷰에는 없음).
+  - **표 배경색/선택**: 셀 배경 attr 은 `table-cells.ts`(TableKit 의 tableCell/tableHeader 는 꺼서 교체). 셀 배경=우클릭 메뉴, 헤더 일괄=표 팝오버(`setHeaderRowBackground`), 열/행 선택=상단/좌측 hover 스트립(`selectColumn`/`selectRow`).
   - **슬래시 커맨드(/)**: `slash-command.ts`(`@tiptap/suggestion` 기반 Extension) + `slash-menu.tsx`(목록/필터). 제목1~6·글머리/번호/체크 목록·인용·코드·표·mermaid·구분선. 커맨드 추가는 `SLASH_ITEMS`(slash-menu) 한 곳에. 코드블록 내부·단어 중간 `/` 는 트리거 제외(`allow`).
   - **제목/툴바**: heading `levels:[1..6]`(`#` 개수만큼 h1~h6). 편집 툴바엔 H1/H2/H3·목록/체크 아이콘 없음 — 제목·목록은 `#`/`-`/`1.`/`[ ]` 또는 슬래시로. 툴바 아이콘 툴팁은 Base UI `Tooltip`(≈150ms), 네이티브 `title` 아님.
   - **저장/취소는 에디터가 아니라 헤더에**: `WikiEditor` 는 `forwardRef`+`useImperativeHandle({commit,cancel})`+`onStateChange`. `WikiDetail` 의 sticky 헤더(`...` 메뉴 좌측)에서 호출 — 긴 본문 스크롤에도 고정.

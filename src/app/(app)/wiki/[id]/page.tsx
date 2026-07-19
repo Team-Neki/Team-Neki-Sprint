@@ -65,15 +65,17 @@ function countDescendants(
 
 export default async function WikiPageView({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ edit?: string }>;
 }) {
-  const { id } = await params;
+  const [{ id }, { edit }] = await Promise.all([params, searchParams]);
   const user = await requireUser();
   const [page, tree, folders, revisions, favorited, threads, draftRow] =
     await Promise.all([
       getWikiPage(id),
-      getWikiTree(),
+      getWikiTree(user.id),
       getWikiFolders(),
       getWikiRevisions(id),
       isWikiPageFavorited(user.id, id),
@@ -81,6 +83,8 @@ export default async function WikiPageView({
       getWikiDraft(id, user.id),
     ]);
   if (!page) notFound();
+  // 초안은 작성자에게만 보인다 — 타인의 초안 URL 직접 접근 차단.
+  if (page.isDraft && page.authorId !== user.id) notFound();
 
   const breadcrumb = buildWikiBreadcrumb(id, tree, folders);
 
@@ -114,6 +118,7 @@ export default async function WikiPageView({
         title={page.title}
         content={asDoc(page.content)}
         editor={page.editor}
+        startInEdit={edit === "1"}
         updatedLabel={updatedLabel}
         updatedAt={page.updatedAt.toISOString()}
         favorited={favorited}

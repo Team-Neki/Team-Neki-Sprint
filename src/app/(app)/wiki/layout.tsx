@@ -20,7 +20,7 @@ export default async function WikiLayout({
 }) {
   const user = await requireUser();
   const [pages, folders, favorites, trashed] = await Promise.all([
-    getWikiTree(),
+    getWikiTree(user.id),
     getWikiFolders(),
     getWikiFavorites(user.id),
     getTrashedWikiPages(),

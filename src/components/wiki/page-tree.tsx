@@ -70,6 +70,8 @@ export type PageNode = {
   title: string;
   parentId: string | null;
   folderId: string | null;
+  /** 초안(작성자에게만 보임). 흐린 제목 + [초안] 라벨, 하위 페이지 추가 불가. */
+  isDraft?: boolean;
 };
 
 export type FolderNode = {
@@ -296,8 +298,9 @@ export function PageTree({
           parentId: opts.parentId ?? null,
           folderId: opts.folderId ?? null,
         });
-        setPendingRenameId(id);
-        router.push(`/wiki/${id}`);
+        // 사이드바 rename 대신 문서로 이동해 제목부터 바로 입력(?edit=1 →
+        // 편집 모드 + 제목 포커스). 저장 전까지는 초안([초안] 흐림 표시).
+        router.push(`/wiki/${id}?edit=1`);
         router.refresh();
       } catch {
         toast.error("페이지 생성에 실패했습니다");
@@ -919,28 +922,41 @@ function PageItem({
               }}
             >
               <FileText className="text-muted-foreground size-3.5 shrink-0" />
-              <span className="truncate">{page.title || "제목 없음"}</span>
+              {/* 초안: 흐린 제목 + [초안] 라벨(작성자에게만 보이는 미저장 페이지). */}
+              <span className={cn("truncate", page.isDraft && "opacity-50")}>
+                {page.title || "제목 없음"}
+              </span>
+              {page.isDraft && (
+                <span className="text-muted-foreground shrink-0 text-[10px]">
+                  [초안]
+                </span>
+              )}
               {isFav && (
                 <Star className="size-3 shrink-0 fill-amber-400 text-amber-400" />
               )}
             </Link>
           )}
-          <span className="flex items-center opacity-0 transition-opacity group-hover:opacity-100">
-            <RowAddMenu
-              items={[
-                {
-                  icon: <FilePlus className="size-4" />,
-                  label: "하위 페이지",
-                  onClick: addSubPage,
-                },
-              ]}
-            />
-          </span>
+          {/* 초안 아래에는 하위 페이지를 만들 수 없다(서버에서도 거부). */}
+          {!page.isDraft && (
+            <span className="flex items-center opacity-0 transition-opacity group-hover:opacity-100">
+              <RowAddMenu
+                items={[
+                  {
+                    icon: <FilePlus className="size-4" />,
+                    label: "하위 페이지",
+                    onClick: addSubPage,
+                  },
+                ]}
+              />
+            </span>
+          )}
         </ContextMenuTrigger>
         <ContextMenuContent>
-          <ContextMenuItem onClick={addSubPage}>
-            <FilePlus className="size-4" /> 하위 페이지 추가
-          </ContextMenuItem>
+          {!page.isDraft && (
+            <ContextMenuItem onClick={addSubPage}>
+              <FilePlus className="size-4" /> 하위 페이지 추가
+            </ContextMenuItem>
+          )}
           <ContextMenuItem onClick={toggleStar}>
             <Star
               className={
