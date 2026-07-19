@@ -7,9 +7,11 @@ import {
   getMembers,
   getEntityActivity,
   getLabelOptions,
+  getEntityWikiLinks,
 } from "@/server/queries";
 import { deleteEpic } from "@/server/actions/epics";
 import { EpicLabels } from "@/components/detail/epic-labels";
+import { EntityLinkedPages } from "@/components/wiki/entity-linked-pages";
 import { formatIssueKey } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -38,7 +40,7 @@ export default async function EpicDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [epic, projects, teams, members, activities, labelOptions] =
+  const [epic, projects, teams, members, activities, labelOptions, wikiLinks] =
     await Promise.all([
       getEpic(id),
       getProjectOptions(),
@@ -46,6 +48,7 @@ export default async function EpicDetail({
       getMembers(),
       getEntityActivity("epic", id),
       getLabelOptions(),
+      getEntityWikiLinks("epic", id),
     ]);
   if (!epic) notFound();
 
@@ -113,7 +116,7 @@ export default async function EpicDetail({
         </Card>
       </div>
 
-      <div className="@3xl/detail:col-span-1">
+      <div className="@3xl/detail:col-span-1 flex flex-col gap-4">
         <Card className="flex flex-col gap-3 p-5">
           <MetaRow label="상태">
             <InlineStatus type="epic" id={epic.id} value={epic.status} />
@@ -186,6 +189,14 @@ export default async function EpicDetail({
               allLabels={labelOptions}
             />
           </MetaRow>
+        </Card>
+
+        <Card className="p-5">
+          <EntityLinkedPages
+            entityType="epic"
+            entityId={epic.id}
+            pages={wikiLinks}
+          />
         </Card>
       </div>
       </div>
