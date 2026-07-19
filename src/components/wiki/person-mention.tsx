@@ -28,7 +28,7 @@ import Suggestion, {
   type SuggestionProps,
   type SuggestionKeyDownProps,
 } from "@tiptap/suggestion";
-import { Users } from "lucide-react";
+import { FileText, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { searchMentionTargetsAction } from "@/server/actions/wiki";
 
@@ -46,6 +46,11 @@ export type PersonItem =
       label: string; // 팀명
       teamKey: string; // 이슈 key 접두어("DESIGN")
       memberCount: number;
+    }
+  | {
+      kind: "wiki";
+      id: string;
+      label: string; // 위키 페이지 제목
     };
 
 const personSuggestionKey = new PluginKey("personMention");
@@ -127,7 +132,7 @@ const PersonSuggestionList = forwardRef(function PersonSuggestionList(
         </div>
       ) : items.length === 0 ? (
         <div className="text-muted-foreground px-2 py-3 text-center text-sm">
-          일치하는 사용자/팀이 없습니다
+          일치하는 사용자/팀/위키가 없습니다
         </div>
       ) : (
         items.map((item, i) => (
@@ -151,6 +156,11 @@ const PersonSuggestionList = forwardRef(function PersonSuggestionList(
                 <span className="text-muted-foreground shrink-0 text-xs">
                   팀 전체 · {item.memberCount}명
                 </span>
+              </>
+            ) : item.kind === "wiki" ? (
+              <>
+                <FileText className="text-muted-foreground size-3.5 shrink-0" />
+                <span className="truncate">{item.label}</span>
               </>
             ) : (
               <>
@@ -234,8 +244,9 @@ export const PersonMention = Node.create({
         allow: ({ state, range }) =>
           state.doc.resolve(range.from).parent.type.name !== "codeBlock",
         items: async ({ query }) => {
-          const { users, teams } = await searchMentionTargetsAction(query);
-          // 팀을 위에(소수), 멤버를 아래에. 팀 멘션은 전원 알림이라 눈에 띄게 구분한다.
+          const { users, teams, wiki } = await searchMentionTargetsAction(query);
+          // 팀을 위에(소수), 멤버를 가운데, 위키 페이지를 아래에.
+          // 팀 멘션은 전원 알림이라 눈에 띄게 구분하고, 위키는 링크 칩(알림 없음)이다.
           return [
             ...teams.map(
               (t): PersonItem => ({
@@ -255,19 +266,32 @@ export const PersonMention = Node.create({
                 team: u.team?.name ?? null,
               }),
             ),
+            ...wiki.map(
+              (w): PersonItem => ({
+                kind: "wiki",
+                id: w.id,
+                label: w.title || "제목 없음",
+              }),
+            ),
           ];
         },
         command: ({ editor, range, props }) => {
+          // 위키는 wikiMention 노드(링크 칩), 사람/팀은 person/teamMention 노드.
+          const node =
+            props.kind === "wiki"
+              ? {
+                  type: "wikiMention",
+                  attrs: { id: props.id, label: props.label },
+                }
+              : {
+                  type:
+                    props.kind === "team" ? "teamMention" : "personMention",
+                  attrs: { id: props.id, label: props.label },
+                };
           editor
             .chain()
             .focus()
-            .insertContentAt(range, [
-              {
-                type: props.kind === "team" ? "teamMention" : "personMention",
-                attrs: { id: props.id, label: props.label },
-              },
-              { type: "text", text: " " },
-            ])
+            .insertContentAt(range, [node, { type: "text", text: " " }])
             .run();
         },
         render: () => {
