@@ -182,6 +182,7 @@ export function EpicsTable({
                       labels={e.labels?.map((l) => l.label) ?? []}
                       allLabels={edit.labels}
                       align="start"
+                      layout="row"
                     />
                   </div>
                 ) : (

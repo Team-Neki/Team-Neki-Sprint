@@ -7,6 +7,7 @@ import {
   getSprint,
   getMembers,
   getSprintOptions,
+  getLabelOptions,
   getEntityComments,
   getEntityWikiLinks,
 } from "@/server/queries";
@@ -38,13 +39,15 @@ export default async function SprintDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [sprint, members, sprints, comments, wikiLinks] = await Promise.all([
-    getSprint(id),
-    getMembers(),
-    getSprintOptions(),
-    getEntityComments("sprint", id),
-    getEntityWikiLinks("sprint", id),
-  ]);
+  const [sprint, members, sprints, labelOptions, comments, wikiLinks] =
+    await Promise.all([
+      getSprint(id),
+      getMembers(),
+      getSprintOptions(),
+      getLabelOptions(),
+      getEntityComments("sprint", id),
+      getEntityWikiLinks("sprint", id),
+    ]);
   if (!sprint) notFound();
 
   async function handleDelete() {
@@ -106,6 +109,12 @@ export default async function SprintDetail({
         <ProjectsTable
           projects={sprint.projects}
           emptyMessage="연결된 프로젝트가 없습니다."
+          edit={{
+            members,
+            sprints: sprints.map((s) => ({ id: s.id, name: s.name })),
+            labels: labelOptions,
+          }}
+          sortable={false}
         />
       </Card>
 

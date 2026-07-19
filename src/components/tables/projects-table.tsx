@@ -64,17 +64,23 @@ export function ProjectsTable({
   projects,
   emptyMessage = "프로젝트가 없습니다.",
   edit,
+  sortable = edit != null,
 }: {
   projects: ProjectTableRow[];
   emptyMessage?: string;
   edit?: ProjectEditContext;
+  /**
+   * 정렬 헤더 노출 여부. 목록(PLP)에선 URL 기반 정렬이 동작하므로 기본 노출,
+   * 상세 하위목록(B6)에선 URL 정렬이 안 먹으므로 편집은 켜되 정렬 헤더는 끈다.
+   */
+  sortable?: boolean;
 }) {
   return (
     <Table>
       <TableHeader>
         <TableRow>
-          {/* 정렬 헤더는 목록(edit)에서만 — 하위목록에선 URL 정렬이 안 먹으므로 일반 헤더. */}
-          {edit ? (
+          {/* 정렬 헤더는 PLP(sortable)에서만 — 하위목록에선 URL 정렬이 안 먹으므로 일반 헤더. */}
+          {sortable ? (
             <>
               <SortableHead field="title">제목</SortableHead>
               <TableHead className="w-32">담당자</TableHead>
@@ -190,6 +196,7 @@ export function ProjectsTable({
                       labels={p.labels?.map((l) => l.label) ?? []}
                       allLabels={edit.labels}
                       align="start"
+                      layout="row"
                     />
                   </div>
                 ) : (
