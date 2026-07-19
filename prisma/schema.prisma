@@ -412,6 +412,10 @@ model WikiPage {
   editor     User?       @relation("PageEditor", fields: [editorId], references: [id])
   // soft-delete(휴지통). null=활성, 값=휴지통에 있는 시각. 목록/트리는 null 만 노출.
   deletedAt  DateTime?
+  // 초안: UI '새 페이지'로 만들고 아직 한 번도 저장(커밋)하지 않은 상태.
+  // 작성자에게만 노출(트리 흐림+[초안])되고 검색/링크 검색에서 제외되며,
+  // 첫 저장 시 false 로 전환된다. MCP/API 생성(본문 포함)은 처음부터 false.
+  isDraft    Boolean     @default(false)
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
 

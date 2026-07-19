@@ -30,7 +30,8 @@ export function NewPageButton({
           parentId: parentId ?? null,
           folderId: folderId ?? null,
         });
-        router.push(`/wiki/${id}`);
+        // 편집 모드 + 제목 포커스로 바로 진입(저장 전까지 초안).
+        router.push(`/wiki/${id}?edit=1`);
         router.refresh();
       } catch {
         toast.error("페이지 생성에 실패했습니다");

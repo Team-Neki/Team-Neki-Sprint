@@ -8,6 +8,7 @@
 
 | 날짜 | 세션 | 상태 |
 |---|---|---|
+| 2026-07-19 | 위키 에디터 개선 6종: 생성 모드+초안(`WikiPage.isDraft`, 작성자 전용 노출·[초안] 표시·첫 저장 시 정식 전환), 글자 색 10종+배경색 9종(`colors.ts`+`BackgroundColor`), 블록 단위 텍스트 정렬(`TextAlign`), 노션식 줄 핸들(`DragHandle` — 선택/드래그/복제·삭제), 표 셀·헤더 배경색+열/행 선택 스트립. tiptap 3.27→3.28 lockstep | `DONE`\* 병합 후 `migrate deploy`+`generate` 필요 |
 | 2026-07-18 | 가입 승인 게이트(`UserStatus`): 신규 가입 `PENDING` 기본 → 관리자가 DB 에서 수동 `APPROVED` 전환. `requireUser` 가 PENDING 을 `/pending` 대기 화면으로, `authenticateBearer` 가 PENDING 토큰을 거부. 오픈 가입(도메인 제한 미설정) 상태에서 낯선 계정의 앱/API 접근 차단 목적 | worktree 검증 완료, 병합·마이그레이션·기존 유저 UPDATE 대기 |
 | 2026-07-18 | 위키 이미지 붙여넣기/드롭 재작업: DOM 리스너 → `editorProps.handlePaste/handleDrop`(혼합 클립보드 이중 삽입 방지·텍스트 보존), 다중 이미지 병렬 업로드·순서 유지, 첨부 버튼 `multiple` | `DONE`\* |
 | 2026-07-18 | 대시보드/멘션/공지/캐시/표 편집 9건+: 최근 활동 위키 제목 표기, 팀 멘션(`teamMention`+팀원 확장 알림), 공지(`Announcement` 모델·대시보드 상단 카드·상세/작성/수정, 삭제는 작성자만), TTL 인메모리 캐시(`lib/server-cache`, 검색/멘션 자동완성 적용), 위키 수정 버튼 헤더 이동, 표 편집(끝 추가·양방향 드래그·우클릭 메뉴·Ctrl+Opt+방향키/Ctrl+Backspace 단축키) | `DONE`\* |
@@ -31,6 +32,19 @@
 \* 코드·빌드·테스트 검증 완료. 실렌더(mermaid/표/강조)는 로그인 게이트라 브라우저 확인 필요.
 
 ---
+
+## 2026-07-19 — 위키 에디터 개선 6종 (브랜치 `feat/wiki-editor-enhancements`)
+
+설계 `docs/superpowers/specs/2026-07-19-wiki-editor-enhancements-design.md`. tiptap 은 전 패키지 3.28 lockstep 으로 정렬(신규: `extension-text-align`, `extension-drag-handle-react` — v3 에서 MIT 공개).
+
+- **생성 모드 + 초안**: `WikiPage.isDraft`(마이그레이션 `20260719000000`). UI '새 페이지'는 초안으로 생성해 `/wiki/{id}?edit=1` 로 이동 — 편집 모드 + **제목 인풋 포커스**(Enter/↓ 로 본문 이동). 사이드바 rename 인풋 진입은 페이지에 한해 제거(폴더 유지). 첫 저장(커밋) 시 정식 전환(+이때 `created` 활동, unchanged 여도 플래그만 해제·리비전 없음). 취소하면 초안으로 남고 트리에 **흐린 제목+[초안]**. 노출은 작성자만(트리 `OR authorId`, 타인 URL 접근 `notFound`), 검색·링크검색·전역검색은 초안 전체 제외. 초안 하위 페이지 생성 불가(트리 버튼 숨김+서버 거부). MCP/API 생성은 본문 포함이라 초안 아님.
+- **색상**: 팔레트 정본 `colors.ts`(글자 10종·배경 9종 파스텔·셀=배경 재사용, vitest 무결성 테스트). `BackgroundColor`(`@tiptap/extension-text-style` 내장) 등록 — 신규 의존성 없음. 툴바 팝오버 2섹션(글자/배경)·버블 색상 모드 2단.
+- **정렬**: `TextAlign`(heading·paragraph). 툴바 팝오버(현재 정렬 아이콘 표시)+버블 3버튼. `style="text-align:..."` 직렬화라 뷰 자동.
+- **줄 핸들**(`block-handle.tsx`): hover 블록 좌측 ⋮⋮(left-start 포털). 클릭=NodeSelection(텍스트 블록은 옅은 파랑 배경 표시)+복제/삭제 메뉴, 드래그=이동(확장 내장). 편집 모드 전용(WikiEditor 에서만 렌더).
+- **표**: `table-cells.ts` 가 `TableCell`/`TableHeader` 에 `backgroundColor` attr(`data-bg`+inline style 직렬화) — TableKit 은 `tableCell:false, tableHeader:false` 로 끄고 교체 등록. 우클릭 메뉴에 셀 배경색 스와치(선택 영역 일괄), 표 팝오버에 헤더(첫 행) 배경색 일괄(`table-edit.setHeaderRowBackground`, `setNodeMarkup` 직접 — 커서 무관). 상단/좌측 **hover 선택 스트립**(`selectColumn`/`selectRow`, `CellSelection.col/rowSelection`) → 기존 우클릭 메뉴·`Ctrl+Backspace` 삭제·배경색과 연계.
+- **주의**: 병합 후 main 에서 `npx prisma migrate deploy`+`npx prisma generate`+dev 서버 재시작(gotchas §1). node_modules 는 tiptap peer 정확핀 때문에 lockfile 재생성(클린 재설치)로 올렸다 — 부분 업그레이드는 ERESOLVE.
+
+검증: tsc 0 · eslint 0 · vitest 187(신규 colors 4 포함) · `next build` OK. 상호작용(드래그·선택 스트립·초안 플로)은 로그인 게이트라 브라우저 수동 확인 후속 필요.
 
 ## 2026-07-18 — 가입 승인 게이트: UserStatus PENDING/APPROVED (브랜치 `feat/user-approval`)
 

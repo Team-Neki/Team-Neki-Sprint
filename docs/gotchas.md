@@ -246,3 +246,13 @@
 - **원인**: 이미지 paste 를 `editor.view.dom.addEventListener("paste", ...)` 로 처리했는데, ProseMirror 는 view 생성 시점에 같은 DOM 에 자기 paste 리스너를 먼저 등록한다 → **PM 기본 paste(HTML 삽입)가 항상 먼저 실행**되고, 그 뒤에 실행되는 우리 리스너의 `preventDefault()` 는 무력. 파일만 있는 클립보드(스크린샷)에선 PM 이 할 일이 없어 우연히 정상 동작해 눈에 안 띄었다.
 - **해결**: TipTap `editorProps.handlePaste`/`handleDrop` 사용 — PM 기본 처리 **이전**에 호출되고 `true` 반환으로 기본 처리를 차단한다. `editor` 인스턴스는 생성 시점 클로저에 없으므로 ref(`editorRef`)로 접근.
 - **일반화**: 에디터 동작을 가로채려면 PM 파이프라인 안(`editorProps.handle*`, keymap)에서. DOM 리스너로 이기려면 캡처 단계 + `stopPropagation` 이 필요하다(Cmd+Enter 저장이 이 방식 — `editor.tsx` 주석 참조). 버블 단계 DOM 리스너는 PM 보다 항상 늦는다.
+
+## 33. tiptap 은 전 패키지 lockstep — 부분 업그레이드는 ERESOLVE (2026-07-19)
+
+tiptap v3 패키지들은 peer 로 `@tiptap/core@정확버전`(캐럿 아님)을 핀한다. 일부만 올리면
+설치된 core(구버전)와 충돌해 `npm install` 이 ERESOLVE 로 실패하고, 이미 어긋난 lockfile
+상태에선 전 패키지를 한 명령으로 핀해도 실패한다. **해결: `@tiptap/*` 전부를 package.json
+에서 같은 마이너로 올린 뒤 `rm -rf node_modules package-lock.json && npm install`(클린
+재설치).** 신규 tiptap 확장을 추가할 때도 기존 세트와 같은 버전으로 맞출 것.
+`npm ls @tiptap/core` 로 단일 버전인지 확인한다(2개 버전이 공존하면 스키마/플러그인이
+조용히 어긋난다).

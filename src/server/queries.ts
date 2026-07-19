@@ -553,10 +553,14 @@ export function getTimelineEpics() {
   });
 }
 
-/** Full page tree (small dataset for a 20-person team). */
-export const getWikiTree = () =>
+/** Full page tree (small dataset for a 20-person team).
+ * 초안(isDraft)은 작성자에게만 보인다 — userId 는 그 필터용. */
+export const getWikiTree = (userId: string) =>
   prisma.wikiPage.findMany({
-    where: { deletedAt: null },
+    where: {
+      deletedAt: null,
+      OR: [{ isDraft: false }, { authorId: userId }],
+    },
     orderBy: [{ position: "asc" }, { createdAt: "asc" }],
     select: {
       id: true,
@@ -565,6 +569,7 @@ export const getWikiTree = () =>
       folderId: true,
       position: true,
       updatedAt: true,
+      isDraft: true,
     },
   });
 
@@ -748,6 +753,8 @@ export function searchWikiPages(query: string, limit = 8) {
   return prisma.wikiPage.findMany({
     where: {
       deletedAt: null,
+      // 초안은 링크 검색에 노출하지 않는다(아직 공개 전 문서).
+      isDraft: false,
       ...(q ? { title: { contains: q, mode: "insensitive" } } : {}),
     },
     orderBy: { updatedAt: "desc" },
@@ -862,9 +869,10 @@ export async function globalSearch(query: string): Promise<GlobalSearchResult> {
       select: { id: true, title: true },
     }),
     prisma.wikiPage.findMany({
-      // 제목 + 본문(searchText) 매칭. 휴지통 제외(gotchas §8).
+      // 제목 + 본문(searchText) 매칭. 휴지통 제외(gotchas §8) + 초안 제외.
       where: {
         deletedAt: null,
+        isDraft: false,
         OR: [{ title: insensitive }, { searchText: insensitive }],
       },
       orderBy: { updatedAt: "desc" },

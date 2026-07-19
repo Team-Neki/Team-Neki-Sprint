@@ -297,6 +297,31 @@
   min-width: 0 !important;
 }
 
+/* 표 상단/좌측 열·행 선택 스트립(T22 후속). 평소 거의 안 보이고 hover 시 진해진다.
+   클릭 = 해당 열/행 전체 CellSelection(이후 우클릭 메뉴·Ctrl+Backspace·배경색 연계). */
+.wiki-table-pick {
+  position: absolute;
+  z-index: 10;
+  border-radius: 9999px;
+  background: color-mix(in oklch, var(--muted-foreground) 22%, transparent);
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.wiki-table-pick:hover {
+  opacity: 1;
+  background: color-mix(in oklch, var(--link) 55%, transparent);
+}
+.tiptap-editor-area:hover .wiki-table-pick,
+.wiki-table-pick-visible {
+  opacity: 0.45;
+}
+.wiki-table-pick-col {
+  height: 5px;
+}
+.wiki-table-pick-row {
+  width: 5px;
+}
+
 /* 표 가장자리 hover 열/행 추가 버튼(T17). 표 우측/하단에 겹쳐 그리는 오버레이 —
    스트립에 hover 하면 + 버튼이 나타난다. 편집기 좌표 컨테이너(.relative) 기준 절대배치. */
 .wiki-table-add {
@@ -501,6 +526,78 @@
   50% {
     opacity: 0.55;
   }
+}
+
+/* 노션식 줄(블록) 핸들(block-handle.tsx). DragHandle 확장이 hover 블록 좌측
+   (left-start)에 포털로 배치한다. 평소 옅게, hover 시 진하게. */
+.wiki-block-handle {
+  z-index: 15;
+  padding-right: 0.25rem; /* 핸들-본문 사이 간격(핸들에서 블록으로 hover 이동 허용) */
+}
+.wiki-block-handle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.5rem;
+  border-radius: 0.25rem;
+  color: var(--muted-foreground);
+  opacity: 0.6;
+  cursor: grab;
+  touch-action: none;
+}
+.wiki-block-handle-btn:hover {
+  background: var(--accent);
+  opacity: 1;
+}
+.wiki-block-handle-btn:active {
+  cursor: grabbing;
+}
+/* 핸들 클릭 블록 메뉴(복제/삭제). 핸들 기준 좌하단 팝오버. */
+.wiki-block-menu {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  z-index: 30;
+  min-width: 7rem;
+  padding: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  background: var(--popover);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.08);
+}
+.wiki-block-menu button {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  width: 100%;
+  padding: 0.3rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.8rem;
+  text-align: left;
+}
+.wiki-block-menu button:hover {
+  background: var(--accent);
+}
+.wiki-block-menu button[data-danger]:hover {
+  color: var(--destructive);
+}
+/* 핸들 클릭(NodeSelection)으로 선택된 블록 표시. 이미지/표 등 자체 스타일이 있는
+   노드는 제외하고 텍스트 계열 블록만 옅은 배경으로 표시한다. */
+.tiptap p.ProseMirror-selectednode,
+.tiptap h1.ProseMirror-selectednode,
+.tiptap h2.ProseMirror-selectednode,
+.tiptap h3.ProseMirror-selectednode,
+.tiptap h4.ProseMirror-selectednode,
+.tiptap h5.ProseMirror-selectednode,
+.tiptap h6.ProseMirror-selectednode,
+.tiptap ul.ProseMirror-selectednode,
+.tiptap ol.ProseMirror-selectednode,
+.tiptap blockquote.ProseMirror-selectednode,
+.tiptap .wiki-codeblock.ProseMirror-selectednode {
+  background: color-mix(in oklch, var(--link) 8%, transparent);
+  border-radius: 0.25rem;
+  outline: none;
 }
 
 .tiptap ul[data-type="taskList"] {

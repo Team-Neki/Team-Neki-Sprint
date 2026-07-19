@@ -22,6 +22,9 @@ import {
   Table as TableIcon,
   Workflow,
   Baseline,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
   Image as ImageIcon,
   Link as LinkIcon,
   Undo,
@@ -53,6 +56,9 @@ import {
   appendRowEnd,
   removeLastColumnIfEmpty,
   removeLastRowIfEmpty,
+  selectColumn,
+  selectRow,
+  setHeaderRowBackground,
 } from "@/components/wiki/table-edit";
 import { TableContextMenu } from "@/components/wiki/table-context-menu";
 import {
@@ -66,6 +72,14 @@ import {
   findUploadPlaceholder,
   removeUploadPlaceholder,
 } from "@/components/wiki/upload-placeholder";
+import {
+  TEXT_COLORS,
+  BG_COLORS,
+  CELL_COLORS,
+  type PaletteColor,
+} from "@/components/wiki/colors";
+// 노션식 줄(블록) 핸들 — 선택/드래그 이동/블록 메뉴. 편집 모드 전용.
+import { BlockHandle } from "@/components/wiki/block-handle";
 
 /** 이미지 파일을 업로드하고 서빙 URL 을 반환. 실패 시 토스트 + null(본문 이미지 첨부). */
 async function uploadImage(file: File): Promise<string | null> {
@@ -151,6 +165,8 @@ type WikiEditorProps = {
   initialContent: JSONContent;
   /** 서버에서 불러온 임시저장본(있으면 이 내용으로 편집을 시작). */
   draft?: { title: string; content: JSONContent } | null;
+  /** 생성 직후 진입: 제목 인풋에 포커스(전체 선택), Enter 로 본문 이동. */
+  autoFocusTitle?: boolean;
   /** 저장/취소로 편집을 마칠 때 호출(뷰 모드로 복귀). */
   onExit?: () => void;
   /** 저장 상태를 부모(헤더)로 올려 저장/취소 버튼·상태 텍스트를 헤더에 렌더. */
@@ -159,7 +175,15 @@ type WikiEditorProps = {
 
 export const WikiEditor = forwardRef<WikiEditorHandle, WikiEditorProps>(
   function WikiEditor(
-    { pageId, initialTitle, initialContent, draft, onExit, onStateChange },
+    {
+      pageId,
+      initialTitle,
+      initialContent,
+      draft,
+      autoFocusTitle,
+      onExit,
+      onStateChange,
+    },
     ref,
   ) {
     const router = useRouter();
@@ -378,6 +402,19 @@ export const WikiEditor = forwardRef<WikiEditorHandle, WikiEditorProps>(
               setTitle(e.target.value);
               markDirty();
             }}
+            // 생성 직후(?edit=1): 제목부터 바로 입력하도록 포커스+전체 선택,
+            // Enter/Tab(또는 ↓)으로 본문 첫 위치로 이동해 이어서 작성한다.
+            autoFocus={autoFocusTitle}
+            onFocus={(e) => {
+              if (autoFocusTitle) e.currentTarget.select();
+            }}
+            onKeyDown={(e) => {
+              if (e.nativeEvent.isComposing) return;
+              if (e.key === "Enter" || e.key === "ArrowDown") {
+                e.preventDefault();
+                editor?.chain().focus("start").run();
+              }
+            }}
             placeholder="제목 없음"
             className="border-none px-0 text-2xl font-semibold shadow-none focus-visible:ring-0 md:text-3xl"
           />
@@ -385,7 +422,7 @@ export const WikiEditor = forwardRef<WikiEditorHandle, WikiEditorProps>(
 
         {editor && <Toolbar editor={editor} />}
 
-        <div ref={editorAreaRef} className="relative mt-4">
+        <div ref={editorAreaRef} className="tiptap-editor-area relative mt-4">
           <EditorContent editor={editor} />
           {editor && (
             <>
@@ -406,6 +443,7 @@ export const WikiEditor = forwardRef<WikiEditorHandle, WikiEditorProps>(
                 containerRef={editorAreaRef}
               />
               <TableContextMenu editor={editor} containerRef={editorAreaRef} />
+              <BlockHandle editor={editor} />
             </>
           )}
         </div>
@@ -434,6 +472,10 @@ export function TableHoverControls({
     width: number;
     height: number;
   } | null>(null);
+  // 열/행 선택 스트립(상단/좌측). 첫 행 셀들의 x/폭, 각 tr 의 y/높이로 계산한다.
+  // (첫 행에 colspan 이 있으면 병합 폭 기준 — 팀 사용 패턴상 단순 표가 대부분)
+  const [cols, setCols] = useState<{ left: number; width: number }[]>([]);
+  const [rows, setRows] = useState<{ top: number; height: number }[]>([]);
 
   useEffect(() => {
     function update() {
@@ -468,6 +510,19 @@ export function TableHoverControls({
         width: tr.width,
         height: tr.height,
       });
+      const trEls = Array.from(tableEl.querySelectorAll("tr"));
+      setRows(
+        trEls.map((el) => {
+          const r = el.getBoundingClientRect();
+          return { top: r.top - cr.top, height: r.height };
+        }),
+      );
+      setCols(
+        Array.from(trEls[0]?.children ?? []).map((el) => {
+          const r = (el as HTMLElement).getBoundingClientRect();
+          return { left: r.left - cr.left, width: r.width };
+        }),
+      );
     }
     update();
     editor.on("selectionUpdate", update);
@@ -535,6 +590,32 @@ export function TableHoverControls({
   if (!rect) return null;
   return (
     <>
+      {/* 상단: 열별 선택 스트립(클릭 = 열 전체 CellSelection → 우클릭 메뉴/단축키 연계) */}
+      {cols.map((c, i) => (
+        <button
+          key={`col-${i}`}
+          type="button"
+          aria-label={`${i + 1}열 선택`}
+          title="열 선택"
+          className="wiki-table-pick wiki-table-pick-col"
+          style={{ top: rect.top - 8, left: c.left, width: c.width }}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => selectColumn(editor, i)}
+        />
+      ))}
+      {/* 좌측: 행별 선택 스트립(클릭 = 행 전체 CellSelection) */}
+      {rows.map((r, i) => (
+        <button
+          key={`row-${i}`}
+          type="button"
+          aria-label={`${i + 1}행 선택`}
+          title="행 선택"
+          className="wiki-table-pick wiki-table-pick-row"
+          style={{ top: r.top, left: rect.left - 8, height: r.height }}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => selectRow(editor, i)}
+        />
+      ))}
       {/* 우측: 열 추가(드래그로 여러 개) + 열 삭제 */}
       <div
         className="wiki-table-add wiki-table-add-col"
@@ -685,35 +766,64 @@ function BubbleToolbar({ editor }: { editor: Editor }) {
   }
 
   if (mode === "color") {
+    // 글자 색/배경색 2단. 스와치는 정본(colors.ts) 공유, 각 단 끝에 리셋 버튼.
     return (
-      <div className={shell}>
+      <div className={cn(shell, "items-start")}>
         <BubbleBtn label="뒤로" onClick={() => setMode("menu")}>
           <ChevronLeft className="size-4" />
         </BubbleBtn>
-        {TEXT_COLORS.map((c) => (
-          <button
-            key={c.value}
-            type="button"
-            aria-label={c.name}
-            title={c.name}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => {
-              editor.chain().focus().setColor(c.value).run();
-              setMode("menu");
-            }}
-            className="border-border size-5 rounded-md border"
-            style={{ background: c.value }}
-          />
-        ))}
-        <BubbleBtn
-          label="기본 색"
-          onClick={() => {
-            editor.chain().focus().unsetColor().run();
-            setMode("menu");
-          }}
-        >
-          <RotateCcw className="size-3.5" />
-        </BubbleBtn>
+        <div className="flex flex-col gap-1 py-0.5">
+          <div className="flex items-center gap-1">
+            <span className="text-muted-foreground w-7 shrink-0 text-[10px]">
+              글자
+            </span>
+            {TEXT_COLORS.map((c) => (
+              <Swatch
+                key={c.value}
+                color={c}
+                size="size-5"
+                onClick={() => {
+                  editor.chain().focus().setColor(c.value).run();
+                  setMode("menu");
+                }}
+              />
+            ))}
+            <BubbleBtn
+              label="기본 색"
+              onClick={() => {
+                editor.chain().focus().unsetColor().run();
+                setMode("menu");
+              }}
+            >
+              <RotateCcw className="size-3.5" />
+            </BubbleBtn>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-muted-foreground w-7 shrink-0 text-[10px]">
+              배경
+            </span>
+            {BG_COLORS.map((c) => (
+              <Swatch
+                key={c.value}
+                color={c}
+                size="size-5"
+                onClick={() => {
+                  editor.chain().focus().setBackgroundColor(c.value).run();
+                  setMode("menu");
+                }}
+              />
+            ))}
+            <BubbleBtn
+              label="배경 없음"
+              onClick={() => {
+                editor.chain().focus().unsetBackgroundColor().run();
+                setMode("menu");
+              }}
+            >
+              <RotateCcw className="size-3.5" />
+            </BubbleBtn>
+          </div>
+        </div>
       </div>
     );
   }
@@ -759,6 +869,17 @@ function BubbleToolbar({ editor }: { editor: Editor }) {
       <BubbleBtn label="글자 색" onClick={() => setMode("color")}>
         <Baseline className="size-4" />
       </BubbleBtn>
+      <Separator orientation="vertical" className="mx-0.5 h-5" />
+      {TEXT_ALIGNS.map(({ value, label, Icon }) => (
+        <BubbleBtn
+          key={value}
+          label={label}
+          active={editor.isActive({ textAlign: value })}
+          onClick={() => editor.chain().focus().setTextAlign(value).run()}
+        >
+          <Icon className="size-4" />
+        </BubbleBtn>
+      ))}
     </div>
   );
 }
@@ -791,6 +912,7 @@ export function Toolbar({ editor }: { editor: Editor }) {
           <Strikethrough className="size-4" />
         </Btn>
         <ColorButton editor={editor} />
+        <AlignButton editor={editor} />
         <Sep />
         <Btn
           label="인용"
@@ -835,18 +957,41 @@ export function Toolbar({ editor }: { editor: Editor }) {
   );
 }
 
-// 큐레이트 글자 색 팔레트. DESIGN 은 새 액센트 남용을 금하지만 본문 글자색은 사용자
-// 콘텐츠(상태 태그 예외와 동일)라 제한된 팔레트로만 허용한다.
-const TEXT_COLORS: { name: string; value: string }[] = [
-  { name: "회색", value: "#6b7280" },
-  { name: "빨강", value: "#e5484d" },
-  { name: "주황", value: "#f76808" },
-  { name: "노랑", value: "#d97706" },
-  { name: "초록", value: "#30a46c" },
-  { name: "파랑", value: "#0070f3" },
-  { name: "보라", value: "#8e4ec6" },
-  { name: "분홍", value: "#e93d82" },
+// 팔레트 정본은 colors.ts(TEXT_COLORS/BG_COLORS) — 툴바·버블·테이블이 공유한다.
+
+// 텍스트 정렬(TextAlign, 블록 단위). 툴바 팝오버·버블 툴바가 공유한다.
+const TEXT_ALIGNS: {
+  value: "left" | "center" | "right";
+  label: string;
+  Icon: typeof AlignLeft;
+}[] = [
+  { value: "left", label: "왼쪽 정렬", Icon: AlignLeft },
+  { value: "center", label: "가운데 정렬", Icon: AlignCenter },
+  { value: "right", label: "오른쪽 정렬", Icon: AlignRight },
 ];
+
+/** 색상 스와치 버튼. onMouseDown preventDefault 로 에디터 선택 유지. */
+function Swatch({
+  color,
+  size = "size-6",
+  onClick,
+}: {
+  color: PaletteColor;
+  size?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={color.name}
+      title={color.name}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={onClick}
+      className={cn("border-border shrink-0 rounded-md border", size)}
+      style={{ background: color.value }}
+    />
+  );
+}
 
 /**
  * 팝오버 트리거 버튼에 빠른 Tooltip 을 입힌다(네이티브 title 지연 대신). Base UI 는 render
@@ -868,22 +1013,70 @@ function TooltipPopoverTrigger({
   );
 }
 
-/** 글자 색상 선택(Color 확장). 팔레트 스와치 클릭 → setColor, '기본 색' → unsetColor. */
-function ColorButton({ editor }: { editor: Editor }) {
+/** 텍스트 정렬 팝오버(블록 단위). 현재 정렬 아이콘을 트리거에 표시한다. */
+function AlignButton({ editor }: { editor: Editor }) {
   const [open, setOpen] = useState(false);
-  const current = editor.getAttributes("textStyle").color as string | undefined;
+  const current =
+    TEXT_ALIGNS.find((a) => editor.isActive({ textAlign: a.value })) ??
+    TEXT_ALIGNS[0];
+  const CurrentIcon = current.Icon;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <TooltipPopoverTrigger label="글자 색">
+      <TooltipPopoverTrigger label="정렬">
         <Button
           type="button"
           variant="ghost"
           size="icon"
-          aria-label="글자 색"
+          aria-label="정렬"
           className={cn(
             "size-8",
-            current && "bg-accent text-accent-foreground",
+            current.value !== "left" && "bg-accent text-accent-foreground",
+          )}
+        >
+          <CurrentIcon className="size-4" />
+        </Button>
+      </TooltipPopoverTrigger>
+      <PopoverContent align="start" className="flex w-auto gap-0.5 p-1">
+        {TEXT_ALIGNS.map(({ value, label, Icon }) => (
+          <Btn
+            key={value}
+            label={label}
+            active={editor.isActive({ textAlign: value })}
+            onClick={() => {
+              editor.chain().focus().setTextAlign(value).run();
+              setOpen(false);
+            }}
+          >
+            <Icon className="size-4" />
+          </Btn>
+        ))}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/** 글자 색/배경색 선택(Color·BackgroundColor 확장). 스와치 → set, '기본/없음' → unset. */
+function ColorButton({ editor }: { editor: Editor }) {
+  const [open, setOpen] = useState(false);
+  const attrs = editor.getAttributes("textStyle");
+  const current = attrs.color as string | undefined;
+  const currentBg = attrs.backgroundColor as string | undefined;
+
+  const resetBtn =
+    "hover:bg-accent w-full rounded px-2 py-1 text-left text-sm";
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <TooltipPopoverTrigger label="글자 색 · 배경색">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label="글자 색 · 배경색"
+          className={cn(
+            "size-8",
+            (current || currentBg) && "bg-accent text-accent-foreground",
           )}
         >
           <Baseline
@@ -893,32 +1086,52 @@ function ColorButton({ editor }: { editor: Editor }) {
         </Button>
       </TooltipPopoverTrigger>
       <PopoverContent align="start" className="w-auto p-2">
-        <div className="grid grid-cols-4 gap-1">
+        <p className="text-muted-foreground mb-1 text-xs">글자 색</p>
+        <div className="grid grid-cols-5 gap-1">
           {TEXT_COLORS.map((c) => (
-            <button
+            <Swatch
               key={c.value}
-              type="button"
-              aria-label={c.name}
-              title={c.name}
+              color={c}
               onClick={() => {
                 editor.chain().focus().setColor(c.value).run();
                 setOpen(false);
               }}
-              className="border-border size-6 rounded-md border"
-              style={{ background: c.value }}
             />
           ))}
         </div>
-        <Separator className="my-2" />
         <button
           type="button"
+          className={cn(resetBtn, "mt-1")}
           onClick={() => {
             editor.chain().focus().unsetColor().run();
             setOpen(false);
           }}
-          className="hover:bg-accent w-full rounded px-2 py-1 text-left text-sm"
         >
           기본 색
+        </button>
+        <Separator className="my-2" />
+        <p className="text-muted-foreground mb-1 text-xs">배경색</p>
+        <div className="grid grid-cols-5 gap-1">
+          {BG_COLORS.map((c) => (
+            <Swatch
+              key={c.value}
+              color={c}
+              onClick={() => {
+                editor.chain().focus().setBackgroundColor(c.value).run();
+                setOpen(false);
+              }}
+            />
+          ))}
+        </div>
+        <button
+          type="button"
+          className={cn(resetBtn, "mt-1")}
+          onClick={() => {
+            editor.chain().focus().unsetBackgroundColor().run();
+            setOpen(false);
+          }}
+        >
+          배경 없음
         </button>
       </PopoverContent>
     </Popover>
@@ -1082,6 +1295,41 @@ function TableButton({ editor }: { editor: Editor }) {
             >
               헤더 행 토글
             </TableMenuItem>
+            <Separator className="my-1" />
+            {/* 헤더(첫 행) 배경색 일괄 적용. '기본'은 --muted 인셋으로 복원. */}
+            <div className="px-2 py-1.5">
+              <p className="text-muted-foreground mb-1 text-xs">헤더 배경색</p>
+              <div className="flex flex-wrap gap-1">
+                {CELL_COLORS.map((c) => (
+                  <button
+                    key={c.value}
+                    type="button"
+                    aria-label={c.name}
+                    title={c.name}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      setHeaderRowBackground(editor, c.value);
+                      setOpen(false);
+                    }}
+                    className="border-border size-5 rounded border"
+                    style={{ background: c.value }}
+                  />
+                ))}
+                <button
+                  type="button"
+                  aria-label="기본 배경"
+                  title="기본 배경"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    setHeaderRowBackground(editor, null);
+                    setOpen(false);
+                  }}
+                  className="border-border text-muted-foreground size-5 rounded border text-[10px] leading-none"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
             <Separator className="my-1" />
             <TableMenuItem
               onClick={() => {

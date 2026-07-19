@@ -10,6 +10,7 @@ import { NodeSelection, type EditorState } from "@tiptap/pm/state";
 import type { Node as PmNode } from "@tiptap/pm/model";
 import {
   TableMap,
+  CellSelection,
   addRow,
   addColumn,
   removeRow,
@@ -119,6 +120,54 @@ export function removeLastColumnIfEmpty(editor: Editor): boolean {
   if (!colIsEmpty(ctx, ctx.map.width - 1)) return false;
   const tr = editor.state.tr;
   removeColumn(tr, asRect(ctx), ctx.map.width - 1);
+  editor.view.dispatch(tr);
+  return true;
+}
+
+/** col 열 전체 선택(CellSelection). hover 선택 스트립(T22 후속)이 쓴다. */
+export function selectColumn(editor: Editor, col: number): boolean {
+  const ctx = tableAroundSelection(editor.state);
+  if (!ctx || col < 0 || col >= ctx.map.width) return false;
+  const cellPos = ctx.tableStart + ctx.map.map[col];
+  const sel = CellSelection.colSelection(editor.state.doc.resolve(cellPos));
+  editor.view.dispatch(editor.state.tr.setSelection(sel));
+  editor.view.focus();
+  return true;
+}
+
+/** row 행 전체 선택(CellSelection). */
+export function selectRow(editor: Editor, row: number): boolean {
+  const ctx = tableAroundSelection(editor.state);
+  if (!ctx || row < 0 || row >= ctx.map.height) return false;
+  const cellPos = ctx.tableStart + ctx.map.map[row * ctx.map.width];
+  const sel = CellSelection.rowSelection(editor.state.doc.resolve(cellPos));
+  editor.view.dispatch(editor.state.tr.setSelection(sel));
+  editor.view.focus();
+  return true;
+}
+
+/**
+ * 헤더 행(첫 행) 전체 셀에 배경색 일괄 적용(null=기본으로 복원).
+ * setCellAttribute 는 현재 선택 기준이라, 커서 위치와 무관하게 첫 행을
+ * 대상으로 하는 이 헬퍼는 setNodeMarkup 으로 직접 적용한다.
+ */
+export function setHeaderRowBackground(
+  editor: Editor,
+  color: string | null,
+): boolean {
+  const ctx = tableAroundSelection(editor.state);
+  if (!ctx) return false;
+  const tr = editor.state.tr;
+  const seen = new Set<number>();
+  for (let col = 0; col < ctx.map.width; col += 1) {
+    const rel = ctx.map.map[col]; // 첫 행(row 0)의 col 번째 셀(colspan 중복 제거)
+    if (seen.has(rel)) continue;
+    seen.add(rel);
+    const pos = ctx.tableStart + rel;
+    const cell = editor.state.doc.nodeAt(pos);
+    if (!cell) continue;
+    tr.setNodeMarkup(pos, undefined, { ...cell.attrs, backgroundColor: color });
+  }
   editor.view.dispatch(tr);
   return true;
 }

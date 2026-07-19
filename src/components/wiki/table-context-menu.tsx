@@ -17,6 +17,7 @@ import {
   ArrowUpToLine,
   Trash2,
 } from "lucide-react";
+import { CELL_COLORS } from "@/components/wiki/colors";
 
 type MenuKind = "cell" | "row" | "col";
 type MenuState = { x: number; y: number; kind: MenuKind };
@@ -155,6 +156,43 @@ export function TableContextMenu({
       >
         {menu.kind !== "row" && colItems}
         {menu.kind !== "col" && rowItems}
+        <div className="bg-border my-1 h-px" role="separator" />
+        {/* 셀 배경색: 커서 셀 또는 CellSelection(행/열 전체 포함)에 일괄 적용. */}
+        <div className="px-2 py-1.5">
+          <p className="text-muted-foreground mb-1 text-xs">배경색</p>
+          <div className="flex flex-wrap gap-1">
+            {CELL_COLORS.map((c) => (
+              <button
+                key={c.value}
+                type="button"
+                aria-label={c.name}
+                title={c.name}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  setMenu(null);
+                  chain()
+                    .setCellAttribute("backgroundColor", c.value)
+                    .run();
+                }}
+                className="border-border size-5 rounded border"
+                style={{ background: c.value }}
+              />
+            ))}
+            <button
+              type="button"
+              aria-label="배경 없음"
+              title="배경 없음"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                setMenu(null);
+                chain().setCellAttribute("backgroundColor", null).run();
+              }}
+              className="border-border text-muted-foreground size-5 rounded border text-[10px] leading-none"
+            >
+              ×
+            </button>
+          </div>
+        </div>
         <div className="bg-border my-1 h-px" role="separator" />
         {menu.kind !== "row" && (
           <MenuItem
