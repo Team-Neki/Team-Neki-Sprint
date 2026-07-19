@@ -18,6 +18,12 @@ import {
   X,
 } from "lucide-react";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   normalizeAlign,
   parseWidthAttr,
   resizeWidth,
@@ -160,66 +166,86 @@ function ImageView({ node, updateAttributes, editor, selected }: NodeViewProps) 
               aria-hidden
               onPointerDown={(e) => startResize(e, "right")}
             />
-            {/* 좌상단 오버레이 컨트롤(code-block 복사 버튼 패턴). */}
-            <div className="wiki-image-bar" contentEditable={false}>
-              {altOpen ? (
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    commitAlt();
-                  }}
-                >
-                  <input
-                    autoFocus
-                    value={altDraft}
-                    onChange={(e) => setAltDraft(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Escape") setAltOpen(false);
+            {/* 좌상단 오버레이 컨트롤(code-block 복사 버튼 패턴). 아이콘 버튼 툴팁은
+                에디터 툴바(Btn)와 동일하게 Base UI Tooltip(≈150ms) — 네이티브 title 아님. */}
+            <TooltipProvider delay={150}>
+              <div className="wiki-image-bar" contentEditable={false}>
+                {altOpen ? (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      commitAlt();
                     }}
-                    placeholder="대체 텍스트"
-                    aria-label="대체 텍스트"
-                  />
-                  <button type="submit">저장</button>
-                </form>
-              ) : (
-                <>
-                  {ALIGNS.map(({ value, label, Icon }) => (
-                    <button
-                      key={value}
-                      type="button"
-                      aria-label={label}
-                      title={label}
-                      data-active={align === value ? "" : undefined}
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => updateAttributes({ align: value })}
-                    >
-                      <Icon className="size-3.5" />
-                    </button>
-                  ))}
-                  {width != null && (
-                    <button
-                      type="button"
-                      aria-label="원본 크기"
-                      title="원본 크기"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => updateAttributes({ width: null })}
-                    >
-                      <RotateCcw className="size-3.5" />
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    aria-label="대체 텍스트 편집"
-                    title="대체 텍스트"
-                    data-active={alt ? "" : undefined}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={openAlt}
                   >
-                    ALT
-                  </button>
-                </>
-              )}
-            </div>
+                    <input
+                      autoFocus
+                      value={altDraft}
+                      onChange={(e) => setAltDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape") setAltOpen(false);
+                      }}
+                      placeholder="대체 텍스트"
+                      aria-label="대체 텍스트"
+                    />
+                    <button type="submit">저장</button>
+                  </form>
+                ) : (
+                  <>
+                    {ALIGNS.map(({ value, label, Icon }) => (
+                      <Tooltip key={value}>
+                        <TooltipTrigger
+                          render={
+                            <button
+                              type="button"
+                              aria-label={label}
+                              data-active={align === value ? "" : undefined}
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => updateAttributes({ align: value })}
+                            >
+                              <Icon className="size-3.5" />
+                            </button>
+                          }
+                        />
+                        <TooltipContent>{label}</TooltipContent>
+                      </Tooltip>
+                    ))}
+                    {width != null && (
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <button
+                              type="button"
+                              aria-label="원본 크기"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => updateAttributes({ width: null })}
+                            >
+                              <RotateCcw className="size-3.5" />
+                            </button>
+                          }
+                        />
+                        <TooltipContent>원본 크기</TooltipContent>
+                      </Tooltip>
+                    )}
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <button
+                            type="button"
+                            aria-label="대체 텍스트 편집"
+                            data-active={alt ? "" : undefined}
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={openAlt}
+                          >
+                            ALT
+                          </button>
+                        }
+                      />
+                      <TooltipContent>대체 텍스트</TooltipContent>
+                    </Tooltip>
+                  </>
+                )}
+              </div>
+            </TooltipProvider>
           </>
         )}
       </div>
@@ -231,8 +257,11 @@ function ImageView({ node, updateAttributes, editor, selected }: NodeViewProps) 
 }
 
 /**
- * 뷰 모드 더블클릭 확대 오버레이. body 포털 + ESC/배경 클릭 닫기, 열려 있는
- * 동안 body 스크롤 잠금. 원본 새 탭 열기/다운로드 액션 포함(same-origin URL).
+ * 뷰 모드 더블클릭 확대 오버레이. 네이티브 <dialog>.showModal() 로 포커스
+ * 트래핑·ESC 닫기를 내장 동작으로 얻는다(ESC 는 cancel→close 이벤트로 onClose 전파).
+ * body 포털은 유지 — .tiptap 하위에 두면 에디터 CSS(.tiptap img 등)가 라이트박스에
+ * 새어 들어온다. 배경 클릭 닫기, 열려 있는 동안 body 스크롤 잠금, 원본 새 탭
+ * 열기/다운로드 액션 포함(same-origin URL).
  */
 function ImageLightbox({
   src,
@@ -243,28 +272,33 @@ function ImageLightbox({
   alt: string;
   onClose: () => void;
 }) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+
   useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    document.addEventListener("keydown", onKey);
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    dialog.showModal();
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
-      document.removeEventListener("keydown", onKey);
       document.body.style.overflow = prev;
+      if (dialog.open) dialog.close();
     };
-  }, [onClose]);
+  }, []);
 
   const chip =
     "flex items-center gap-1.5 rounded-md bg-white/10 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-white/20";
 
+  // 렌더 중 document 접근 가드 — 서버 렌더에선 브라우저 전역이 없다.
+  // (실제로는 뷰 모드 더블클릭 후에만 마운트되지만, 클라이언트 전용 경로를 명시한다.)
+  if (typeof document === "undefined") return null;
+
   return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6"
-      role="dialog"
-      aria-modal="true"
+    <dialog
+      ref={dialogRef}
+      className="fixed inset-0 z-50 m-0 h-full max-h-none w-full max-w-none items-center justify-center border-0 bg-black/80 p-6 outline-none backdrop:bg-transparent open:flex"
       aria-label={alt || "이미지 확대 보기"}
+      onClose={onClose}
       onClick={onClose}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -293,7 +327,7 @@ function ImageLightbox({
           <X className="size-3.5" />
         </button>
       </div>
-    </div>,
+    </dialog>,
     document.body,
   );
 }
