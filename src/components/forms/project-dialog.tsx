@@ -81,7 +81,7 @@ function ProjectForm({
 
   const [title, setTitle] = useState(project?.title ?? "");
   const [description, setDescription] = useState(project?.description ?? "");
-  const [status, setStatus] = useState<Status>(project?.status ?? "BACKLOG");
+  const [status, setStatus] = useState<Status>(project?.status ?? "TODO");
   const [priority, setPriority] = useState<Priority>(
     project?.priority ?? "MEDIUM",
   );

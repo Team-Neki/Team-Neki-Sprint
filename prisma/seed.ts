@@ -230,7 +230,7 @@ async function main() {
       {
         number: 3, // BACKEND-3
         title: "A/B 테스트 파이프라인",
-        status: "BACKLOG",
+        status: "TODO",
         priority: "MEDIUM",
         reporterId: taehyung.id,
         teamId: teamByKey.BACKEND.id,

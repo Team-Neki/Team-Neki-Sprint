@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 const patchInput = z.object({
   title: z.string().trim().min(1).nullish(),
   description: z.string().nullish(),
-  status: z.enum(["BACKLOG", "TODO", "IN_PROGRESS", "DONE"]).nullish(),
+  status: z.enum(["TODO", "IN_PROGRESS", "DONE"]).nullish(),
   priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).nullish(),
   assignee: z.string().trim().nullish(),
   epicId: z.string().trim().nullish(),

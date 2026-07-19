@@ -135,7 +135,7 @@ export async function getSprint(id: string) {
     where: { id },
     include: {
       projects: {
-        // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO→BACKLOG) → 최신 생성 우선.
+        // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO) → 최신 생성 우선.
         orderBy: [{ status: "desc" }, { createdAt: "desc" }],
         include: {
           owner: miniUser,
@@ -165,7 +165,7 @@ export type ProjectFilter = {
   sort?: { field: ProjectSortField; dir: "asc" | "desc" };
 };
 
-// 기본 정렬(정렬 지정 없을 때). 상태 내림차(DONE→IN_PROGRESS→TODO→BACKLOG) → 최신 생성 우선.
+// 기본 정렬(정렬 지정 없을 때). 상태 내림차(DONE→IN_PROGRESS→TODO) → 최신 생성 우선.
 const PROJECT_DEFAULT_ORDER: Prisma.ProjectOrderByWithRelationInput[] = [
   { status: "desc" },
   { createdAt: "desc" },
@@ -268,7 +268,7 @@ export const getEpics = async (filter: EpicFilter = {}) => {
       ownerId: filter.ownerId,
       teamId: filter.teamId,
     },
-    // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO→BACKLOG) → 최신 생성 우선.
+    // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO) → 최신 생성 우선.
     orderBy: [{ status: "desc" }, { createdAt: "desc" }],
     include: {
       owner: miniUser,
@@ -383,7 +383,7 @@ export const getTasks = async (filter: TaskFilter = {}) => {
         : undefined,
       title: filter.q ? { contains: filter.q, mode: "insensitive" } : undefined,
     },
-    // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO→BACKLOG) 우선.
+    // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO) 우선.
     // id 를 마지막 tiebreaker 로 추가 → (status,priority,createdAt) 동점 행들도
     // 결정적 순서 보장. 없으면 MD 등 수정 시 동점 구간이 재배열돼 순서가 흔들린다.
     orderBy: [
@@ -1070,7 +1070,7 @@ export function getUserProfile(id: string) {
       team: { select: { id: true, key: true, name: true, color: true } },
       assignedTasks: {
         where: { status: { not: "DONE" } },
-        // 기본 정렬: 상태 내림차(IN_PROGRESS→TODO→BACKLOG, DONE 제외) → 최신 생성 우선.
+        // 기본 정렬: 상태 내림차(IN_PROGRESS→TODO, DONE 제외) → 최신 생성 우선.
         orderBy: [{ status: "desc" }, { createdAt: "desc" }],
         take: 20,
         select: {
@@ -1082,7 +1082,7 @@ export function getUserProfile(id: string) {
         },
       },
       ownedEpics: {
-        // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO→BACKLOG) → 최신 생성 우선.
+        // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO) → 최신 생성 우선.
         orderBy: [{ status: "desc" }, { createdAt: "desc" }],
         take: 20,
         select: {
