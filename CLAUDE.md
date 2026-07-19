@@ -44,6 +44,26 @@
 
 - **Vitest 유닛 테스트 존재**: `npm run test`(= `vitest run`). 대상은 순수 로직 모듈(`src/lib/*.test.ts` — validators·rich-content·constants·activity-format). `keys.ts`의 DB 바운드 함수(`nextTeamNumber`)는 미커버(순수 `formatIssueKey`만). **코드 수정 시 관련 테스트 실행·추가**. (Playwright 스모크는 아직 없음 — 후속.)
 
+## 배포 / DB 마이그레이션 (k8s + GitOps)
+
+!IMPORTANT: **Prisma 마이그레이션은 수동으로 적용하지 않는다.** 배포 시 k8s **initContainer** 가 앱 컨테이너(`node server.js`) 시작 전에 `prisma migrate deploy` 를 자동 실행한다. 따라서 스키마 변경 PR 을 main 에 머지한 뒤 로컬/운영에서 `migrate deploy` 를 **직접 칠 필요가 없다**(그래서 지금껏 이 명령을 친 적이 없다).
+
+- **이미지 구성**(`Dockerfile`): 런타임 이미지에 `prisma/`(schema + migrations) + **전체** `node_modules`(prisma client·engine·CLI)를 복사한다 — initContainer 의 `prisma migrate deploy` 가 이미지 안에서 돌 수 있도록. (Prisma 6.x CLI 는 `@prisma/config` + hoisted 형제 deps(`effect`/`c12` 등)를 필요로 해서 `@prisma/*` 만 cherry-pick 하면 `Cannot find module 'effect'`. `Dockerfile` 44–57줄 주석 참조.)
+- **initContainer 정의 위치**: 앱 레포가 아니라 **GitOps 레포 `Team-Neki-GitOps` 의 `overlays/prod/sprint-deployment.yaml`**(이 레포에선 안 보임). 배포 워크플로우가 initContainer + 앱 컨테이너 두 image 줄을 모두 같은 `sprint-prod:<sha>` 로 bump 한다.
+- **배포는 자동이 아니라 수동 트리거**: `.github/workflows/deploy-prod.yml` 은 `workflow_dispatch` 전용 — **main 머지만으로는 배포되지 않는다.** GitHub Actions 탭에서 "Deploy to Prod" 를 수동 실행해야 한다.
+
+```mermaid
+flowchart LR
+    A["main 머지"] --> B["GitHub Actions<br/>'Deploy to Prod' 수동 실행<br/>(workflow_dispatch)"]
+    B --> C["이미지 빌드<br/>(schema+migrations 포함)"]
+    C --> D["GitOps 레포<br/>이미지 태그 bump"]
+    D --> E["ArgoCD 자동 배포"]
+    E --> F["initContainer:<br/>prisma migrate deploy"]
+    F --> G["앱 컨테이너 start<br/>node server.js"]
+```
+
+- **함의**: 스키마를 바꾸면 마이그레이션 SQL(`prisma/migrations/<타임스탬프>_<이름>/migration.sql`)을 **반드시 커밋에 포함**한다(initContainer 가 이 파일들을 적용). additive 마이그레이션은 무중단. `package.json` 의 `db:deploy`(=`prisma migrate deploy`)·`db:migrate`(dev)·`db:push` 는 **로컬 개발용**이다. 병합 후 로컬 타입체크를 위한 `npx prisma generate` 는 여전히 필요([gotchas §1]) — 이는 배포와 별개인 로컬 client 재생성일 뿐이다.
+
 ## in-product 공용 기능(참고)
 
 - **전역 검색/⌘K**: `command-palette.tsx`(토픽바 마운트, `queries.globalSearch` + `globalSearchAction`). 새 엔티티 추가 시 검색 그룹에 반영 고려.
