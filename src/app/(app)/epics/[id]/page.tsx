@@ -8,10 +8,12 @@ import {
   getEntityActivity,
   getLabelOptions,
   getEntityComments,
+  getEntityWikiLinks,
 } from "@/server/queries";
 import { deleteEpic } from "@/server/actions/epics";
 import { EpicLabels } from "@/components/detail/epic-labels";
 import { EntityComments } from "@/components/comments/entity-comments";
+import { EntityLinkedPages } from "@/components/wiki/entity-linked-pages";
 import { formatIssueKey } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -40,16 +42,25 @@ export default async function EpicDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [epic, projects, teams, members, activities, labelOptions, comments] =
-    await Promise.all([
-      getEpic(id),
-      getProjectOptions(),
-      getTeamOptions(),
-      getMembers(),
-      getEntityActivity("epic", id),
-      getLabelOptions(),
-      getEntityComments("epic", id),
-    ]);
+  const [
+    epic,
+    projects,
+    teams,
+    members,
+    activities,
+    labelOptions,
+    comments,
+    wikiLinks,
+  ] = await Promise.all([
+    getEpic(id),
+    getProjectOptions(),
+    getTeamOptions(),
+    getMembers(),
+    getEntityActivity("epic", id),
+    getLabelOptions(),
+    getEntityComments("epic", id),
+    getEntityWikiLinks("epic", id),
+  ]);
   if (!epic) notFound();
 
   async function handleDelete() {
@@ -125,7 +136,7 @@ export default async function EpicDetail({
         </Card>
       </div>
 
-      <div className="@3xl/detail:col-span-1">
+      <div className="@3xl/detail:col-span-1 flex flex-col gap-4">
         <Card className="flex flex-col gap-3 p-5">
           <MetaRow label="상태">
             <InlineStatus type="epic" id={epic.id} value={epic.status} />
@@ -198,6 +209,14 @@ export default async function EpicDetail({
               allLabels={labelOptions}
             />
           </MetaRow>
+        </Card>
+
+        <Card className="p-5">
+          <EntityLinkedPages
+            entityType="epic"
+            entityId={epic.id}
+            pages={wikiLinks}
+          />
         </Card>
       </div>
       </div>

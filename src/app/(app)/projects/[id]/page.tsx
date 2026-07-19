@@ -8,9 +8,11 @@ import {
   getProjectOptions,
   getEntityActivity,
   getEntityComments,
+  getEntityWikiLinks,
 } from "@/server/queries";
 import { deleteProject } from "@/server/actions/projects";
 import { EntityComments } from "@/components/comments/entity-comments";
+import { EntityLinkedPages } from "@/components/wiki/entity-linked-pages";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EpicsTable } from "@/components/tables/epics-table";
@@ -38,16 +40,25 @@ export default async function ProjectDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [project, members, teams, sprints, projects, activities, comments] =
-    await Promise.all([
-      getProject(id),
-      getMembers(),
-      getTeamOptions(),
-      getSprintOptions(),
-      getProjectOptions(),
-      getEntityActivity("project", id),
-      getEntityComments("project", id),
-    ]);
+  const [
+    project,
+    members,
+    teams,
+    sprints,
+    projects,
+    activities,
+    comments,
+    wikiLinks,
+  ] = await Promise.all([
+    getProject(id),
+    getMembers(),
+    getTeamOptions(),
+    getSprintOptions(),
+    getProjectOptions(),
+    getEntityActivity("project", id),
+    getEntityComments("project", id),
+    getEntityWikiLinks("project", id),
+  ]);
   if (!project) notFound();
 
   async function handleDelete() {
@@ -117,7 +128,7 @@ export default async function ProjectDetail({
         </Card>
       </div>
 
-      <div className="@3xl/detail:col-span-1">
+      <div className="@3xl/detail:col-span-1 flex flex-col gap-4">
         <Card className="flex flex-col gap-3 p-5">
           <MetaRow label="상태">
             <InlineStatus
@@ -176,6 +187,14 @@ export default async function ProjectDetail({
               className="text-sm"
             />
           </MetaRow>
+        </Card>
+
+        <Card className="p-5">
+          <EntityLinkedPages
+            entityType="project"
+            entityId={project.id}
+            pages={wikiLinks}
+          />
         </Card>
       </div>
       </div>

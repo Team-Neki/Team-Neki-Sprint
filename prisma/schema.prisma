@@ -190,8 +190,10 @@ model Sprint {
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
-  projects Project[]
-  comments Comment[]
+  projects  Project[]
+  comments  Comment[]
+  // 연결된 위키 페이지(엔티티↔위키 링크, 태스크의 WikiPageTaskLink 와 동형).
+  wikiLinks WikiPageSprintLink[]
 }
 
 // 팀 횡단 작업(구 Initiative를 전환). key 없음 — 제목만.
@@ -210,9 +212,11 @@ model Project {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  epics    Epic[]
-  labels   LabelsOnProjects[]
-  comments Comment[]
+  epics     Epic[]
+  labels    LabelsOnProjects[]
+  comments  Comment[]
+  // 연결된 위키 페이지(엔티티↔위키 링크).
+  wikiLinks WikiPageProjectLink[]
 }
 
 // 팀 = 이슈 key 접두어 = 유저 그룹. 한 사람 = 한 팀.
@@ -246,9 +250,11 @@ model Epic {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  tasks    Task[]
-  labels   LabelsOnEpics[]
-  comments Comment[]
+  tasks     Task[]
+  labels    LabelsOnEpics[]
+  comments  Comment[]
+  // 연결된 위키 페이지(엔티티↔위키 링크).
+  wikiLinks WikiPageEpicLink[]
 
   @@unique([teamId, number])
 }
@@ -436,6 +442,10 @@ model WikiPage {
 
   revisions      WikiRevision[]
   taskLinks      WikiPageTaskLink[]
+  // 엔티티↔위키 링크(태스크 외 sprint/project/epic). taskLinks 와 동형.
+  epicLinks      WikiPageEpicLink[]
+  projectLinks   WikiPageProjectLink[]
+  sprintLinks    WikiPageSprintLink[]
   favorites      WikiFavorite[]
   commentThreads WikiCommentThread[]
   drafts         WikiDraft[]
@@ -529,6 +539,38 @@ model WikiPageTaskLink {
   @@id([pageId, taskId])
   // PK 는 pageId 선두라 태스크 상세의 "연결된 위키"(taskId 역방향) 조회를 못 탄다.
   @@index([taskId])
+}
+
+// 엔티티↔위키 링크(태스크 외). WikiPageTaskLink 와 동형: PK 는 (pageId, 엔티티id),
+// 엔티티 상세의 "연결된 위키"(역방향) 조회용 index 를 엔티티 컬럼에 건다.
+model WikiPageEpicLink {
+  pageId String
+  epicId String
+  page   WikiPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  epic   Epic     @relation(fields: [epicId], references: [id], onDelete: Cascade)
+
+  @@id([pageId, epicId])
+  @@index([epicId])
+}
+
+model WikiPageProjectLink {
+  pageId    String
+  projectId String
+  page      WikiPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@id([pageId, projectId])
+  @@index([projectId])
+}
+
+model WikiPageSprintLink {
+  pageId   String
+  sprintId String
+  page     WikiPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  sprint   Sprint   @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+
+  @@id([pageId, sprintId])
+  @@index([sprintId])
 }
 
 // ---------- Activity log ----------

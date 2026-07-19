@@ -733,6 +733,38 @@ export function getWikiComments(pageId: string) {
 }
 
 /**
+ * 엔티티(sprint/project/epic)에 연결된 위키 페이지 목록. 태스크의 wikiLinks include
+ * (getTask)와 동형이나, 엔티티 상세는 각자 getSprint/getProject/getEpic 를 쓰므로
+ * 그 include 를 건드리지 않고 별도 조회로 분리한다(연결 mutation 후 revalidate 로 fresh).
+ * 초안/휴지통 페이지도 이미 연결됐다면 그대로 노출한다(연결 시점 검색이 이미 걸러냄).
+ */
+export async function getEntityWikiLinks(
+  entityType: "epic" | "project" | "sprint",
+  id: string,
+): Promise<{ id: string; title: string }[]> {
+  const pageSelect = { page: { select: { id: true, title: true } } } as const;
+  if (entityType === "epic") {
+    const rows = await prisma.wikiPageEpicLink.findMany({
+      where: { epicId: id },
+      select: pageSelect,
+    });
+    return rows.map((r) => r.page);
+  }
+  if (entityType === "project") {
+    const rows = await prisma.wikiPageProjectLink.findMany({
+      where: { projectId: id },
+      select: pageSelect,
+    });
+    return rows.map((r) => r.page);
+  }
+  const rows = await prisma.wikiPageSprintLink.findMany({
+    where: { sprintId: id },
+    select: pageSelect,
+  });
+  return rows.map((r) => r.page);
+}
+
+/**
  * 티켓 검색(#3/#4). key(TEAM-n)나 제목으로 조회. formatIssueKey 기준의 key는
  * team.key + '-' + number 이므로, 'BACKEND-2' / 'BACKEND' / '2' / 제목 조각을 받는다.
  */
