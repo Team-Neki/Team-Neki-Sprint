@@ -188,7 +188,7 @@ function TaskForm({
           />
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="grid gap-2">
+          <div className="grid min-w-0 gap-2">
             <Label>상위 에픽</Label>
             <GenericSelect
               value={epicId}
@@ -198,7 +198,7 @@ function TaskForm({
               noneLabel="없음"
             />
           </div>
-          <div className="grid gap-2">
+          <div className="grid min-w-0 gap-2">
             <Label>
               소유 팀
               {isEdit ? " (변경 불가)" : epicTeamId ? " (에픽 상속)" : ""}
@@ -211,17 +211,17 @@ function TaskForm({
           </div>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="grid gap-2">
+          <div className="grid min-w-0 gap-2">
             <Label>상태</Label>
             <StatusSelect value={status} onChange={setStatus} />
           </div>
-          <div className="grid gap-2">
+          <div className="grid min-w-0 gap-2">
             <Label>우선순위</Label>
             <PrioritySelect value={priority} onChange={setPriority} />
           </div>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="grid gap-2">
+          <div className="grid min-w-0 gap-2">
             <Label>담당자</Label>
             <MemberSelect
               value={assigneeId}
@@ -231,7 +231,7 @@ function TaskForm({
           </div>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="grid gap-2">
+          <div className="grid min-w-0 gap-2">
             <Label>예상 MD</Label>
             <Input
               type="number"
@@ -242,7 +242,7 @@ function TaskForm({
               placeholder="예: 2"
             />
           </div>
-          <div className="grid gap-2">
+          <div className="grid min-w-0 gap-2">
             <Label>실제 MD</Label>
             <Input
               type="number"
@@ -255,7 +255,7 @@ function TaskForm({
           </div>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="grid gap-2">
+          <div className="grid min-w-0 gap-2">
             <Label>시작일</Label>
             <Input
               type="date"
@@ -263,7 +263,7 @@ function TaskForm({
               onChange={(e) => setStartDate(e.target.value)}
             />
           </div>
-          <div className="grid gap-2">
+          <div className="grid min-w-0 gap-2">
             <Label>마감일</Label>
             <Input
               type="date"
