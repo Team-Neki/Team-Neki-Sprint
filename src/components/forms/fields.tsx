@@ -32,6 +32,7 @@ export function StatusSelect({
       options={STATUS_ORDER}
       getValue={(s) => s}
       renderOption={renderStatusOption}
+      triggerClassName="w-full"
     />
   );
 }
@@ -50,6 +51,7 @@ export function PrioritySelect({
       options={PRIORITY_ORDER}
       getValue={(p) => p}
       renderOption={renderPriorityOption}
+      triggerClassName="w-full"
     />
   );
 }
@@ -75,6 +77,7 @@ export function MemberSelect({
       renderTriggerOption={memberLabel}
       placeholder={placeholder}
       leadingOption={{ value: UNASSIGNED, label: "미지정" }}
+      triggerClassName="w-full"
     />
   );
 }
@@ -101,6 +104,7 @@ export function TeamSelect({
       getValue={(t) => t.id}
       renderOption={(t) => renderTeamOption(t)}
       placeholder={placeholder}
+      triggerClassName="w-full"
     />
   );
 }
@@ -129,6 +133,7 @@ export function GenericSelect({
       )}
       placeholder={placeholder}
       leadingOption={{ value: UNASSIGNED, label: noneLabel }}
+      triggerClassName="w-full"
     />
   );
 }

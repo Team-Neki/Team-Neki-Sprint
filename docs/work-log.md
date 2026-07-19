@@ -8,6 +8,7 @@
 
 | 날짜 | 세션 | 상태 |
 |---|---|---|
+| 2026-07-19 | 생성/수정 다이얼로그 셀렉트 오버플로 버그: 상위 항목(에픽/프로젝트/스프린트) 긴 제목이 트리거 밖으로 넘쳐 레이아웃 깨짐. 근본원인=`SelectValue` 에 `min-w-0` 부재(truncate 무력화)+폼 셀렉트만 폭 제한 없는 `w-fit`. `SelectValue` `min-w-0` + `fields.tsx` 5종 `w-full` | `DONE`\* |
 | 2026-07-19 | 위키 이미지 관리 강화: 편집 모드 드래그 리사이즈(px, `attrs.width`)·정렬 3종(`attrs.align`)·ALT 인라인 편집, 뷰 모드 더블클릭 라이트박스(원본 열기/다운로드). `image-view.tsx` React NodeView 하나로 편집/뷰 공용, 순수 로직 `image-utils.ts`(+vitest 8) | `DONE`\* |
 | 2026-07-19 | 위키 에디터 개선 6종: 생성 모드+초안(`WikiPage.isDraft`, 작성자 전용 노출·[초안] 표시·첫 저장 시 정식 전환), 글자 색 10종+배경색 9종(`colors.ts`+`BackgroundColor`), 블록 단위 텍스트 정렬(`TextAlign`), 노션식 줄 핸들(`DragHandle` — 선택/드래그/복제·삭제), 표 셀·헤더 배경색+열/행 선택 스트립. tiptap 3.27→3.28 lockstep | `DONE`\* 병합 후 `migrate deploy`+`generate` 필요 |
 | 2026-07-18 | 가입 승인 게이트(`UserStatus`): 신규 가입 `PENDING` 기본 → 관리자가 DB 에서 수동 `APPROVED` 전환. `requireUser` 가 PENDING 을 `/pending` 대기 화면으로, `authenticateBearer` 가 PENDING 토큰을 거부. 오픈 가입(도메인 제한 미설정) 상태에서 낯선 계정의 앱/API 접근 차단 목적 | worktree 검증 완료, 병합·마이그레이션·기존 유저 UPDATE 대기 |
@@ -31,6 +32,22 @@
 | ~2026-07-08 | Phase 1~4 + 로드맵 v2 8건 (이하 15개 세션) | `DONE` |
 
 \* 코드·빌드·테스트 검증 완료. 실렌더(mermaid/표/강조)는 로그인 게이트라 브라우저 확인 필요.
+
+---
+
+## 2026-07-19 — 생성/수정 다이얼로그 셀렉트 오버플로 수정
+
+**증상**: 태스크·에픽·프로젝트 생성/수정 팝업에서 상위 항목(에픽·프로젝트·스프린트) 셀렉트에 긴 제목을 고르면 텍스트가 트리거 박스를 뚫고 나가 다이얼로그 레이아웃이 깨졌다.
+
+**근본원인**: `ui/select.tsx` 의 `SelectValue`(`flex flex-1`)에 `min-w-0` 이 없어 flex 자식이 내용보다 못 줄어들고(기본 `min-width:auto`), 안쪽 `truncate`/`line-clamp-1` 이 무력화 → 트리거 min-content 가 전체 텍스트 폭이 됨. `SelectTrigger` 는 `w-fit`+`whitespace-nowrap` 이라, 폭 제한을 주는 필터(`w-40`)·인라인(`max-w-44`)과 달리 **폭 제한 없는 폼 셀렉트에서만** 셀 밖으로 넘쳤다.
+
+**변경**:
+- `src/components/ui/select.tsx` — `SelectValue` 에 `min-w-0` 추가(공유 근본 수정; 모든 셀렉트에서 truncate 활성화).
+- `src/components/forms/fields.tsx` — 폼 셀렉트 5종(Status/Priority/Member/Team/Generic)에 `triggerClassName="w-full"`. 폼 필드를 Input/날짜와 동일하게 폭 채우고 긴 라벨은 안에서 truncate. 이 래퍼들은 task/epic/project 다이얼로그 전용이라 필터/인라인엔 영향 없음.
+
+상세 함정은 [gotchas §34](./gotchas.md#34-select-트리거는-selectvalue-에-min-w-0-이-없으면-긴-라벨이-넘친다-2026-07-19).
+
+검증: `tsc --noEmit`(수정 파일 clean; 나머지 에러는 기존 Prisma stale — gotchas §30)·`eslint` 통과. 실렌더는 로그인 게이트라 브라우저 확인 권장.
 
 ---
 
