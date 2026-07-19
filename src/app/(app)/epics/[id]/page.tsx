@@ -7,10 +7,12 @@ import {
   getMembers,
   getEntityActivity,
   getLabelOptions,
+  getEntityComments,
   getEntityWikiLinks,
 } from "@/server/queries";
 import { deleteEpic } from "@/server/actions/epics";
 import { EpicLabels } from "@/components/detail/epic-labels";
+import { EntityComments } from "@/components/comments/entity-comments";
 import { EntityLinkedPages } from "@/components/wiki/entity-linked-pages";
 import { formatIssueKey } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
@@ -40,16 +42,25 @@ export default async function EpicDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [epic, projects, teams, members, activities, labelOptions, wikiLinks] =
-    await Promise.all([
-      getEpic(id),
-      getProjectOptions(),
-      getTeamOptions(),
-      getMembers(),
-      getEntityActivity("epic", id),
-      getLabelOptions(),
-      getEntityWikiLinks("epic", id),
-    ]);
+  const [
+    epic,
+    projects,
+    teams,
+    members,
+    activities,
+    labelOptions,
+    comments,
+    wikiLinks,
+  ] = await Promise.all([
+    getEpic(id),
+    getProjectOptions(),
+    getTeamOptions(),
+    getMembers(),
+    getEntityActivity("epic", id),
+    getLabelOptions(),
+    getEntityComments("epic", id),
+    getEntityWikiLinks("epic", id),
+  ]);
   if (!epic) notFound();
 
   async function handleDelete() {
@@ -104,6 +115,15 @@ export default async function EpicDetail({
           <TasksTable
             tasks={epic.tasks}
             emptyMessage="연결된 태스크가 없습니다."
+          />
+        </Card>
+
+        <Card className="mb-6 p-5">
+          <h3 className="mb-3 text-sm font-medium">댓글 {comments.length}</h3>
+          <EntityComments
+            entityType="epic"
+            entityId={epic.id}
+            comments={comments}
           />
         </Card>
 

@@ -7,9 +7,11 @@ import {
   getSprintOptions,
   getProjectOptions,
   getEntityActivity,
+  getEntityComments,
   getEntityWikiLinks,
 } from "@/server/queries";
 import { deleteProject } from "@/server/actions/projects";
+import { EntityComments } from "@/components/comments/entity-comments";
 import { EntityLinkedPages } from "@/components/wiki/entity-linked-pages";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -38,16 +40,25 @@ export default async function ProjectDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [project, members, teams, sprints, projects, activities, wikiLinks] =
-    await Promise.all([
-      getProject(id),
-      getMembers(),
-      getTeamOptions(),
-      getSprintOptions(),
-      getProjectOptions(),
-      getEntityActivity("project", id),
-      getEntityWikiLinks("project", id),
-    ]);
+  const [
+    project,
+    members,
+    teams,
+    sprints,
+    projects,
+    activities,
+    comments,
+    wikiLinks,
+  ] = await Promise.all([
+    getProject(id),
+    getMembers(),
+    getTeamOptions(),
+    getSprintOptions(),
+    getProjectOptions(),
+    getEntityActivity("project", id),
+    getEntityComments("project", id),
+    getEntityWikiLinks("project", id),
+  ]);
   if (!project) notFound();
 
   async function handleDelete() {
@@ -96,6 +107,15 @@ export default async function ProjectDetail({
           <EpicsTable
             epics={project.epics}
             emptyMessage="연결된 에픽이 없습니다."
+          />
+        </Card>
+
+        <Card className="mb-6 p-5">
+          <h3 className="mb-3 text-sm font-medium">댓글 {comments.length}</h3>
+          <EntityComments
+            entityType="project"
+            entityId={project.id}
+            comments={comments}
           />
         </Card>
 

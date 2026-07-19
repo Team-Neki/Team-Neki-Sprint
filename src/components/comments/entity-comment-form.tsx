@@ -9,11 +9,24 @@ import {
   RichEditor,
   editorContentString,
 } from "@/components/rich-text/rich-editor";
-import { addComment } from "@/server/actions/tasks";
+import {
+  addEntityComment,
+  type CommentEntityType,
+} from "@/server/actions/comments";
 
 const EMPTY_DOC = { type: "doc", content: [{ type: "paragraph" }] };
 
-export function CommentForm({ taskId }: { taskId: string }) {
+/**
+ * 댓글 입력 폼(task/epic/project/sprint 공용). 태스크 전용 CommentForm 을 일반화한 것으로,
+ * RichEditor 를 그대로 재사용해 '#'티켓·'@'사람/팀·위키 멘션·마크다운 입력을 공유한다.
+ */
+export function EntityCommentForm({
+  entityType,
+  entityId,
+}: {
+  entityType: CommentEntityType;
+  entityId: string;
+}) {
   const router = useRouter();
   const editorRef = useRef<Editor | null>(null);
   const [empty, setEmpty] = useState(true);
@@ -25,7 +38,7 @@ export function CommentForm({ taskId }: { taskId: string }) {
     const body = editorContentString(editor);
     start(async () => {
       try {
-        await addComment(taskId, body);
+        await addEntityComment(entityType, entityId, body);
         editor.commands.clearContent();
         setEmpty(true);
         router.refresh();

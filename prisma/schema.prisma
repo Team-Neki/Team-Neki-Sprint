@@ -191,6 +191,7 @@ model Sprint {
   updatedAt DateTime     @updatedAt
 
   projects  Project[]
+  comments  Comment[]
   // 연결된 위키 페이지(엔티티↔위키 링크, 태스크의 WikiPageTaskLink 와 동형).
   wikiLinks WikiPageSprintLink[]
 }
@@ -213,6 +214,7 @@ model Project {
 
   epics     Epic[]
   labels    LabelsOnProjects[]
+  comments  Comment[]
   // 연결된 위키 페이지(엔티티↔위키 링크).
   wikiLinks WikiPageProjectLink[]
 }
@@ -250,6 +252,7 @@ model Epic {
 
   tasks     Task[]
   labels    LabelsOnEpics[]
+  comments  Comment[]
   // 연결된 위키 페이지(엔티티↔위키 링크).
   wikiLinks WikiPageEpicLink[]
 
@@ -314,18 +317,30 @@ model TaskDependency {
   @@index([blockedId])
 }
 
+// 댓글(task/epic/project/sprint 공용, 다형). 정확히 하나의 엔티티 FK 만 채워진다
+// (addEntityComment 가 강제). 대댓글 없음 — 플랫 목록. 최신순(createdAt desc) 조회.
 model Comment {
   id        String   @id @default(cuid())
   body      String   @db.Text
-  taskId    String
-  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  // 다형 대상(정확히 하나만 non-null). 각 엔티티 삭제 시 cascade.
+  taskId    String?
+  task      Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  epicId    String?
+  epic      Epic?    @relation(fields: [epicId], references: [id], onDelete: Cascade)
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sprintId  String?
+  sprint    Sprint?  @relation(fields: [sprintId], references: [id], onDelete: Cascade)
   authorId  String
   author    User     @relation(fields: [authorId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // 태스크 상세의 댓글 조회 + 태스크 삭제 cascade 스캔용(계속 자라는 테이블).
+  // 엔티티별 댓글 조회(createdAt 정렬 포함) + 엔티티 삭제 cascade 스캔용(계속 자라는 테이블).
   @@index([taskId, createdAt])
+  @@index([epicId, createdAt])
+  @@index([projectId, createdAt])
+  @@index([sprintId, createdAt])
 }
 
 model Label {

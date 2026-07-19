@@ -4,10 +4,9 @@ import { revalidatePath } from "next/cache";
 import type { Status } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
-import { taskSchema, taskCommentBodySchema } from "@/lib/validators";
+import { taskSchema } from "@/lib/validators";
 import { logActivity, diffFields } from "@/server/activity";
 import { notifyNewMentions } from "@/server/notify";
-import { isValueEmpty } from "@/lib/rich-content";
 import { wouldCreateCycle } from "@/lib/task-deps";
 import { formatIssueKey } from "@/lib/constants";
 import { nextTeamNumber } from "@/server/keys";
@@ -277,36 +276,8 @@ export async function deleteTask(id: string) {
   revalidatePath("/tasks");
 }
 
-export async function addComment(taskId: string, body: string) {
-  const user = await requireUser();
-  // body 는 Tiptap doc JSON 문자열(B6). 크기 방어 후, 빈 문서면 무시.
-  const parsed = taskCommentBodySchema.parse(body);
-  if (isValueEmpty(parsed)) return;
-
-  const task = await prisma.task.findUnique({
-    where: { id: taskId },
-    select: { title: true },
-  });
-
-  await prisma.comment.create({
-    data: { taskId, body: parsed, authorId: user.id },
-  });
-  await logActivity({
-    userId: user.id,
-    entityType: "task",
-    entityId: taskId,
-    action: "commented",
-  });
-  // 댓글 본문의 '@' 멘션 → 수신자 알림(자기멘션 제외).
-  await notifyNewMentions({
-    actorId: user.id,
-    entityType: "task",
-    entityId: taskId,
-    context: task?.title ?? null,
-    after: parsed,
-  });
-  revalidatePath(`/tasks/${taskId}`);
-}
+// 댓글 추가는 다형 Comment 로 일반화되어 actions/comments.ts 의 addEntityComment 로 이동.
+// (task/epic/project/sprint 공용)
 
 // ---------- 의존성(blocks / blockedBy) ----------
 
