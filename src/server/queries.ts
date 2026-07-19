@@ -599,10 +599,15 @@ export const getWikiTree = (userId: string) =>
     },
   });
 
-/** 휴지통(soft-delete)된 페이지 목록. 최근 삭제순. parentId 로 '삭제 루트'를 화면에서 판별. */
-export function getTrashedWikiPages() {
+/** 휴지통(soft-delete)된 페이지 목록. 최근 삭제순. parentId 로 '삭제 루트'를 화면에서 판별.
+ * 초안(isDraft)은 삭제돼 휴지통에 들어가도 작성자에게만 보인다(B10) — getWikiTree 와
+ * 동형 필터(userId). 타인 휴지통에는 정식 페이지만 노출. */
+export function getTrashedWikiPages(userId: string) {
   return prisma.wikiPage.findMany({
-    where: { deletedAt: { not: null } },
+    where: {
+      deletedAt: { not: null },
+      OR: [{ isDraft: false }, { authorId: userId }],
+    },
     orderBy: { deletedAt: "desc" },
     select: {
       id: true,
