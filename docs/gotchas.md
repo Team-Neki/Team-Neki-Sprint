@@ -256,3 +256,11 @@ tiptap v3 패키지들은 peer 로 `@tiptap/core@정확버전`(캐럿 아님)을
 재설치).** 신규 tiptap 확장을 추가할 때도 기존 세트와 같은 버전으로 맞출 것.
 `npm ls @tiptap/core` 로 단일 버전인지 확인한다(2개 버전이 공존하면 스키마/플러그인이
 조용히 어긋난다).
+
+## 34. Select 트리거는 `SelectValue` 에 `min-w-0` 이 없으면 긴 라벨이 넘친다 (2026-07-19)
+
+- **증상**: 태스크/에픽/프로젝트 생성·수정 다이얼로그에서 상위 항목(에픽/프로젝트/스프린트) 셀렉트에 **긴 제목**을 고르면 텍스트가 트리거 박스를 뚫고 나가 다이얼로그 레이아웃이 깨졌다.
+- **원인**: `ui/select.tsx` 의 `SelectValue` 가 `flex flex-1` 인데 `min-w-0` 이 없었다. flex 자식은 기본 `min-width:auto` 라 내용(선택 텍스트)보다 작게 못 줄어든다 → 안쪽 `truncate`/`line-clamp-1` 이 무력화되고, 트리거의 min-content 가 "전체 텍스트 폭"이 된다. `SelectTrigger` 는 `w-fit`+`whitespace-nowrap` 이라 폭 제한이 없으면 `w-fit` 이 셀 폭으로 수렴하지 못하고 그리드 셀 밖으로 넘친다.
+- **왜 폼에서만**: 필터(`owner/team-filter` `w-40`)·상세 인라인(`max-w-44`)·멤버-팀(`w-44`) 은 `triggerClassName` 으로 폭을 고정/제한해 덜 티났다. **폼 래퍼(`fields.tsx`)만 폭 제한 없이 기본 `w-fit`** 이라 터졌다.
+- **해결**: (1) `SelectValue` 에 `min-w-0` 추가(공유 근본 — 모든 셀렉트에서 truncate 활성화). (2) 폼 셀렉트 5종(`fields.tsx` 의 Status/Priority/Member/Team/Generic)에 `triggerClassName="w-full"` — 폼 필드는 Input/날짜와 동일하게 폭을 채우고 긴 텍스트는 안에서 truncate.
+- **일반화**: flex 컨테이너 안에서 자식이 truncate 되게 하려면 그 자식(또는 체인상의 flex 자식)에 `min-w-0` 이 필수. `overflow-hidden`/`truncate` 만으론 안 줄어든다.

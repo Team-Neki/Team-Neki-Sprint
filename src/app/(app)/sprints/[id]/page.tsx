@@ -7,8 +7,12 @@ import {
   getSprint,
   getMembers,
   getSprintOptions,
+  getEntityComments,
+  getEntityWikiLinks,
 } from "@/server/queries";
 import { deleteSprint } from "@/server/actions/sprints";
+import { EntityComments } from "@/components/comments/entity-comments";
+import { EntityLinkedPages } from "@/components/wiki/entity-linked-pages";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -34,10 +38,12 @@ export default async function SprintDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [sprint, members, sprints] = await Promise.all([
+  const [sprint, members, sprints, comments, wikiLinks] = await Promise.all([
     getSprint(id),
     getMembers(),
     getSprintOptions(),
+    getEntityComments("sprint", id),
+    getEntityWikiLinks("sprint", id),
   ]);
   if (!sprint) notFound();
 
@@ -100,6 +106,23 @@ export default async function SprintDetail({
         <ProjectsTable
           projects={sprint.projects}
           emptyMessage="연결된 프로젝트가 없습니다."
+        />
+      </Card>
+
+      <Card className="mt-6 p-5">
+        <h3 className="mb-3 text-sm font-medium">댓글 {comments.length}</h3>
+        <EntityComments
+          entityType="sprint"
+          entityId={sprint.id}
+          comments={comments}
+        />
+      </Card>
+
+      <Card className="mt-6 p-5">
+        <EntityLinkedPages
+          entityType="sprint"
+          entityId={sprint.id}
+          pages={wikiLinks}
         />
       </Card>
     </div>

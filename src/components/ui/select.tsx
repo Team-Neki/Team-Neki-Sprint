@@ -22,7 +22,9 @@ function SelectValue({ className, ...props }: SelectPrimitive.Value.Props) {
   return (
     <SelectPrimitive.Value
       data-slot="select-value"
-      className={cn("flex flex-1 text-left", className)}
+      // min-w-0: flex 자식은 기본 min-width:auto 라 내용보다 못 줄어든다.
+      // 이게 없으면 내부 truncate/line-clamp 가 먹지 않아 긴 라벨이 트리거 밖으로 넘친다.
+      className={cn("flex min-w-0 flex-1 text-left", className)}
       {...props}
     />
   )

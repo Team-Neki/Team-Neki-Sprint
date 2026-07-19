@@ -1,6 +1,4 @@
 import { notFound } from "next/navigation";
-import { formatDistanceToNow } from "date-fns";
-import { ko } from "date-fns/locale";
 import {
   getTask,
   getEpicOptions,
@@ -12,10 +10,8 @@ import {
 import { deleteTask } from "@/server/actions/tasks";
 import { formatIssueKey } from "@/lib/constants";
 import { Card } from "@/components/ui/card";
-import { UserBadge } from "@/components/user-badge";
 import { SheetDeleteButton } from "@/components/detail/sheet-delete-button";
-import { CommentForm } from "@/components/tasks/comment-form";
-import { RichContent } from "@/components/rich-text/rich-editor";
+import { EntityComments } from "@/components/comments/entity-comments";
 import { LinkedPages } from "@/components/wiki/linked-pages";
 import { BackButton } from "@/components/detail/back-button";
 import { HistoryPanel } from "@/components/detail/history-panel";
@@ -102,33 +98,11 @@ export default async function TaskDetail({
           </TabsList>
 
           <TabsContent value="comments" className="mt-4">
-            <div className="mb-4 flex flex-col gap-4">
-              {task.comments.map((c) => (
-                <div key={c.id} className="flex gap-3">
-                  <UserBadge user={c.author} hideName />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">
-                        {c.author.name ?? c.author.email}
-                      </span>
-                      <span className="text-muted-foreground text-xs">
-                        {formatDistanceToNow(c.createdAt, {
-                          addSuffix: true,
-                          locale: ko,
-                        })}
-                      </span>
-                    </div>
-                    <RichContent value={c.body} className="mt-0.5" />
-                  </div>
-                </div>
-              ))}
-              {task.comments.length === 0 && (
-                <p className="text-muted-foreground text-sm">
-                  아직 댓글이 없습니다.
-                </p>
-              )}
-            </div>
-            <CommentForm taskId={task.id} />
+            <EntityComments
+              entityType="task"
+              entityId={task.id}
+              comments={task.comments}
+            />
           </TabsContent>
 
           <TabsContent value="history" className="mt-4">

@@ -426,8 +426,9 @@ export function getTask(id: string) {
           project: { select: { id: true, title: true } },
         },
       },
+      // 최신순(최신 댓글이 위)으로 조회 — getEntityComments 와 정렬 일치.
       comments: {
-        orderBy: { createdAt: "asc" },
+        orderBy: { createdAt: "desc" },
         include: { author: miniUser },
       },
       // 연결된 위키(#3).
@@ -481,6 +482,31 @@ export function getTaskGithubLinks(taskId: string) {
       prState: true,
       prUrl: true,
     },
+  });
+}
+
+// ---------- Comment (task/epic/project/sprint 공용, 다형) ----------
+
+/**
+ * 엔티티(task/epic/project/sprint)의 댓글 목록. **최신순(createdAt desc — 최신이 위)**
+ * + 작성자. 대댓글 없이 플랫. 다형 Comment 라 엔티티별 FK 컬럼으로 필터한다.
+ */
+export function getEntityComments(
+  entityType: "task" | "epic" | "project" | "sprint",
+  id: string,
+) {
+  const where =
+    entityType === "task"
+      ? { taskId: id }
+      : entityType === "epic"
+        ? { epicId: id }
+        : entityType === "project"
+          ? { projectId: id }
+          : { sprintId: id };
+  return prisma.comment.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+    include: { author: miniUser },
   });
 }
 
@@ -704,6 +730,38 @@ export function getWikiComments(pageId: string) {
       },
     },
   });
+}
+
+/**
+ * 엔티티(sprint/project/epic)에 연결된 위키 페이지 목록. 태스크의 wikiLinks include
+ * (getTask)와 동형이나, 엔티티 상세는 각자 getSprint/getProject/getEpic 를 쓰므로
+ * 그 include 를 건드리지 않고 별도 조회로 분리한다(연결 mutation 후 revalidate 로 fresh).
+ * 초안/휴지통 페이지도 이미 연결됐다면 그대로 노출한다(연결 시점 검색이 이미 걸러냄).
+ */
+export async function getEntityWikiLinks(
+  entityType: "epic" | "project" | "sprint",
+  id: string,
+): Promise<{ id: string; title: string }[]> {
+  const pageSelect = { page: { select: { id: true, title: true } } } as const;
+  if (entityType === "epic") {
+    const rows = await prisma.wikiPageEpicLink.findMany({
+      where: { epicId: id },
+      select: pageSelect,
+    });
+    return rows.map((r) => r.page);
+  }
+  if (entityType === "project") {
+    const rows = await prisma.wikiPageProjectLink.findMany({
+      where: { projectId: id },
+      select: pageSelect,
+    });
+    return rows.map((r) => r.page);
+  }
+  const rows = await prisma.wikiPageSprintLink.findMany({
+    where: { sprintId: id },
+    select: pageSelect,
+  });
+  return rows.map((r) => r.page);
 }
 
 /**
