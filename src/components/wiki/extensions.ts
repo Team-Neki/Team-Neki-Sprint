@@ -9,7 +9,8 @@ import TextAlign from "@tiptap/extension-text-align";
 import { TableKit } from "@tiptap/extension-table";
 import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
 import { ReactNodeViewRenderer } from "@tiptap/react";
-import Image from "@tiptap/extension-image";
+// 본문 이미지 NodeView(리사이즈/정렬/alt/라이트박스). 자기완결 모듈, 여기 한 줄만 추가.
+import { WikiImage } from "@/components/wiki/image-view";
 import { createLowlight, common } from "lowlight";
 // 코드블록 NodeView(우측 상단 복사 버튼). 구문강조는 CodeBlockLowlight 가 담당.
 import { CodeBlockView } from "@/components/wiki/code-block";
@@ -113,7 +114,8 @@ export function wikiExtensions(opts?: { placeholder?: string }) {
     // mermaid 다이어그램 블록.
     MermaidBlock,
     // 본문 이미지. base64 금지(업로드→URL 만 허용), 서빙 URL 은 same-origin.
-    Image.configure({
+    // 리사이즈/정렬/alt/라이트박스는 image-view.tsx 의 NodeView 가 담당.
+    WikiImage.configure({
       allowBase64: false,
       HTMLAttributes: { class: "wiki-image" },
     }),

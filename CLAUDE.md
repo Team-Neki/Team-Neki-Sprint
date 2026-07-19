@@ -49,6 +49,7 @@
 - **전역 검색/⌘K**: `command-palette.tsx`(토픽바 마운트, `queries.globalSearch` + `globalSearchAction`). 새 엔티티 추가 시 검색 그룹에 반영 고려.
 - **라벨**: `Label` 스키마를 태스크에 표면화(`/labels` 관리, 부여 팝오버, `?label=` 필터, 색 뱃지). 에픽·프로젝트 라벨 부여는 스키마만 있고 UI 미구현(후속).
 - **위키 리치 렌더링**: `wikiExtensions()`(에디터·뷰 공유)에 표(`TableKit`+`TableControls`+`table-cells.ts` 배경색 셀)·구문강조 코드(`CodeBlockLowlight`)·mermaid(`MermaidBlock` atom NodeView, 지연 로드)·글자색/배경색(`TextStyle`+`Color`+`BackgroundColor`)·정렬(`TextAlign`, heading/paragraph)·슬래시 커맨드(`SlashCommand`) 포함. 확장은 이 한 곳에만 추가. tiptap 은 **전 패키지 lockstep**(3.28) — 부분 업그레이드는 peer 정확핀 때문에 ERESOLVE. 함정은 [gotchas §18].
+  - **이미지**(`image-view.tsx` NodeView + `image-utils.ts`): 편집 모드 선택 시 좌우 드래그 핸들 리사이즈(px, `attrs.width`, 최소 80px)·정렬 3버튼(`attrs.align`, 블록 정렬)·ALT 인라인 입력, 뷰 모드 더블클릭 라이트박스(원본 열기/다운로드). 노드 이름 `image` 유지(기존 문서 호환), width 는 `<img width>` 로 직렬화. width 커밋은 pointerup 1회(undo 1스텝).
   - **생성 모드/초안**: UI '새 페이지'는 `WikiPage.isDraft=true` 로 생성 → `/wiki/{id}?edit=1`(편집 모드+제목 포커스, Enter/↓ 본문 이동). 첫 저장 시 정식 전환. 초안은 **작성자에게만** 노출(트리 흐림+[초안], 검색/링크검색 제외, 타인 URL `notFound`), 초안 하위 페이지 생성 불가. MCP/API 생성은 초안 아님.
   - **색상/정렬 팔레트**: 정본은 `colors.ts`(`TEXT_COLORS` 10·`BG_COLORS` 9·`CELL_COLORS`) — 툴바/버블/표 메뉴가 공유, 새 색은 여기에만. 정렬은 툴바 팝오버+버블 3버튼.
   - **줄(블록) 핸들**(`block-handle.tsx`): `@tiptap/extension-drag-handle-react`. 클릭=블록 NodeSelection+복제/삭제 메뉴, 드래그=이동. WikiEditor 전용(뷰에는 없음).
