@@ -168,10 +168,18 @@ export function CommandPalette() {
         </kbd>
       </button>
 
+      {/*
+        팔레트는 중앙이 아니라 상단 15dvh 에 고정한다. 따라서 높이 상한도 "그 아래 남은
+        공간"(85dvh)이어야 한다 — DialogContent 기본값 `max-h-[calc(100dvh-2rem)]` 은 이
+        오프셋을 모르기 때문에, 짧은 뷰포트(가로모드 폰 등)에서 팔레트 하단이 화면 밖으로
+        잘렸다(높이 386px 에서 25px 잘림 실측). `vh` → `dvh` 는 모바일 주소창 높이 변화 대응.
+        overflow 는 x 만 hidden — y 까지 막으면 아주 짧은 뷰포트에서 내용에 닿을 수 없어,
+        기본값 `overflow-y-auto` 를 살려 스크롤로 degrade 시킨다. [gotchas §35]
+      */}
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent
           showCloseButton={false}
-          className="top-[15vh] translate-y-0 gap-0 overflow-hidden p-0 sm:max-w-lg"
+          className="top-[15dvh] max-h-[calc(85dvh-1rem)] translate-y-0 gap-0 overflow-x-hidden p-0 sm:max-w-lg"
         >
           <DialogTitle className="sr-only">전역 검색</DialogTitle>
           <DialogDescription className="sr-only">
