@@ -139,6 +139,8 @@ export async function getSprint(id: string) {
         orderBy: [{ status: "desc" }, { createdAt: "desc" }],
         include: {
           owner: miniUser,
+          // 하위 목록 인라인 편집(B6)의 라벨 셀용.
+          labels: labelInclude,
           _count: { select: { epics: true } },
         },
       },
@@ -225,6 +227,8 @@ export async function getProject(id: string) {
         include: {
           owner: miniUser,
           team: miniTeam,
+          // 하위 목록 인라인 편집(B6)의 라벨 셀용.
+          labels: labelInclude,
           _count: { select: { tasks: true } },
         },
       },
@@ -305,7 +309,13 @@ export async function getEpic(id: string) {
       labels: labelInclude,
       tasks: {
         orderBy: { createdAt: "desc" },
-        include: { assignee: miniUser, assigneeTeam: miniTeam, team: miniTeam },
+        // labels: 하위 목록 인라인 편집(B6)의 라벨 셀용. assigneeTeam: 담당자 팀 배지(B4).
+        include: {
+          assignee: miniUser,
+          assigneeTeam: miniTeam,
+          team: miniTeam,
+          labels: labelInclude,
+        },
       },
     },
   });

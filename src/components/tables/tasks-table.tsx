@@ -200,6 +200,7 @@ export function TasksTable({
                       labels={t.labels?.map((l) => l.label) ?? []}
                       allLabels={edit.labels}
                       align="start"
+                      layout="row"
                     />
                   </div>
                 ) : (
