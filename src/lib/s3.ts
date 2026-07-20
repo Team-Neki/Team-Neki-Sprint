@@ -100,3 +100,51 @@ export async function deleteWikiImage(key: string): Promise<void> {
     new DeleteObjectCommand({ Bucket: getBucket(), Key: key }),
   );
 }
+
+/** 위키 첨부파일 오브젝트 키 프리픽스. 이미지와 분리해 두어 정리/정책을 독립적으로. */
+const FILE_KEY_PREFIX = "wiki-files/";
+
+/** 새 위키 첨부파일용 오브젝트 키를 생성한다(추측 불가한 랜덤). */
+export function newWikiFileKey(): string {
+  return `${FILE_KEY_PREFIX}${crypto.randomUUID()}`;
+}
+
+/** 첨부파일 바이너리를 S3 에 저장. 이미지와 같은 버킷/클라이언트. */
+export async function putWikiFile(
+  key: string,
+  body: Buffer,
+  contentType: string,
+): Promise<void> {
+  await getClient().send(
+    new PutObjectCommand({
+      Bucket: getBucket(),
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+    }),
+  );
+}
+
+/** S3 에서 첨부파일을 받아 (웹 스트림, 바이트 길이)로 반환. 없으면 null. */
+export async function getWikiFile(
+  key: string,
+): Promise<{ body: ReadableStream; contentLength?: number } | null> {
+  try {
+    const res = await getClient().send(
+      new GetObjectCommand({ Bucket: getBucket(), Key: key }),
+    );
+    if (!res.Body) return null;
+    return {
+      body: res.Body.transformToWebStream(),
+      contentLength: res.ContentLength,
+    };
+  } catch (err) {
+    if (
+      err instanceof Error &&
+      (err.name === "NoSuchKey" || err.name === "NotFound")
+    ) {
+      return null;
+    }
+    throw err;
+  }
+}
