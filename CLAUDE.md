@@ -39,10 +39,21 @@
 - **병렬 서브에이전트 산출물은 병합 전 NUL/비-UTF8 스캔.** 에이전트가 sentinel 등으로 NUL(`"\x00"`)을 코드에 박으면 tsc/eslint는 통과하지만 git이 파일을 **바이너리로 인식**(`git diff --stat`에 `Bin ...`) → 실제로 물렸음. [gotchas §9](./docs/gotchas.md).
 - **위키 페이지 조회엔 항상 `where: { deletedAt: null }`**(soft-delete 휴지통 유출 방지). 전역 검색(`globalSearch`)·목록·트리 모두 해당. [gotchas §8].
 - **공유 목록/옵션/트리 쿼리는 `unstable_cache` 로 감싸지 않는다(2026-07-13 제거).** 과거 `queries.ts` 14개를 `src/lib/cache.ts` 태그로 캐시하고 `bumpTags`(=`updateTag`)로 무효화했으나, **prod 는 `replicas: 2` 인데 공유 `cacheHandler` 가 없어** `unstable_cache` 가 **pod 별 로컬 캐시**였다 → mutation 이 처리된 pod 만 무효화되고 이어지는 `router.refresh()` 가 다른 pod 로 가면 stale(위키 저장 후 좌측 사이드바 제목이 간헐적으로 안 바뀌던 버그의 근본원인). dev·단일 인스턴스에선 재현 안 됨. **해결: 캐시 레이어 자체를 제거** — 이제 공유 쿼리는 매 렌더 DB 직접 조회(공유 DB라 항상 fresh, 20인 규모 부하 무시가능). `revalidatePath`/`router.refresh()` 만으로 read-your-own-writes 보장(force-dynamic + 클라이언트 라우터 캐시 staleTime 0). **재도입 금지**: 멀티 replica 인 채로 `unstable_cache` 를 다시 쓰려면 반드시 Redis 등 공유 `cacheHandler` 를 함께 설정. [gotchas §13].
+- **뷰포트에 고정(`fixed`)되는 팝업은 `max-height` + `overflow` 가 필수.** 없으면 내용이 길 때 화면 밖으로 잘리고 `fixed` 라 페이지 스크롤로도 닿을 수 없다(모바일에서 생성 다이얼로그의 저장 버튼에 접근 불가했던 버그의 근본원인). **중앙 정렬이 아니라 오프셋 배치(`top-[15vh]` 등)라면 상한도 오프셋을 뺀 값**이어야 한다(`max-h-[calc(85dvh-1rem)]`). 높이 단위는 `vh` 가 아니라 **`dvh`**(모바일 주소창). `overflow` 는 y 를 hidden 으로 막지 말 것 — 짧은 뷰포트에서 내용에 닿을 수 없어진다. 공용 프리미티브 기본값에 **축별 유틸(`overflow-y-*`)을 넣으면 이를 shorthand(`overflow-hidden`)로 덮던 소비자가 조용히 깨진다** — tailwind-merge 는 두 그룹을 별개로 본다. [gotchas §35].
 
 ## 테스트
 
 - **Vitest 유닛 테스트 존재**: `npm run test`(= `vitest run`). 대상은 순수 로직 모듈(`src/lib/*.test.ts` — validators·rich-content·constants·activity-format). `keys.ts`의 DB 바운드 함수(`nextTeamNumber`)는 미커버(순수 `formatIssueKey`만). **코드 수정 시 관련 테스트 실행·추가**. (Playwright 스모크는 아직 없음 — 후속.)
+
+### 반응형·CSS 변경 검증법 (로그인 게이트 우회)
+
+로그인이 **Google OAuth 전용**이라 에이전트가 앱 화면을 직접 열 수 없다. `tsc`/`eslint`/`vitest` 는 CSS 레이아웃 버그를 전혀 못 잡으므로, 레이아웃 변경은 **dev 서버의 컴파일된 실제 CSS 로 구조를 복제해 `getBoundingClientRect` 로 실측**한다(로그인 페이지에서 DOM 주입). 아래 3가지는 **실제로 물려서 잘못된 결론을 냈던** 것들 — 반드시 지킬 것. [gotchas §35]
+
+1. **주입한 클래스가 실제로 생성됐는지 `getComputedStyle` 로 먼저 확인.** Tailwind JIT 는 **소스에 없는 클래스의 CSS 를 만들지 않는다** → 주입해도 조용히 무시된다. 증상: 측정값이 뷰포트를 바꿔도 전부 동일. 소스에 넣기 전 값을 시험하려면 클래스 대신 **인라인 스타일**로.
+2. **`cn()` 병합 결과 문자열로 테스트한다.** base + override 를 그냥 이어 붙이면 둘 다 DOM 에 남아 **클래스 순서가 아니라 스타일시트 순서**가 이겨 실제와 다른 결과가 나온다. 병합 결과는 프로젝트 루트에서 `twMerge(BASE, OVERRIDE)` 를 돌려 확인(레포 밖 `/tmp` 에선 `tailwind-merge` 해석 실패).
+3. **모바일 폭 테스트는 창 리사이즈가 아니라 iframe 으로.** 이 환경에선 브라우저 창 리사이즈가 `innerWidth` 에 반영되지 않는다. **390px 폭 `<iframe src="/login">`** 을 띄우면 미디어쿼리가 iframe 뷰포트 기준으로 평가돼 `sm:` 브레이크포인트가 실제 모바일처럼 동작한다(`matchMedia('(min-width:640px)').matches === false` 로 확인). 높이를 바꿔가며(844/386/300) 재면 가로모드·짧은 뷰포트 회귀까지 잡힌다.
+
+한계: 실제 앱의 상호작용(드롭다운 위치, 포커스, 애니메이션)은 이 방법으로 검증되지 않는다. **CSS 클래스만 바꾼 경우에 한해 복제 검증으로 갈음하고, 그 사실과 미확인 항목을 PR 에 명시**한다.
 
 ## 배포 / DB 마이그레이션 (k8s + GitOps)
 
