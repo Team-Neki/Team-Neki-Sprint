@@ -162,8 +162,8 @@ export type ProjectSortField =
   "title" | "status" | "priority" | "dueDate" | "createdAt" | "updatedAt";
 
 export type ProjectFilter = {
-  ownerId?: string;
-  sprintId?: string;
+  ownerId?: string[];
+  sprintId?: string[];
   sort?: { field: ProjectSortField; dir: "asc" | "desc" };
 };
 
@@ -202,8 +202,14 @@ function projectOrderBy(
 export const getProjects = async (filter: ProjectFilter = {}) => {
   const projects = await prisma.project.findMany({
     where: {
-      ownerId: filter.ownerId,
-      sprintId: filter.sprintId,
+      ownerId:
+        filter.ownerId && filter.ownerId.length
+          ? { in: filter.ownerId }
+          : undefined,
+      sprintId:
+        filter.sprintId && filter.sprintId.length
+          ? { in: filter.sprintId }
+          : undefined,
     },
     orderBy: projectOrderBy(filter.sort),
     include: {
@@ -262,15 +268,21 @@ export const getProjectOptions = () =>
 // ---------- Epic ----------
 
 export type EpicFilter = {
-  ownerId?: string;
-  teamId?: string;
+  ownerId?: string[];
+  teamId?: string[];
 };
 
 export const getEpics = async (filter: EpicFilter = {}) => {
   const epics = await prisma.epic.findMany({
     where: {
-      ownerId: filter.ownerId,
-      teamId: filter.teamId,
+      ownerId:
+        filter.ownerId && filter.ownerId.length
+          ? { in: filter.ownerId }
+          : undefined,
+      teamId:
+        filter.teamId && filter.teamId.length
+          ? { in: filter.teamId }
+          : undefined,
     },
     // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO) → 최신 생성 우선.
     orderBy: [{ status: "desc" }, { createdAt: "desc" }],
@@ -339,15 +351,21 @@ export const getEpicOptions = () =>
 // ---------- Task ----------
 
 export type BoardFilter = {
-  assigneeId?: string;
-  teamId?: string;
+  assigneeId?: string[];
+  teamId?: string[];
 };
 
 export const getBoardTasks = async (filter: BoardFilter = {}) => {
   const rows = await prisma.task.findMany({
     where: {
-      assigneeId: filter.assigneeId,
-      teamId: filter.teamId,
+      assigneeId:
+        filter.assigneeId && filter.assigneeId.length
+          ? { in: filter.assigneeId }
+          : undefined,
+      teamId:
+        filter.teamId && filter.teamId.length
+          ? { in: filter.teamId }
+          : undefined,
     },
     // 칸반 컬럼 내 순서(B7-board). 재정렬로 부여한 boardOrder 우선, 미정렬(null)은 하단.
     // id 최종 tiebreaker 로 동점(boardOrder null + 같은 createdAt) 카드의 순서 흔들림 방지.
@@ -373,25 +391,35 @@ export const getBoardTasks = async (filter: BoardFilter = {}) => {
 };
 
 export type TaskFilter = {
-  status?: Status;
-  assigneeId?: string;
+  status?: Status[];
+  assigneeId?: string[];
   epicId?: string;
-  teamId?: string;
-  labelId?: string;
+  teamId?: string[];
+  labelId?: string[];
   q?: string;
 };
 
 export const getTasks = async (filter: TaskFilter = {}) => {
   const rows = await prisma.task.findMany({
     where: {
-      status: filter.status,
-      assigneeId: filter.assigneeId,
+      status:
+        filter.status && filter.status.length
+          ? { in: filter.status }
+          : undefined,
+      assigneeId:
+        filter.assigneeId && filter.assigneeId.length
+          ? { in: filter.assigneeId }
+          : undefined,
       epicId: filter.epicId,
-      teamId: filter.teamId,
-      // 라벨 필터: 해당 라벨이 붙은 태스크만(m:n 조인 some).
-      labels: filter.labelId
-        ? { some: { labelId: filter.labelId } }
-        : undefined,
+      teamId:
+        filter.teamId && filter.teamId.length
+          ? { in: filter.teamId }
+          : undefined,
+      // 라벨 필터: 선택된 라벨 중 하나라도 붙은 태스크만(m:n 조인 some + in).
+      labels:
+        filter.labelId && filter.labelId.length
+          ? { some: { labelId: { in: filter.labelId } } }
+          : undefined,
       title: filter.q ? { contains: filter.q, mode: "insensitive" } : undefined,
     },
     // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO) 우선.
