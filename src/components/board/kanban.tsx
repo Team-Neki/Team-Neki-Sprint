@@ -61,7 +61,6 @@ type Columns = Record<Status, string[]>;
 
 function buildColumns(tasks: BoardTask[]): Columns {
   const cols: Columns = {
-    BACKLOG: [],
     TODO: [],
     IN_PROGRESS: [],
     DONE: [],

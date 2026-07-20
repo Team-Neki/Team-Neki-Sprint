@@ -161,7 +161,6 @@ model VerificationToken {
 // ---------- Project / Jira side ----------
 
 enum Status {
-  BACKLOG
   TODO
   IN_PROGRESS
   DONE
@@ -201,7 +200,7 @@ model Project {
   id          String    @id @default(cuid())
   title       String
   description String?   @db.Text
-  status      Status    @default(BACKLOG)
+  status      Status    @default(TODO)
   priority    Priority  @default(MEDIUM)
   startDate   DateTime?
   dueDate     DateTime?
@@ -237,7 +236,7 @@ model Epic {
   number      Int // 팀 시퀀스. 표시 key = team.key-number
   title       String
   description String?   @db.Text
-  status      Status    @default(BACKLOG)
+  status      Status    @default(TODO)
   priority    Priority  @default(MEDIUM)
   startDate   DateTime?
   dueDate     DateTime?

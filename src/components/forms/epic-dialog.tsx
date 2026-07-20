@@ -87,7 +87,7 @@ function EpicForm({
 
   const [title, setTitle] = useState(epic?.title ?? "");
   const [description, setDescription] = useState(epic?.description ?? "");
-  const [status, setStatus] = useState<Status>(epic?.status ?? "BACKLOG");
+  const [status, setStatus] = useState<Status>(epic?.status ?? "TODO");
   const [priority, setPriority] = useState<Priority>(epic?.priority ?? "MEDIUM");
   const [ownerId, setOwnerId] = useState<string | null>(epic?.ownerId ?? null);
   const [teamId, setTeamId] = useState<string | null>(
