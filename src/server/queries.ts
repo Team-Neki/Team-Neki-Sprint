@@ -305,7 +305,7 @@ export async function getEpic(id: string) {
       labels: labelInclude,
       tasks: {
         orderBy: { createdAt: "desc" },
-        include: { assignee: miniUser, team: miniTeam },
+        include: { assignee: miniUser, assigneeTeam: miniTeam, team: miniTeam },
       },
     },
   });
@@ -348,6 +348,7 @@ export const getBoardTasks = async (filter: BoardFilter = {}) => {
     ],
     include: {
       assignee: miniUser,
+      assigneeTeam: miniTeam,
       team: miniTeam,
       epic: { select: { id: true, title: true } },
       labels: labelInclude,
@@ -394,6 +395,7 @@ export const getTasks = async (filter: TaskFilter = {}) => {
     ],
     include: {
       assignee: miniUser,
+      assigneeTeam: miniTeam,
       team: miniTeam,
       epic: { select: { id: true, title: true } },
       labels: labelInclude,
@@ -412,6 +414,7 @@ export function getTask(id: string) {
     where: { id },
     include: {
       assignee: miniUser,
+      assigneeTeam: miniTeam,
       reporter: miniUser,
       // 참조(c.c.) 수신자 목록. 이름순.
       ccUsers: { ...miniUser, orderBy: { name: "asc" } },
@@ -573,6 +576,7 @@ export function getTimelineEpics() {
           dueDate: true,
           team: { select: { key: true } },
           assignee: miniUser,
+          assigneeTeam: miniTeam,
         },
       },
     },
@@ -1175,6 +1179,7 @@ export async function getDashboardData(userId: string) {
       take: 6,
       include: {
         assignee: miniUser,
+        assigneeTeam: miniTeam,
         team: { select: { key: true } },
       },
     }),

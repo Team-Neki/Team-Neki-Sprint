@@ -231,6 +231,8 @@ model Team {
   members User[]
   epics   Epic[]
   tasks   Task[]
+  // 팀이 담당자로 배정된 태스크들(B4, TaskTeamAssignee 역방향).
+  assignedTasks Task[] @relation("TaskTeamAssignee")
 }
 
 model Epic {
@@ -276,6 +278,9 @@ model Task {
   boardOrder  Float?
   assigneeId  String?
   assignee    User?     @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  // 담당자를 팀 단위로도 지정 가능(B4). 유저 담당자(assignee)와 상호배타 — 서버 액션이 강제.
+  assigneeTeamId String?
+  assigneeTeam   Team?  @relation("TaskTeamAssignee", fields: [assigneeTeamId], references: [id])
   reporterId  String?
   reporter    User?     @relation("TaskReporter", fields: [reporterId], references: [id])
   teamId      String
