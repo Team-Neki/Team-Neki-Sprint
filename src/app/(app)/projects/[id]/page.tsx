@@ -6,6 +6,7 @@ import {
   getTeamOptions,
   getSprintOptions,
   getProjectOptions,
+  getLabelOptions,
   getEntityActivity,
   getEntityComments,
   getEntityWikiLinks,
@@ -46,6 +47,7 @@ export default async function ProjectDetail({
     teams,
     sprints,
     projects,
+    labelOptions,
     activities,
     comments,
     wikiLinks,
@@ -55,6 +57,7 @@ export default async function ProjectDetail({
     getTeamOptions(),
     getSprintOptions(),
     getProjectOptions(),
+    getLabelOptions(),
     getEntityActivity("project", id),
     getEntityComments("project", id),
     getEntityWikiLinks("project", id),
@@ -69,7 +72,7 @@ export default async function ProjectDetail({
   return (
     <div className="@container/detail mx-auto max-w-5xl">
       <div className="grid gap-6 @3xl/detail:grid-cols-3">
-      <div className="@3xl/detail:col-span-2">
+      <div className="min-w-0 @3xl/detail:col-span-2">
         <BackButton fallback="/projects" label="프로젝트" />
 
         <div className="mb-6 flex items-start justify-between gap-3">
@@ -107,6 +110,7 @@ export default async function ProjectDetail({
           <EpicsTable
             epics={project.epics}
             emptyMessage="연결된 에픽이 없습니다."
+            edit={{ members, teams, projects, labels: labelOptions }}
           />
         </Card>
 
@@ -128,7 +132,7 @@ export default async function ProjectDetail({
         </Card>
       </div>
 
-      <div className="@3xl/detail:col-span-1 flex flex-col gap-4">
+      <div className="flex min-w-0 flex-col gap-4 @3xl/detail:col-span-1">
         <Card className="flex flex-col gap-3 p-5">
           <MetaRow label="상태">
             <InlineStatus

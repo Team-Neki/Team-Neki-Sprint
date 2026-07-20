@@ -113,7 +113,7 @@ export function WikiSidebar({ children }: { children: React.ReactNode }) {
       className="relative hidden shrink-0 md:block"
       style={{ width }}
     >
-      <div className="sticky top-0 space-y-4">
+      <div className="sticky top-0 max-h-[calc(100dvh-5rem)] space-y-4 overflow-y-auto pr-1">
         <div className="flex items-center justify-end">
           <Button
             variant="ghost"

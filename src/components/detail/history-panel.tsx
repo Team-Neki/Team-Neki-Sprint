@@ -31,6 +31,7 @@ function actorName(user: MiniUser | null): string {
 export function HistoryPanel({
   activities,
   members = [],
+  teams = [],
   epics = [],
   projects = [],
   sprints = [],
@@ -38,12 +39,13 @@ export function HistoryPanel({
 }: {
   activities: ActivityItem[];
   members?: MiniUser[];
+  teams?: NamedRef[];
   epics?: NamedRef[];
   projects?: NamedRef[];
   sprints?: NamedRef[];
   title?: string;
 }) {
-  const lookups = buildLookups({ members, epics, projects, sprints });
+  const lookups = buildLookups({ members, teams, epics, projects, sprints });
 
   return (
     <div>

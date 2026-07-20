@@ -13,6 +13,7 @@ import { plainTextOf } from "@/lib/rich-content";
 export type NamedRef = { id: string; title?: string; name?: string };
 export type Lookups = {
   members: Map<string, string>;
+  teams: Map<string, string>;
   epics: Map<string, string>;
   projects: Map<string, string>;
   sprints: Map<string, string>;
@@ -25,6 +26,7 @@ export const FIELD_LABEL: Record<string, string> = {
   status: "상태",
   priority: "우선순위",
   assigneeId: "담당자",
+  assigneeTeamId: "담당 팀",
   ownerId: "담당자",
   reporterId: "보고자",
   epicId: "에픽",
@@ -48,6 +50,7 @@ function toMap(items?: NamedRef[]): Map<string, string> {
 
 export function buildLookups(src: {
   members?: { id: string; name: string | null; email: string }[];
+  teams?: NamedRef[];
   epics?: NamedRef[];
   projects?: NamedRef[];
   sprints?: NamedRef[];
@@ -56,6 +59,7 @@ export function buildLookups(src: {
     members: toMap(
       src.members?.map((m) => ({ id: m.id, name: m.name ?? m.email })),
     ),
+    teams: toMap(src.teams),
     epics: toMap(src.epics),
     projects: toMap(src.projects),
     sprints: toMap(src.sprints),
@@ -84,6 +88,8 @@ export function formatFieldValue(
     case "ownerId":
     case "reporterId":
       return lookups.members.get(s) ?? "사용자";
+    case "assigneeTeamId":
+      return lookups.teams.get(s) ?? "담당 팀";
     case "epicId":
       return lookups.epics.get(s) ?? "에픽";
     case "projectId":

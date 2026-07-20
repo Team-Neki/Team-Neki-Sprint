@@ -26,8 +26,10 @@ export default async function EpicsPage({
 }) {
   const sp = await searchParams;
   const user = await requireUser();
+  // 다중선택 필터는 콤마구분 값(예: `?owner=a,b`) → 배열로 파싱한다(F6).
+  const toArray = (v?: string) => (v ?? "").split(",").filter(Boolean);
   const [epics, projects, teams, members, labels, pref] = await Promise.all([
-    getEpics({ ownerId: sp.owner || undefined, teamId: sp.team || undefined }),
+    getEpics({ ownerId: toArray(sp.owner), teamId: toArray(sp.team) }),
     getProjectOptions(),
     getTeamOptions(),
     getMembers(),

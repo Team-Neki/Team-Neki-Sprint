@@ -20,12 +20,15 @@ import type { MiniUser } from "@/components/user-badge";
 import {
   StatusSelect,
   PrioritySelect,
-  MemberSelect,
   GenericSelect,
   TeamSelect,
   type TeamOption,
   toDateInput,
 } from "@/components/forms/fields";
+import {
+  AssigneePicker,
+  type AssigneeValue,
+} from "@/components/selects/assignee-picker";
 import { createTask, updateTask } from "@/server/actions/tasks";
 
 type Existing = {
@@ -35,6 +38,7 @@ type Existing = {
   status: Status;
   priority: Priority;
   assigneeId: string | null;
+  assigneeTeamId?: string | null;
   teamId: string;
   epicId: string | null;
   startDate: Date | string | null;
@@ -99,8 +103,13 @@ function TaskForm({
     task?.status ?? defaultStatus ?? "TODO",
   );
   const [priority, setPriority] = useState<Priority>(task?.priority ?? "MEDIUM");
-  const [assigneeId, setAssigneeId] = useState<string | null>(
-    task?.assigneeId ?? null,
+  // 담당자는 유저 또는 팀 중 하나(상호배타). 편집 진입 시 기존 값에서 종류를 판별.
+  const [assignee, setAssignee] = useState<AssigneeValue>(
+    task?.assigneeId
+      ? { kind: "user", id: task.assigneeId }
+      : task?.assigneeTeamId
+        ? { kind: "team", id: task.assigneeTeamId }
+        : null,
   );
   const [epicId, setEpicId] = useState<string | null>(
     task?.epicId ?? defaultEpicId ?? null,
@@ -143,7 +152,8 @@ function TaskForm({
       description,
       status,
       priority,
-      assigneeId,
+      assigneeId: assignee?.kind === "user" ? assignee.id : null,
+      assigneeTeamId: assignee?.kind === "team" ? assignee.id : null,
       teamId: effectiveTeamId ?? task?.teamId,
       epicId,
       startDate,
@@ -188,7 +198,7 @@ function TaskForm({
           />
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="grid gap-2">
+          <div className="grid min-w-0 gap-2">
             <Label>상위 에픽</Label>
             <GenericSelect
               value={epicId}
@@ -198,7 +208,7 @@ function TaskForm({
               noneLabel="없음"
             />
           </div>
-          <div className="grid gap-2">
+          <div className="grid min-w-0 gap-2">
             <Label>
               소유 팀
               {isEdit ? " (변경 불가)" : epicTeamId ? " (에픽 상속)" : ""}
@@ -211,27 +221,29 @@ function TaskForm({
           </div>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="grid gap-2">
+          <div className="grid min-w-0 gap-2">
             <Label>상태</Label>
             <StatusSelect value={status} onChange={setStatus} />
           </div>
-          <div className="grid gap-2">
+          <div className="grid min-w-0 gap-2">
             <Label>우선순위</Label>
             <PrioritySelect value={priority} onChange={setPriority} />
           </div>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="grid gap-2">
+          <div className="grid min-w-0 gap-2">
             <Label>담당자</Label>
-            <MemberSelect
-              value={assigneeId}
-              onChange={setAssigneeId}
+            <AssigneePicker
+              value={assignee}
               members={members}
+              teams={teams}
+              onChange={setAssignee}
+              triggerClassName="h-9 w-full justify-start border-input"
             />
           </div>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="grid gap-2">
+          <div className="grid min-w-0 gap-2">
             <Label>예상 MD</Label>
             <Input
               type="number"
@@ -242,7 +254,7 @@ function TaskForm({
               placeholder="예: 2"
             />
           </div>
-          <div className="grid gap-2">
+          <div className="grid min-w-0 gap-2">
             <Label>실제 MD</Label>
             <Input
               type="number"
@@ -255,7 +267,7 @@ function TaskForm({
           </div>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="grid gap-2">
+          <div className="grid min-w-0 gap-2">
             <Label>시작일</Label>
             <Input
               type="date"
@@ -263,7 +275,7 @@ function TaskForm({
               onChange={(e) => setStartDate(e.target.value)}
             />
           </div>
-          <div className="grid gap-2">
+          <div className="grid min-w-0 gap-2">
             <Label>마감일</Label>
             <Input
               type="date"

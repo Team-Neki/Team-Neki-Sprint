@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { JSONContent } from "@tiptap/core";
 import {
   parseDoc,
+  markdownToDoc,
   docToPlainText,
   plainTextOf,
   isValueEmpty,
@@ -276,5 +277,97 @@ describe("searchExcerpt (전역 검색 본문 발췌)", () => {
 
   it("빈 query 는 매칭 없음 취급(앞부분 반환)", () => {
     expect(searchExcerpt("abcdefghij", "", 3)).toBe("abcdef…");
+  });
+});
+
+describe("markdownToDoc (B9)", () => {
+  it("제목 #~######", () => {
+    expect(markdownToDoc("## 제목").content?.[0]).toMatchObject({
+      type: "heading",
+      attrs: { level: 2 },
+      content: [{ type: "text", text: "제목" }],
+    });
+  });
+
+  it("인라인 강조: **굵게** *기울임* `코드` ~~취소~~", () => {
+    const nodes = markdownToDoc("a **b** c *d* e `f` g ~~h~~").content?.[0]
+      .content;
+    const mark = (t: string) => nodes?.find((n) => n.text === t)?.marks;
+    expect(mark("b")).toEqual([{ type: "bold" }]);
+    expect(mark("d")).toEqual([{ type: "italic" }]);
+    expect(mark("f")).toEqual([{ type: "code" }]);
+    expect(mark("h")).toEqual([{ type: "strike" }]);
+  });
+
+  it("링크 [text](url)", () => {
+    const link = markdownToDoc("see [docs](https://x.io)")
+      .content?.[0].content?.find((n) => n.text === "docs");
+    expect(link?.marks).toEqual([
+      { type: "link", attrs: { href: "https://x.io" } },
+    ]);
+  });
+
+  it("글머리 목록", () => {
+    const d = markdownToDoc("- a\n- b");
+    expect(d.content?.[0].type).toBe("bulletList");
+    expect(d.content?.[0].content).toHaveLength(2);
+    expect(d.content?.[0].content?.[0]).toMatchObject({
+      type: "listItem",
+      content: [{ type: "paragraph", content: [{ type: "text", text: "a" }] }],
+    });
+  });
+
+  it("번호 목록", () => {
+    const d = markdownToDoc("1. a\n2. b");
+    expect(d.content?.[0].type).toBe("orderedList");
+    expect(d.content?.[0].content).toHaveLength(2);
+  });
+
+  it("펜스 코드블록(언어 지정)", () => {
+    expect(markdownToDoc("```ts\nconst a = 1;\n```").content?.[0]).toMatchObject({
+      type: "codeBlock",
+      attrs: { language: "ts" },
+      content: [{ type: "text", text: "const a = 1;" }],
+    });
+  });
+
+  it("인용/구분선", () => {
+    expect(markdownToDoc("> quote").content?.[0].type).toBe("blockquote");
+    expect(markdownToDoc("---").content?.[0].type).toBe("horizontalRule");
+  });
+
+  it("평문은 한 문단으로", () => {
+    expect(markdownToDoc("그냥 텍스트").content?.[0]).toMatchObject({
+      type: "paragraph",
+      content: [{ type: "text", text: "그냥 텍스트" }],
+    });
+  });
+
+  it("snake_case 는 기울임 오검출 안 함(밑줄 강조 미지원)", () => {
+    expect(markdownToDoc("some_var_name").content?.[0].content).toEqual([
+      { type: "text", text: "some_var_name" },
+    ]);
+  });
+});
+
+describe("parseDoc 마크다운 폴백 (B9)", () => {
+  it("Tiptap JSON 은 그대로 통과", () => {
+    const doc = {
+      type: "doc",
+      content: [{ type: "paragraph", content: [{ type: "text", text: "x" }] }],
+    };
+    expect(parseDoc(JSON.stringify(doc))).toEqual(doc);
+  });
+
+  it("평문 마크다운은 렌더 doc 으로 변환", () => {
+    expect(parseDoc("# hi").content?.[0]).toMatchObject({
+      type: "heading",
+      attrs: { level: 1 },
+    });
+  });
+
+  it("docToPlainText 는 마크다운 문법을 벗겨낸다", () => {
+    expect(plainTextOf("**bold**")).toBe("bold");
+    expect(plainTextOf("# 제목\n- item")).toContain("제목");
   });
 });

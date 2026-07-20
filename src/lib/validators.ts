@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const status = z.enum(["BACKLOG", "TODO", "IN_PROGRESS", "DONE"]);
+const status = z.enum(["TODO", "IN_PROGRESS", "DONE"]);
 const priority = z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]);
 const sprintStatus = z.enum(["PLANNED", "ACTIVE", "DONE"]);
 
@@ -43,6 +43,7 @@ const optionalMd = z.preprocess(
 
 export const sprintSchema = z.object({
   name: z.string().trim().min(1, "이름을 입력하세요").max(200),
+  description: z.string().optional().nullable(),
   status: sprintStatus.default("PLANNED"),
   startDate: optionalDate,
   endDate: optionalDate,
@@ -63,7 +64,7 @@ export const teamSchema = z.object({
 export const projectSchema = z.object({
   title: z.string().trim().min(1, "제목을 입력하세요").max(200),
   description: z.string().optional().nullable(),
-  status: status.default("BACKLOG"),
+  status: status.default("TODO"),
   priority: priority.default("MEDIUM"),
   ownerId: optionalId,
   sprintId: optionalId,
@@ -74,7 +75,7 @@ export const projectSchema = z.object({
 export const epicSchema = z.object({
   title: z.string().trim().min(1, "제목을 입력하세요").max(200),
   description: z.string().optional().nullable(),
-  status: status.default("BACKLOG"),
+  status: status.default("TODO"),
   priority: priority.default("MEDIUM"),
   ownerId: optionalId,
   teamId: requiredId,
@@ -89,6 +90,7 @@ export const taskSchema = z.object({
   status: status.default("TODO"),
   priority: priority.default("MEDIUM"),
   assigneeId: optionalId,
+  assigneeTeamId: optionalId,
   reporterId: optionalId,
   teamId: requiredId,
   epicId: optionalId,

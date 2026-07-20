@@ -19,17 +19,18 @@ import {
   LabelBadge,
   BlockedBadge,
 } from "@/components/badges";
-import { UserBadge, type MiniUser } from "@/components/user-badge";
+import { type MiniUser } from "@/components/user-badge";
+import { AssigneeBadge } from "@/components/assignee-badge";
 import type { TaskEpicOption } from "@/components/forms/task-dialog";
 import type { TeamOption } from "@/components/forms/fields";
 import {
   InlineTitle,
   InlineStatus,
   InlinePriority,
-  InlineMember,
   InlineNumber,
   InlineDate,
 } from "@/components/detail/inline-fields";
+import { InlineAssignee } from "@/components/detail/inline-assignee";
 import { TaskLabels } from "@/components/detail/task-labels";
 import type { LabelItem } from "@/components/detail/entity-labels";
 import { OpenDetailKey } from "./open-detail";
@@ -54,10 +55,12 @@ export type TaskTableRow = {
   team: { key: string } | null;
   teamId: string;
   assignee: MiniUser | null;
+  assigneeTeam?: TeamOption | null;
   startDate?: Date | null;
   dueDate?: Date | null;
   labels?: { label: { id: string; name: string; color: string } }[];
   assigneeId?: string | null;
+  assigneeTeamId?: string | null;
   estimatedMd?: number | null;
   // 미완료 blocker 가 있으면 true(차단됨 배지). 목록 쿼리(getTasks)만 제공, 하위목록은 미제공.
   blocked?: boolean;
@@ -126,16 +129,20 @@ const COLUMNS: ColumnDef<TaskTableRow, TaskEditContext>[] = [
     cell: (t, edit) => (
       <TableCell>
         {edit ? (
-          <InlineMember
-            type="task"
-            id={t.id}
-            field="assigneeId"
-            value={t.assignee}
+          <InlineAssignee
+            taskId={t.id}
+            user={t.assignee}
+            team={t.assigneeTeam ?? null}
             members={edit.members}
+            teams={edit.teams}
             avatarOnly
           />
         ) : (
-          <UserBadge user={t.assignee} hideName />
+          <AssigneeBadge
+            user={t.assignee}
+            team={t.assigneeTeam ?? null}
+            hideName
+          />
         )}
       </TableCell>
     ),
@@ -221,6 +228,7 @@ const COLUMNS: ColumnDef<TaskTableRow, TaskEditContext>[] = [
               labels={t.labels?.map((l) => l.label) ?? []}
               allLabels={edit.labels}
               align="start"
+              layout="row"
             />
           </div>
         ) : (

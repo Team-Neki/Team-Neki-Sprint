@@ -209,6 +209,7 @@ const COLUMNS: ColumnDef<EpicTableRow, EpicEditContext>[] = [
               labels={e.labels?.map((l) => l.label) ?? []}
               allLabels={edit.labels}
               align="start"
+              layout="row"
             />
           </div>
         ) : (

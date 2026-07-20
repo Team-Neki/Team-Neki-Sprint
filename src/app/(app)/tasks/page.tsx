@@ -40,12 +40,14 @@ export default async function TasksPage({
     sp.q
   );
   const user = await requireUser();
+  // 다중선택 필터는 콤마구분 값(예: `?assignee=a,b`) → 배열로 파싱한다(F6).
+  const toArray = (v?: string) => (v ?? "").split(",").filter(Boolean);
   const [tasks, epics, teams, members, labels, pref] = await Promise.all([
     getTasks({
-      status: (sp.status as Status) || undefined,
-      assigneeId: sp.assignee || undefined,
-      teamId: sp.team || undefined,
-      labelId: sp.label || undefined,
+      status: toArray(sp.status) as Status[],
+      assigneeId: toArray(sp.assignee),
+      teamId: toArray(sp.team),
+      labelId: toArray(sp.label),
       q: sp.q || undefined,
     }),
     getEpicOptions(),

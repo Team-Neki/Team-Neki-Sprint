@@ -26,7 +26,8 @@ import { toast } from "sonner";
 import type { Status, Priority } from "@prisma/client";
 import { STATUS_ORDER, STATUS_META, formatIssueKey } from "@/lib/constants";
 import { PriorityBadge, BlockedBadge } from "@/components/badges";
-import { UserBadge, type MiniUser } from "@/components/user-badge";
+import { type MiniUser } from "@/components/user-badge";
+import { AssigneeBadge } from "@/components/assignee-badge";
 import { Card } from "@/components/ui/card";
 import {
   TaskDialog,
@@ -51,6 +52,7 @@ export type BoardTask = {
   status: Status;
   priority: Priority;
   assignee: MiniUser | null;
+  assigneeTeam: TeamOption | null;
   team: { key: string } | null;
   epic: { id: string; title: string } | null;
   // 미완료 blocker 가 있으면 true(차단됨 배지). getBoardTasks 에서 계산.
@@ -61,7 +63,6 @@ type Columns = Record<Status, string[]>;
 
 function buildColumns(tasks: BoardTask[]): Columns {
   const cols: Columns = {
-    BACKLOG: [],
     TODO: [],
     IN_PROGRESS: [],
     DONE: [],
@@ -350,7 +351,12 @@ function TaskCard({
         </span>
         <div className="flex items-center gap-2">
           <PriorityBadge priority={task.priority} />
-          <UserBadge user={task.assignee} hideName size="xs" />
+          <AssigneeBadge
+            user={task.assignee}
+            team={task.assigneeTeam}
+            hideName
+            size="xs"
+          />
         </div>
       </div>
       {task.epic && (

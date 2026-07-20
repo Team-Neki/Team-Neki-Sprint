@@ -194,6 +194,7 @@ const COLUMNS: ColumnDef<ProjectTableRow, ProjectEditContext>[] = [
               labels={p.labels?.map((l) => l.label) ?? []}
               allLabels={edit.labels}
               align="start"
+              layout="row"
             />
           </div>
         ) : (

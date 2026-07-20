@@ -40,8 +40,10 @@ export default async function ProjectsPage({
     ? { field: sortField, dir: sp.dir === "asc" ? ("asc" as const) : ("desc" as const) }
     : undefined;
   const user = await requireUser();
+  // 다중선택 필터는 콤마구분 값(예: `?owner=a,b`) → 배열로 파싱한다(F6).
+  const toArray = (v?: string) => (v ?? "").split(",").filter(Boolean);
   const [projects, members, sprints, labels, pref] = await Promise.all([
-    getProjects({ ownerId: sp.owner || undefined, sort }),
+    getProjects({ ownerId: toArray(sp.owner), sort }),
     getMembers(),
     getSprintOptions(),
     getLabelOptions(),

@@ -11,12 +11,14 @@ export function TaskLabels({
   labels,
   allLabels,
   align,
+  layout,
 }: {
   taskId: string;
   labels: LabelItem[];
   allLabels: LabelItem[];
   /** 표 셀에선 "start"(헤더와 좌측 정렬), 상세 시트 메타행은 기본 "end". */
   align?: "start" | "end";
+  layout?: "wrap" | "row";
 }) {
   return (
     <EntityLabels
@@ -25,6 +27,7 @@ export function TaskLabels({
       attach={(labelId) => addLabelToTask(taskId, labelId)}
       detach={(labelId) => removeLabelFromTask(taskId, labelId)}
       align={align}
+      layout={layout}
     />
   );
 }

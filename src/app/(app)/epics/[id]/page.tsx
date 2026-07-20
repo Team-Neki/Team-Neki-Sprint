@@ -73,7 +73,7 @@ export default async function EpicDetail({
   return (
     <div className="@container/detail mx-auto max-w-5xl">
       <div className="grid gap-6 @3xl/detail:grid-cols-3">
-      <div className="@3xl/detail:col-span-2">
+      <div className="min-w-0 @3xl/detail:col-span-2">
         <BackButton fallback="/epics" label="에픽" />
 
         <div className="mb-6 flex items-start justify-between gap-3">
@@ -115,6 +115,14 @@ export default async function EpicDetail({
           <TasksTable
             tasks={epic.tasks}
             emptyMessage="연결된 태스크가 없습니다."
+            edit={{
+              members,
+              teams,
+              epics: [
+                { id: epic.id, title: epic.title, teamId: epic.teamId },
+              ],
+              labels: labelOptions,
+            }}
           />
         </Card>
 
@@ -136,7 +144,7 @@ export default async function EpicDetail({
         </Card>
       </div>
 
-      <div className="@3xl/detail:col-span-1 flex flex-col gap-4">
+      <div className="flex min-w-0 flex-col gap-4 @3xl/detail:col-span-1">
         <Card className="flex flex-col gap-3 p-5">
           <MetaRow label="상태">
             <InlineStatus type="epic" id={epic.id} value={epic.status} />

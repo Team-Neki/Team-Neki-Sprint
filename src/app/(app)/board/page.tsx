@@ -20,10 +20,13 @@ export default async function BoardPage({
   searchParams: Promise<{ assignee?: string; team?: string }>;
 }) {
   const sp = await searchParams;
+  // 다중선택 필터는 콤마구분 값(예: `?team=a,b`) → 배열로 파싱한다(F6).
+  const toArray = (v?: string) => (v ?? "").split(",").filter(Boolean);
+  const teamIds = toArray(sp.team);
   const [tasks, epics, teams, members] = await Promise.all([
     getBoardTasks({
-      assigneeId: sp.assignee || undefined,
-      teamId: sp.team || undefined,
+      assigneeId: toArray(sp.assignee),
+      teamId: teamIds,
     }),
     getEpicOptions(),
     getTeamOptions(),
@@ -69,7 +72,8 @@ export default async function BoardPage({
           members,
           teams,
           epics: epicOptions,
-          defaultTeamId: sp.team || undefined,
+          // 정확히 한 팀만 필터돼 있을 때만 새 태스크의 기본 팀으로 사용.
+          defaultTeamId: teamIds.length === 1 ? teamIds[0] : undefined,
         }}
       />
     </div>

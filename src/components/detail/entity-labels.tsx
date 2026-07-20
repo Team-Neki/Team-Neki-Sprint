@@ -47,6 +47,7 @@ export function EntityLabels({
   attach,
   detach,
   align = "end",
+  layout = "wrap",
 }: {
   labels: LabelItem[];
   allLabels: LabelItem[];
@@ -54,6 +55,12 @@ export function EntityLabels({
   detach: (labelId: string) => Promise<unknown>;
   /** 배지 정렬. 상세 시트 메타행은 우측("end"), 표 셀은 헤더와 맞춰 좌측("start"). */
   align?: "start" | "end";
+  /**
+   * 배치 방식(F5). 기본 "wrap"(상세 시트: 배지가 여러 줄로 줄바꿈).
+   * "row"(표 셀): 한 줄 고정 — 배지는 넘치면 클리핑되고 추가 버튼은 항상 우측에 남아
+   * 라벨을 추가해도 행 높이가 두꺼워지지 않는다(전체 목록/편집은 팝오버에서).
+   */
+  layout?: "wrap" | "row";
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -125,21 +132,33 @@ export function EntityLabels({
     });
   }
 
+  const badges = optimisticLabels.map((l) => (
+    <LabelBadge
+      key={l.id}
+      name={l.name}
+      color={l.color}
+      onRemove={pending ? undefined : () => remove(l)}
+    />
+  ));
+
   return (
     <div
       className={cn(
-        "flex min-w-0 flex-wrap items-center gap-1.5",
+        "flex min-w-0 items-center gap-1.5",
+        // row: 한 줄 고정(줄바꿈 없음), wrap: 여러 줄 허용.
+        layout === "row" ? "" : "flex-wrap",
         align === "end" ? "justify-end" : "justify-start",
       )}
     >
-      {optimisticLabels.map((l) => (
-        <LabelBadge
-          key={l.id}
-          name={l.name}
-          color={l.color}
-          onRemove={pending ? undefined : () => remove(l)}
-        />
-      ))}
+      {layout === "row" ? (
+        // 배지는 한 줄에서 넘치면 클리핑([&>*]:shrink-0 로 배지 자체는 안 찌그러짐).
+        // 추가 버튼은 이 스트립 밖(shrink-0)이라 항상 보인다 → 행 높이 일정.
+        <div className="flex min-w-0 items-center gap-1 overflow-hidden [&>*]:shrink-0">
+          {badges}
+        </div>
+      ) : (
+        badges
+      )}
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger
           render={
@@ -148,8 +167,10 @@ export function EntityLabels({
               size="sm"
               className="h-6 shrink-0 px-1.5 text-xs"
               disabled={pending}
+              aria-label="라벨 추가"
             >
-              <Tag className="size-3.5" /> 라벨
+              <Tag className="size-3.5" />
+              {layout !== "row" && <span className="ml-1">라벨</span>}
             </Button>
           }
         />

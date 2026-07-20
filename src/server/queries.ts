@@ -151,10 +151,12 @@ export async function getSprint(id: string) {
     where: { id },
     include: {
       projects: {
-        // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO→BACKLOG) → 최신 생성 우선.
+        // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO) → 최신 생성 우선.
         orderBy: [{ status: "desc" }, { createdAt: "desc" }],
         include: {
           owner: miniUser,
+          // 하위 목록 인라인 편집(B6)의 라벨 셀용.
+          labels: labelInclude,
           _count: { select: { epics: true } },
         },
       },
@@ -176,12 +178,12 @@ export type ProjectSortField =
   "title" | "status" | "priority" | "dueDate" | "createdAt" | "updatedAt";
 
 export type ProjectFilter = {
-  ownerId?: string;
-  sprintId?: string;
+  ownerId?: string[];
+  sprintId?: string[];
   sort?: { field: ProjectSortField; dir: "asc" | "desc" };
 };
 
-// 기본 정렬(정렬 지정 없을 때). 상태 내림차(DONE→IN_PROGRESS→TODO→BACKLOG) → 최신 생성 우선.
+// 기본 정렬(정렬 지정 없을 때). 상태 내림차(DONE→IN_PROGRESS→TODO) → 최신 생성 우선.
 const PROJECT_DEFAULT_ORDER: Prisma.ProjectOrderByWithRelationInput[] = [
   { status: "desc" },
   { createdAt: "desc" },
@@ -216,8 +218,14 @@ function projectOrderBy(
 export const getProjects = async (filter: ProjectFilter = {}) => {
   const projects = await prisma.project.findMany({
     where: {
-      ownerId: filter.ownerId,
-      sprintId: filter.sprintId,
+      ownerId:
+        filter.ownerId && filter.ownerId.length
+          ? { in: filter.ownerId }
+          : undefined,
+      sprintId:
+        filter.sprintId && filter.sprintId.length
+          ? { in: filter.sprintId }
+          : undefined,
     },
     orderBy: projectOrderBy(filter.sort),
     include: {
@@ -241,6 +249,8 @@ export async function getProject(id: string) {
         include: {
           owner: miniUser,
           team: miniTeam,
+          // 하위 목록 인라인 편집(B6)의 라벨 셀용.
+          labels: labelInclude,
           _count: { select: { tasks: true } },
         },
       },
@@ -274,17 +284,23 @@ export const getProjectOptions = () =>
 // ---------- Epic ----------
 
 export type EpicFilter = {
-  ownerId?: string;
-  teamId?: string;
+  ownerId?: string[];
+  teamId?: string[];
 };
 
 export const getEpics = async (filter: EpicFilter = {}) => {
   const epics = await prisma.epic.findMany({
     where: {
-      ownerId: filter.ownerId,
-      teamId: filter.teamId,
+      ownerId:
+        filter.ownerId && filter.ownerId.length
+          ? { in: filter.ownerId }
+          : undefined,
+      teamId:
+        filter.teamId && filter.teamId.length
+          ? { in: filter.teamId }
+          : undefined,
     },
-    // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO→BACKLOG) → 최신 생성 우선.
+    // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO) → 최신 생성 우선.
     orderBy: [{ status: "desc" }, { createdAt: "desc" }],
     include: {
       owner: miniUser,
@@ -321,7 +337,13 @@ export async function getEpic(id: string) {
       labels: labelInclude,
       tasks: {
         orderBy: { createdAt: "desc" },
-        include: { assignee: miniUser, team: miniTeam },
+        // labels: 하위 목록 인라인 편집(B6)의 라벨 셀용. assigneeTeam: 담당자 팀 배지(B4).
+        include: {
+          assignee: miniUser,
+          assigneeTeam: miniTeam,
+          team: miniTeam,
+          labels: labelInclude,
+        },
       },
     },
   });
@@ -345,15 +367,21 @@ export const getEpicOptions = () =>
 // ---------- Task ----------
 
 export type BoardFilter = {
-  assigneeId?: string;
-  teamId?: string;
+  assigneeId?: string[];
+  teamId?: string[];
 };
 
 export const getBoardTasks = async (filter: BoardFilter = {}) => {
   const rows = await prisma.task.findMany({
     where: {
-      assigneeId: filter.assigneeId,
-      teamId: filter.teamId,
+      assigneeId:
+        filter.assigneeId && filter.assigneeId.length
+          ? { in: filter.assigneeId }
+          : undefined,
+      teamId:
+        filter.teamId && filter.teamId.length
+          ? { in: filter.teamId }
+          : undefined,
     },
     // 칸반 컬럼 내 순서(B7-board). 재정렬로 부여한 boardOrder 우선, 미정렬(null)은 하단.
     // id 최종 tiebreaker 로 동점(boardOrder null + 같은 createdAt) 카드의 순서 흔들림 방지.
@@ -364,6 +392,7 @@ export const getBoardTasks = async (filter: BoardFilter = {}) => {
     ],
     include: {
       assignee: miniUser,
+      assigneeTeam: miniTeam,
       team: miniTeam,
       epic: { select: { id: true, title: true } },
       labels: labelInclude,
@@ -378,28 +407,38 @@ export const getBoardTasks = async (filter: BoardFilter = {}) => {
 };
 
 export type TaskFilter = {
-  status?: Status;
-  assigneeId?: string;
+  status?: Status[];
+  assigneeId?: string[];
   epicId?: string;
-  teamId?: string;
-  labelId?: string;
+  teamId?: string[];
+  labelId?: string[];
   q?: string;
 };
 
 export const getTasks = async (filter: TaskFilter = {}) => {
   const rows = await prisma.task.findMany({
     where: {
-      status: filter.status,
-      assigneeId: filter.assigneeId,
+      status:
+        filter.status && filter.status.length
+          ? { in: filter.status }
+          : undefined,
+      assigneeId:
+        filter.assigneeId && filter.assigneeId.length
+          ? { in: filter.assigneeId }
+          : undefined,
       epicId: filter.epicId,
-      teamId: filter.teamId,
-      // 라벨 필터: 해당 라벨이 붙은 태스크만(m:n 조인 some).
-      labels: filter.labelId
-        ? { some: { labelId: filter.labelId } }
-        : undefined,
+      teamId:
+        filter.teamId && filter.teamId.length
+          ? { in: filter.teamId }
+          : undefined,
+      // 라벨 필터: 선택된 라벨 중 하나라도 붙은 태스크만(m:n 조인 some + in).
+      labels:
+        filter.labelId && filter.labelId.length
+          ? { some: { labelId: { in: filter.labelId } } }
+          : undefined,
       title: filter.q ? { contains: filter.q, mode: "insensitive" } : undefined,
     },
-    // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO→BACKLOG) 우선.
+    // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO) 우선.
     // id 를 마지막 tiebreaker 로 추가 → (status,priority,createdAt) 동점 행들도
     // 결정적 순서 보장. 없으면 MD 등 수정 시 동점 구간이 재배열돼 순서가 흔들린다.
     orderBy: [
@@ -410,6 +449,7 @@ export const getTasks = async (filter: TaskFilter = {}) => {
     ],
     include: {
       assignee: miniUser,
+      assigneeTeam: miniTeam,
       team: miniTeam,
       epic: { select: { id: true, title: true } },
       labels: labelInclude,
@@ -428,6 +468,7 @@ export function getTask(id: string) {
     where: { id },
     include: {
       assignee: miniUser,
+      assigneeTeam: miniTeam,
       reporter: miniUser,
       // 참조(c.c.) 수신자 목록. 이름순.
       ccUsers: { ...miniUser, orderBy: { name: "asc" } },
@@ -589,6 +630,7 @@ export function getTimelineEpics() {
           dueDate: true,
           team: { select: { key: true } },
           assignee: miniUser,
+          assigneeTeam: miniTeam,
         },
       },
     },
@@ -615,10 +657,15 @@ export const getWikiTree = (userId: string) =>
     },
   });
 
-/** 휴지통(soft-delete)된 페이지 목록. 최근 삭제순. parentId 로 '삭제 루트'를 화면에서 판별. */
-export function getTrashedWikiPages() {
+/** 휴지통(soft-delete)된 페이지 목록. 최근 삭제순. parentId 로 '삭제 루트'를 화면에서 판별.
+ * 초안(isDraft)은 삭제돼 휴지통에 들어가도 작성자에게만 보인다(B10) — getWikiTree 와
+ * 동형 필터(userId). 타인 휴지통에는 정식 페이지만 노출. */
+export function getTrashedWikiPages(userId: string) {
   return prisma.wikiPage.findMany({
-    where: { deletedAt: { not: null } },
+    where: {
+      deletedAt: { not: null },
+      OR: [{ isDraft: false }, { authorId: userId }],
+    },
     orderBy: { deletedAt: "desc" },
     select: {
       id: true,
@@ -1086,7 +1133,7 @@ export function getUserProfile(id: string) {
       team: { select: { id: true, key: true, name: true, color: true } },
       assignedTasks: {
         where: { status: { not: "DONE" } },
-        // 기본 정렬: 상태 내림차(IN_PROGRESS→TODO→BACKLOG, DONE 제외) → 최신 생성 우선.
+        // 기본 정렬: 상태 내림차(IN_PROGRESS→TODO, DONE 제외) → 최신 생성 우선.
         orderBy: [{ status: "desc" }, { createdAt: "desc" }],
         take: 20,
         select: {
@@ -1098,7 +1145,7 @@ export function getUserProfile(id: string) {
         },
       },
       ownedEpics: {
-        // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO→BACKLOG) → 최신 생성 우선.
+        // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO) → 최신 생성 우선.
         orderBy: [{ status: "desc" }, { createdAt: "desc" }],
         take: 20,
         select: {
@@ -1186,6 +1233,7 @@ export async function getDashboardData(userId: string) {
       take: 6,
       include: {
         assignee: miniUser,
+        assigneeTeam: miniTeam,
         team: { select: { key: true } },
       },
     }),

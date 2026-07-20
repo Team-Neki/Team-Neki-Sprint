@@ -3,21 +3,17 @@
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  OptionSelect,
-  renderTeamKey,
-  renderTeamOption,
-} from "@/components/selects/option-select";
+import { CheckboxFilter } from "@/components/filters/checkbox-filter";
+import { renderTeamOption } from "@/components/selects/option-select";
 import type { TeamOption } from "@/components/selects/option-select";
 
 // TeamOption 은 selects/option-select 로 단일화됐다. 기존 import 경로 호환을 위해 re-export.
 export type { TeamOption };
 
-const ALL = "__all__";
-
 /**
  * 팀(유저 그룹) 단위 URL 필터. owner-filter.tsx 와 같은 searchParams 패턴을 재사용해
  * 에픽/태스크 목록에서 owner·assignee 필터와 나란히 얹는다(서로의 파라미터를 안 건드림).
+ * F6 이후 다중선택 체크박스(콤마구분 값)로 동작한다.
  */
 export function TeamFilter({
   teams,
@@ -30,31 +26,27 @@ export function TeamFilter({
   const pathname = usePathname();
   const params = useSearchParams();
 
-  function setParam(value: string | null) {
+  const selected = (params.get(paramKey) ?? "").split(",").filter(Boolean);
+
+  function clear() {
     const next = new URLSearchParams(params.toString());
-    if (!value || value === ALL) next.delete(paramKey);
-    else next.set(paramKey, value);
+    next.delete(paramKey);
     const qs = next.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname);
   }
 
-  const active = params.get(paramKey);
+  const options = teams.map((t) => ({
+    value: t.id,
+    label: renderTeamOption(t),
+    keywords: `${t.key} ${t.name}`,
+  }));
 
   return (
     <>
-      <OptionSelect<TeamOption>
-        value={active ?? ALL}
-        onValueChange={(v) => setParam(v)}
-        options={teams}
-        getValue={(t) => t.id}
-        renderOption={(t) => renderTeamOption(t)}
-        renderTriggerOption={renderTeamKey}
-        triggerClassName="w-40"
-        leadingOption={{ value: ALL, label: "모든 팀", triggerLabel: "팀" }}
-      />
+      <CheckboxFilter paramKey={paramKey} label="팀" options={options} />
 
-      {active && (
-        <Button variant="ghost" size="sm" onClick={() => setParam(null)}>
+      {selected.length > 0 && (
+        <Button variant="ghost" size="sm" onClick={clear}>
           <X className="size-4" /> 초기화
         </Button>
       )}

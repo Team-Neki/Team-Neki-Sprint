@@ -11,7 +11,7 @@ const createInput = z.object({
   title: z.string().trim().min(1),
   team: z.string().trim().min(1), // team id or key
   description: z.string().nullish(),
-  status: z.enum(["BACKLOG", "TODO", "IN_PROGRESS", "DONE"]).nullish(),
+  status: z.enum(["TODO", "IN_PROGRESS", "DONE"]).nullish(),
   priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).nullish(),
   assignee: z.string().trim().nullish(), // user id or email
   epicId: z.string().trim().nullish(),
