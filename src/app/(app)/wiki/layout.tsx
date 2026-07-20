@@ -23,7 +23,7 @@ export default async function WikiLayout({
     getWikiTree(user.id),
     getWikiFolders(),
     getWikiFavorites(user.id),
-    getTrashedWikiPages(),
+    getTrashedWikiPages(user.id),
   ]);
 
   const favoriteIds = favorites.map((f) => f.page.id);

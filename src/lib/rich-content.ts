@@ -9,7 +9,181 @@ import { extractMentionUserIds, extractMentionTeamIds } from "@/lib/mentions";
 
 const EMPTY_DOC: JSONContent = { type: "doc", content: [{ type: "paragraph" }] };
 
-/** 저장 문자열(JSON 또는 레거시 plain text) → Tiptap doc JSON. */
+// ---------- 마크다운 → Tiptap doc (B9) ----------
+// 저장값이 Tiptap JSON 이 아니면(레거시 plain text·MCP·붙여넣기) 마크다운 문법을
+// 해석해 렌더 가능한 doc 으로 변환한다. 지원: 제목(#~######)·인용(>)·구분선(---)·
+// 펜스 코드(```lang)·글머리/번호 목록·문단, 인라인은 `code`·**bold**·*italic*·
+// ~~strike~~·[text](url). (밑줄 _ 강조는 snake_case 오검출 방지로 미지원 — 별표만.)
+
+type MdMark = { type: string; attrs?: Record<string, unknown> };
+type MdText = { type: "text"; text: string; marks?: MdMark[] };
+
+const INLINE_PATTERNS: {
+  type: "code" | "link" | "bold" | "italic" | "strike";
+  re: RegExp;
+}[] = [
+  { type: "code", re: /`([^`]+)`/ },
+  { type: "link", re: /\[([^\]]+)\]\(([^)\s]+)\)/ },
+  { type: "bold", re: /\*\*([^*]+)\*\*/ },
+  { type: "strike", re: /~~([^~]+)~~/ },
+  { type: "italic", re: /\*([^*]+)\*/ },
+];
+
+function parseInline(text: string): MdText[] {
+  const out: MdText[] = [];
+  let rest = text;
+  while (rest.length > 0) {
+    let best: { type: string; m: RegExpExecArray } | null = null;
+    for (const p of INLINE_PATTERNS) {
+      const m = p.re.exec(rest);
+      if (m && (best === null || m.index < best.m.index)) {
+        best = { type: p.type, m };
+      }
+    }
+    if (!best) {
+      out.push({ type: "text", text: rest });
+      break;
+    }
+    const { type, m } = best;
+    if (m.index > 0) out.push({ type: "text", text: rest.slice(0, m.index) });
+    if (type === "code") {
+      out.push({ type: "text", text: m[1], marks: [{ type: "code" }] });
+    } else if (type === "link") {
+      out.push({
+        type: "text",
+        text: m[1],
+        marks: [{ type: "link", attrs: { href: m[2] } }],
+      });
+    } else {
+      // bold/italic/strike: 내부를 재귀 파싱해 중첩 마크를 얹는다(코드는 리터럴).
+      for (const inner of parseInline(m[1])) {
+        out.push({ ...inner, marks: [...(inner.marks ?? []), { type }] });
+      }
+    }
+    rest = rest.slice(m.index + m[0].length);
+  }
+  // 빈 텍스트 노드는 Tiptap 에서 무효 → 제거.
+  return out.filter((n) => n.text.length > 0);
+}
+
+function isBlockStart(line: string): boolean {
+  return (
+    /^```/.test(line) ||
+    /^#{1,6}\s+/.test(line) ||
+    /^(-{3,}|\*{3,}|_{3,})\s*$/.test(line) ||
+    /^>\s?/.test(line) ||
+    /^\s*[-*+]\s+/.test(line) ||
+    /^\s*\d+\.\s+/.test(line)
+  );
+}
+
+function mdParagraph(t: string): JSONContent {
+  const inline = parseInline(t);
+  return inline.length
+    ? { type: "paragraph", content: inline }
+    : { type: "paragraph" };
+}
+
+/** 마크다운 문자열 → Tiptap doc JSON. wikiExtensions 스키마 노드만 생성. */
+export function markdownToDoc(text: string): JSONContent {
+  const lines = text.replace(/\r\n?/g, "\n").split("\n");
+  const content: JSONContent[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (/^\s*$/.test(line)) {
+      i++;
+      continue;
+    }
+    // 펜스 코드블록.
+    const fence = /^```(\w+)?\s*$/.exec(line);
+    if (fence) {
+      const buf: string[] = [];
+      i++;
+      while (i < lines.length && !/^```\s*$/.test(lines[i])) {
+        buf.push(lines[i]);
+        i++;
+      }
+      i++; // 닫는 ``` 스킵
+      content.push({
+        type: "codeBlock",
+        attrs: fence[1] ? { language: fence[1] } : {},
+        content: buf.length ? [{ type: "text", text: buf.join("\n") }] : [],
+      });
+      continue;
+    }
+    // 제목.
+    const h = /^(#{1,6})\s+(.*)$/.exec(line);
+    if (h) {
+      content.push({
+        type: "heading",
+        attrs: { level: h[1].length },
+        content: parseInline(h[2]),
+      });
+      i++;
+      continue;
+    }
+    // 구분선.
+    if (/^(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
+      content.push({ type: "horizontalRule" });
+      i++;
+      continue;
+    }
+    // 인용(연속 > 줄을 하나의 blockquote 로).
+    if (/^>\s?/.test(line)) {
+      const buf: string[] = [];
+      while (i < lines.length && /^>\s?/.test(lines[i])) {
+        buf.push(lines[i].replace(/^>\s?/, ""));
+        i++;
+      }
+      content.push({ type: "blockquote", content: [mdParagraph(buf.join(" "))] });
+      continue;
+    }
+    // 글머리 목록.
+    if (/^\s*[-*+]\s+/.test(line)) {
+      const items: JSONContent[] = [];
+      while (i < lines.length && /^\s*[-*+]\s+/.test(lines[i])) {
+        items.push({
+          type: "listItem",
+          content: [mdParagraph(lines[i].replace(/^\s*[-*+]\s+/, ""))],
+        });
+        i++;
+      }
+      content.push({ type: "bulletList", content: items });
+      continue;
+    }
+    // 번호 목록.
+    if (/^\s*\d+\.\s+/.test(line)) {
+      const items: JSONContent[] = [];
+      while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) {
+        items.push({
+          type: "listItem",
+          content: [mdParagraph(lines[i].replace(/^\s*\d+\.\s+/, ""))],
+        });
+        i++;
+      }
+      content.push({ type: "orderedList", content: items });
+      continue;
+    }
+    // 문단: 연속된 (비어있지 않고 블록 시작이 아닌) 줄을 하나로 모은다.
+    const buf: string[] = [];
+    while (
+      i < lines.length &&
+      !/^\s*$/.test(lines[i]) &&
+      !isBlockStart(lines[i])
+    ) {
+      buf.push(lines[i]);
+      i++;
+    }
+    content.push(mdParagraph(buf.join(" ")));
+  }
+  return {
+    type: "doc",
+    content: content.length ? content : [{ type: "paragraph" }],
+  };
+}
+
+/** 저장 문자열(JSON 또는 레거시/마크다운 plain text) → Tiptap doc JSON. */
 export function parseDoc(value: string | null | undefined): JSONContent {
   if (!value) return EMPTY_DOC;
   const trimmed = value.trim();
@@ -18,13 +192,11 @@ export function parseDoc(value: string | null | undefined): JSONContent {
       const parsed = JSON.parse(trimmed) as JSONContent;
       if (parsed && parsed.type === "doc") return parsed;
     } catch {
-      // JSON 파싱 실패 → 아래 plain text 폴백.
+      // JSON 파싱 실패 → 아래 마크다운 폴백.
     }
   }
-  return {
-    type: "doc",
-    content: [{ type: "paragraph", content: [{ type: "text", text: value }] }],
-  };
+  // 평문은 마크다운으로 해석해 렌더(B9). 마크다운 문법이 없으면 문단으로 감싸진다.
+  return markdownToDoc(value);
 }
 
 /** doc JSON → 순수 텍스트(히스토리·발췌·검색용). 멘션/티켓 칩은 라벨로. */

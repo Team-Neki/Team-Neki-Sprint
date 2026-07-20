@@ -6,8 +6,8 @@ import { TrashList, type TrashItem } from "@/components/wiki/trash-list";
 export const dynamic = "force-dynamic";
 
 export default async function WikiTrashPage() {
-  await requireUser();
-  const trashed = await getTrashedWikiPages();
+  const user = await requireUser();
+  const trashed = await getTrashedWikiPages(user.id);
 
   // '삭제 루트'만 노출: 부모가 없거나, 부모는 휴지통에 없는(개별 삭제된) 페이지.
   const trashedIds = new Set(trashed.map((p) => p.id));

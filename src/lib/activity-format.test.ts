@@ -13,6 +13,7 @@ const lookups: Lookups = buildLookups({
     { id: "u1", name: "구태형", email: "koo@x.com" },
     { id: "u2", name: null, email: "no-name@x.com" },
   ],
+  teams: [{ id: "t1", name: "디자인" }],
   epics: [{ id: "e1", title: "에픽 A" }],
   projects: [{ id: "p1", title: "프로젝트 A" }],
   sprints: [{ id: "s1", name: "스프린트 1" }],
@@ -67,6 +68,11 @@ describe("formatFieldValue", () => {
   it("멤버 id → 이름, 없으면 '사용자'", () => {
     expect(formatFieldValue("assigneeId", "u1", lookups)).toBe("구태형");
     expect(formatFieldValue("ownerId", "unknown", lookups)).toBe("사용자");
+  });
+
+  it("담당 팀 id → 팀명, 없으면 '담당 팀'", () => {
+    expect(formatFieldValue("assigneeTeamId", "t1", lookups)).toBe("디자인");
+    expect(formatFieldValue("assigneeTeamId", "nope", lookups)).toBe("담당 팀");
   });
 
   it("epic/project/sprint id → 이름, 없으면 라벨 fallback", () => {

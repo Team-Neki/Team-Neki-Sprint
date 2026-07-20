@@ -11,6 +11,8 @@ import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 // 본문 이미지 NodeView(리사이즈/정렬/alt/라이트박스). 자기완결 모듈, 여기 한 줄만 추가.
 import { WikiImage } from "@/components/wiki/image-view";
+// 본문 파일 첨부 NodeView(다운로드 칩). 자기완결 모듈, 여기 한 줄만 추가.
+import { WikiFileAttachment } from "@/components/wiki/file-attachment";
 import { createLowlight, common } from "lowlight";
 // 코드블록 NodeView(우측 상단 복사 버튼). 구문강조는 CodeBlockLowlight 가 담당.
 import { CodeBlockView } from "@/components/wiki/code-block";
@@ -19,12 +21,12 @@ import {
   codeBlockAutoPairs,
   codeBlockEnterIndent,
 } from "@/components/wiki/code-block-pairs";
-// '#' 티켓 멘션(#4) / '@' 사람·팀 멘션(B5). 각각 자기완결 모듈, 여기 한 줄씩만 추가.
+// '#' 티켓·위키 페이지 멘션(#4) / '@' 사람·팀 멘션(B5). 각각 자기완결 모듈, 여기 한 줄씩만 추가.
 // 팀 멘션 suggestion 은 PersonMention 이 겸한다(같은 '@' 트리거 공유).
 import { TicketMention } from "@/components/wiki/ticket-mention";
 import { PersonMention } from "@/components/wiki/person-mention";
 import { TeamMention } from "@/components/wiki/team-mention";
-// '@' 위키 페이지 멘션(링크 칩). suggestion 은 PersonMention 이 겸한다.
+// 위키 페이지 멘션(링크 칩). suggestion 은 '#' TicketMention 이 티켓과 함께 겸한다.
 import { WikiMention } from "@/components/wiki/wiki-mention";
 // 인라인 댓글 앵커(B10). 편집/뷰가 동일 스키마로 파싱해야 하므로 여기서 공유한다.
 import { CommentMark } from "@/components/wiki/comment-mark";
@@ -121,6 +123,8 @@ export function wikiExtensions(opts?: { placeholder?: string }) {
       allowBase64: false,
       HTMLAttributes: { class: "wiki-image" },
     }),
+    // 본문 파일 첨부(다운로드 칩). 업로드→노드 삽입만 허용, 서빙은 always-attachment.
+    WikiFileAttachment,
     TicketMention,
     PersonMention,
     TeamMention,

@@ -120,9 +120,9 @@ describe("taskSchema 기본값", () => {
 });
 
 describe("projectSchema", () => {
-  it("기본값 BACKLOG/MEDIUM + optional 관계 null 정규화", () => {
+  it("기본값 TODO/MEDIUM + optional 관계 null 정규화", () => {
     const r = projectSchema.parse({ title: "P" });
-    expect(r.status).toBe("BACKLOG");
+    expect(r.status).toBe("TODO");
     expect(r.priority).toBe("MEDIUM");
     expect(r.ownerId).toBeNull();
     expect(r.sprintId).toBeNull();

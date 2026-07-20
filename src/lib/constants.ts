@@ -1,17 +1,11 @@
 import type { Status, Priority } from "@prisma/client";
 
-export const STATUS_ORDER: Status[] = [
-  "BACKLOG",
-  "TODO",
-  "IN_PROGRESS",
-  "DONE",
-];
+export const STATUS_ORDER: Status[] = ["TODO", "IN_PROGRESS", "DONE"];
 
 export const STATUS_META: Record<
   Status,
   { label: string; color: string; dot: string }
 > = {
-  BACKLOG: { label: "백로그", color: "text-neutral-500", dot: "bg-neutral-400" },
   TODO: { label: "할 일", color: "text-blue-600", dot: "bg-blue-500" },
   IN_PROGRESS: { label: "진행 중", color: "text-amber-600", dot: "bg-amber-500" },
   DONE: { label: "완료", color: "text-emerald-600", dot: "bg-emerald-500" },

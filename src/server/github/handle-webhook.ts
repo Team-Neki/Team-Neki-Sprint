@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { parseTaskKeyFromRef } from "@/lib/github/parse-key";
 import { prEventToStatus } from "@/lib/github/pr-status";
+import { logActivity } from "@/server/activity";
 
 type Account = { login?: string };
 type Installation = { id: number; account?: Account };
@@ -136,10 +137,29 @@ export async function handleGithubEvent(
     });
 
     if (outcome.taskStatus) {
+      // 현재 상태를 읽어 실제로 바뀔 때만 전이하고 업무 히스토리에 기록한다(B8).
+      // 브랜치 머지/PR 이벤트에 의한 자동 전이라 actor 는 시스템(userId null)이다.
+      const before = await prisma.task.findUnique({
+        where: { id: taskId },
+        select: { status: true },
+      });
       await prisma.task.update({
         where: { id: taskId },
         data: { status: outcome.taskStatus },
       });
+      if (before && before.status !== outcome.taskStatus) {
+        await logActivity({
+          userId: null,
+          entityType: "task",
+          entityId: taskId,
+          action: "field_changed",
+          meta: {
+            field: "status",
+            from: before.status,
+            to: outcome.taskStatus,
+          },
+        });
+      }
     }
   }
 }

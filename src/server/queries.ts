@@ -135,7 +135,7 @@ export async function getSprint(id: string) {
     where: { id },
     include: {
       projects: {
-        // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO→BACKLOG) → 최신 생성 우선.
+        // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO) → 최신 생성 우선.
         orderBy: [{ status: "desc" }, { createdAt: "desc" }],
         include: {
           owner: miniUser,
@@ -167,7 +167,7 @@ export type ProjectFilter = {
   sort?: { field: ProjectSortField; dir: "asc" | "desc" };
 };
 
-// 기본 정렬(정렬 지정 없을 때). 상태 내림차(DONE→IN_PROGRESS→TODO→BACKLOG) → 최신 생성 우선.
+// 기본 정렬(정렬 지정 없을 때). 상태 내림차(DONE→IN_PROGRESS→TODO) → 최신 생성 우선.
 const PROJECT_DEFAULT_ORDER: Prisma.ProjectOrderByWithRelationInput[] = [
   { status: "desc" },
   { createdAt: "desc" },
@@ -272,7 +272,7 @@ export const getEpics = async (filter: EpicFilter = {}) => {
       ownerId: filter.ownerId,
       teamId: filter.teamId,
     },
-    // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO→BACKLOG) → 최신 생성 우선.
+    // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO) → 최신 생성 우선.
     orderBy: [{ status: "desc" }, { createdAt: "desc" }],
     include: {
       owner: miniUser,
@@ -309,8 +309,13 @@ export async function getEpic(id: string) {
       labels: labelInclude,
       tasks: {
         orderBy: { createdAt: "desc" },
-        // labels: 하위 목록 인라인 편집(B6)의 라벨 셀용.
-        include: { assignee: miniUser, team: miniTeam, labels: labelInclude },
+        // labels: 하위 목록 인라인 편집(B6)의 라벨 셀용. assigneeTeam: 담당자 팀 배지(B4).
+        include: {
+          assignee: miniUser,
+          assigneeTeam: miniTeam,
+          team: miniTeam,
+          labels: labelInclude,
+        },
       },
     },
   });
@@ -353,6 +358,7 @@ export const getBoardTasks = async (filter: BoardFilter = {}) => {
     ],
     include: {
       assignee: miniUser,
+      assigneeTeam: miniTeam,
       team: miniTeam,
       epic: { select: { id: true, title: true } },
       labels: labelInclude,
@@ -388,7 +394,7 @@ export const getTasks = async (filter: TaskFilter = {}) => {
         : undefined,
       title: filter.q ? { contains: filter.q, mode: "insensitive" } : undefined,
     },
-    // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO→BACKLOG) 우선.
+    // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO) 우선.
     // id 를 마지막 tiebreaker 로 추가 → (status,priority,createdAt) 동점 행들도
     // 결정적 순서 보장. 없으면 MD 등 수정 시 동점 구간이 재배열돼 순서가 흔들린다.
     orderBy: [
@@ -399,6 +405,7 @@ export const getTasks = async (filter: TaskFilter = {}) => {
     ],
     include: {
       assignee: miniUser,
+      assigneeTeam: miniTeam,
       team: miniTeam,
       epic: { select: { id: true, title: true } },
       labels: labelInclude,
@@ -417,6 +424,7 @@ export function getTask(id: string) {
     where: { id },
     include: {
       assignee: miniUser,
+      assigneeTeam: miniTeam,
       reporter: miniUser,
       // 참조(c.c.) 수신자 목록. 이름순.
       ccUsers: { ...miniUser, orderBy: { name: "asc" } },
@@ -578,6 +586,7 @@ export function getTimelineEpics() {
           dueDate: true,
           team: { select: { key: true } },
           assignee: miniUser,
+          assigneeTeam: miniTeam,
         },
       },
     },
@@ -604,10 +613,15 @@ export const getWikiTree = (userId: string) =>
     },
   });
 
-/** 휴지통(soft-delete)된 페이지 목록. 최근 삭제순. parentId 로 '삭제 루트'를 화면에서 판별. */
-export function getTrashedWikiPages() {
+/** 휴지통(soft-delete)된 페이지 목록. 최근 삭제순. parentId 로 '삭제 루트'를 화면에서 판별.
+ * 초안(isDraft)은 삭제돼 휴지통에 들어가도 작성자에게만 보인다(B10) — getWikiTree 와
+ * 동형 필터(userId). 타인 휴지통에는 정식 페이지만 노출. */
+export function getTrashedWikiPages(userId: string) {
   return prisma.wikiPage.findMany({
-    where: { deletedAt: { not: null } },
+    where: {
+      deletedAt: { not: null },
+      OR: [{ isDraft: false }, { authorId: userId }],
+    },
     orderBy: { deletedAt: "desc" },
     select: {
       id: true,
@@ -1075,7 +1089,7 @@ export function getUserProfile(id: string) {
       team: { select: { id: true, key: true, name: true, color: true } },
       assignedTasks: {
         where: { status: { not: "DONE" } },
-        // 기본 정렬: 상태 내림차(IN_PROGRESS→TODO→BACKLOG, DONE 제외) → 최신 생성 우선.
+        // 기본 정렬: 상태 내림차(IN_PROGRESS→TODO, DONE 제외) → 최신 생성 우선.
         orderBy: [{ status: "desc" }, { createdAt: "desc" }],
         take: 20,
         select: {
@@ -1087,7 +1101,7 @@ export function getUserProfile(id: string) {
         },
       },
       ownedEpics: {
-        // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO→BACKLOG) → 최신 생성 우선.
+        // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO) → 최신 생성 우선.
         orderBy: [{ status: "desc" }, { createdAt: "desc" }],
         take: 20,
         select: {
@@ -1175,6 +1189,7 @@ export async function getDashboardData(userId: string) {
       take: 6,
       include: {
         assignee: miniUser,
+        assigneeTeam: miniTeam,
         team: { select: { key: true } },
       },
     }),

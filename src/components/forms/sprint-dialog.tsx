@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -29,6 +30,7 @@ import { createSprint, updateSprint } from "@/server/actions/sprints";
 type Existing = {
   id: string;
   name: string;
+  description: string | null;
   status: SprintStatus;
   startDate: Date | string | null;
   endDate: Date | string | null;
@@ -69,6 +71,7 @@ function SprintForm({
   const [pending, start] = useTransition();
 
   const [name, setName] = useState(sprint?.name ?? "");
+  const [description, setDescription] = useState(sprint?.description ?? "");
   const [status, setStatus] = useState<SprintStatus>(
     sprint?.status ?? "PLANNED",
   );
@@ -80,7 +83,7 @@ function SprintForm({
       toast.error("이름을 입력하세요");
       return;
     }
-    const payload = { name, status, startDate, endDate };
+    const payload = { name, description, status, startDate, endDate };
     start(async () => {
       try {
         if (sprint) await updateSprint(sprint.id, payload);
@@ -107,6 +110,15 @@ function SprintForm({
             onChange={(e) => setName(e.target.value)}
             placeholder="예: 2026 상반기 스프린트"
             autoFocus
+          />
+        </div>
+        <div className="grid gap-2">
+          <Label>설명</Label>
+          <Textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={3}
+            placeholder="마크다운 지원 (# 제목, - 목록, **굵게**, `코드`)"
           />
         </div>
         <div className="grid gap-2">
