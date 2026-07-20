@@ -56,6 +56,22 @@ model User {
   // MCP 연동용 개인 API 토큰.
   apiTokens         ApiToken[]
   announcements     Announcement[] @relation("AnnouncementAuthor")
+  // 유저별 PLP(태스크/에픽/프로젝트/스프린트) 표 컬럼 순서·노출 설정(F4).
+  columnPrefs       UserColumnPref[]
+}
+
+/**
+ * 유저별 PLP 표 컬럼 커스터마이즈(F4). (userId, table) 당 1건.
+ * columns = 표시 순서대로의 { key, visible } 배열(JSON). 없으면 표는 기본 컬럼으로 폴백.
+ * table = "tasks" | "epics" | "projects" | "sprints".
+ */
+model UserColumnPref {
+  userId  String
+  table   String
+  columns Json
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, table])
 }
 
 /**

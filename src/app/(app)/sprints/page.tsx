@@ -1,16 +1,25 @@
 import { Plus, Rocket } from "lucide-react";
-import { getSprints } from "@/server/queries";
+import { getSprints, getColumnPref } from "@/server/queries";
+import { requireUser } from "@/lib/session";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { SprintsTable } from "@/components/tables/sprints-table";
+import {
+  SprintsTable,
+  SPRINTS_COLUMNS_META,
+} from "@/components/tables/sprints-table";
+import { ColumnSettings } from "@/components/tables/column-settings";
 import { SprintDialog } from "@/components/forms/sprint-dialog";
 import { EmptyState } from "@/components/empty-state";
 
 export const dynamic = "force-dynamic";
 
 export default async function SprintsPage() {
-  const sprints = await getSprints();
+  const user = await requireUser();
+  const [sprints, pref] = await Promise.all([
+    getSprints(),
+    getColumnPref(user.id, "sprints"),
+  ]);
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -43,9 +52,18 @@ export default async function SprintsPage() {
           }
         />
       ) : (
-        <Card className="overflow-hidden py-0">
-          <SprintsTable sprints={sprints} />
-        </Card>
+        <>
+          <div className="mb-4 flex justify-end">
+            <ColumnSettings
+              table="sprints"
+              available={SPRINTS_COLUMNS_META}
+              pref={pref}
+            />
+          </div>
+          <Card className="overflow-hidden py-0">
+            <SprintsTable sprints={sprints} columnPref={pref} />
+          </Card>
+        </>
       )}
     </div>
   );

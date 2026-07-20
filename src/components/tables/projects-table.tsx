@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -26,6 +27,12 @@ import type { LabelItem } from "@/components/detail/entity-labels";
 import { OpenDetailIcon } from "./open-detail";
 import { SortableHead } from "./sortable-head";
 import { EmptyRow } from "./cells";
+import {
+  resolveColumns,
+  type ColumnDef,
+  type ColumnMeta,
+  type ColumnPref,
+} from "./column-registry";
 
 /**
  * 프로젝트 표의 한 행에 필요한 데이터. 프로젝트는 이슈 key 가 없다(팀 접두어 미부여).
@@ -54,170 +61,228 @@ const fmt = (d: Date | null | undefined) =>
   d ? format(d, "yyyy.M.d", { locale: ko }) : "—";
 
 /**
- * 프로젝트 목록/하위목록 공용 표.
+ * 프로젝트 표 컬럼 레지스트리(F4). 각 `cell` 에 기존 인라인 셀 JSX 를 그대로 담는다.
  * 컬럼: [제목] [담당자] [시작일] [종료일] [우선순위] [상태] [레이블] [열기]
- * - `edit` 제공(목록): 제목·담당자·시작일·종료일·우선순위·상태 인라인 편집. 레이블은 읽기전용.
+ * - `sortField` + 표 `sortable` 이면 헤더를 SortableHead 로 렌더(title/dueDate/priority/status).
  * - 시작일=startDate, 종료일=dueDate. (생성/수정시간 컬럼은 노출하지 않는다.)
+ */
+const COLUMNS: ColumnDef<ProjectTableRow, ProjectEditContext>[] = [
+  {
+    key: "title",
+    label: "제목",
+    sortField: "title",
+    cell: (p, edit) => (
+      <TableCell className="font-medium">
+        {edit ? (
+          <InlineTitle
+            type="project"
+            id={p.id}
+            value={p.title}
+            href={`/projects/${p.id}`}
+            className="text-sm font-medium"
+          />
+        ) : (
+          <Link href={`/projects/${p.id}`} className="hover:underline">
+            {p.title}
+          </Link>
+        )}
+      </TableCell>
+    ),
+  },
+  {
+    key: "assignee",
+    label: "담당자",
+    headClassName: "w-32",
+    cell: (p, edit) => (
+      <TableCell>
+        {edit ? (
+          <InlineMember
+            type="project"
+            id={p.id}
+            field="ownerId"
+            value={p.owner}
+            members={edit.members}
+            avatarOnly
+          />
+        ) : (
+          <UserBadge user={p.owner} hideName />
+        )}
+      </TableCell>
+    ),
+  },
+  {
+    key: "startDate",
+    label: "시작일",
+    headClassName: "w-28",
+    cell: (p, edit) => (
+      <TableCell className="text-muted-foreground text-xs">
+        {edit ? (
+          <InlineDate
+            type="project"
+            id={p.id}
+            field="startDate"
+            value={p.startDate ?? null}
+          />
+        ) : (
+          fmt(p.startDate)
+        )}
+      </TableCell>
+    ),
+  },
+  {
+    key: "dueDate",
+    label: "종료일",
+    headClassName: "w-28",
+    sortField: "dueDate",
+    cell: (p, edit) => (
+      <TableCell className="text-muted-foreground text-xs">
+        {edit ? (
+          <InlineDate
+            type="project"
+            id={p.id}
+            field="dueDate"
+            value={p.dueDate ?? null}
+          />
+        ) : (
+          fmt(p.dueDate)
+        )}
+      </TableCell>
+    ),
+  },
+  {
+    key: "priority",
+    label: "우선순위",
+    headClassName: "w-24",
+    sortField: "priority",
+    cell: (p, edit) => (
+      <TableCell>
+        {edit ? (
+          <InlinePriority type="project" id={p.id} value={p.priority} />
+        ) : (
+          <PriorityBadge priority={p.priority} />
+        )}
+      </TableCell>
+    ),
+  },
+  {
+    key: "status",
+    label: "상태",
+    headClassName: "w-28",
+    sortField: "status",
+    cell: (p, edit) => (
+      <TableCell>
+        {edit ? (
+          <InlineStatus type="project" id={p.id} value={p.status} />
+        ) : (
+          <StatusBadge status={p.status} />
+        )}
+      </TableCell>
+    ),
+  },
+  {
+    key: "labels",
+    label: "레이블",
+    headClassName: "w-40",
+    // 라벨 셀: auto-layout 표에서 컬럼이 밀리지 않도록 폭을 헤더(w-40)에
+    // 맞춰 상한 두고 넘치면 줄바꿈(가로 blowout 방지).
+    cell: (p, edit) => (
+      <TableCell>
+        {edit ? (
+          <div className="max-w-40">
+            <ProjectLabels
+              projectId={p.id}
+              labels={p.labels?.map((l) => l.label) ?? []}
+              allLabels={edit.labels}
+              align="start"
+              layout="row"
+            />
+          </div>
+        ) : (
+          <span className="flex max-w-40 flex-wrap items-center gap-1">
+            {p.labels?.length
+              ? p.labels.map((l) => (
+                  <LabelBadge
+                    key={l.label.id}
+                    name={l.label.name}
+                    color={l.label.color}
+                  />
+                ))
+              : "—"}
+          </span>
+        )}
+      </TableCell>
+    ),
+  },
+  {
+    key: "open",
+    label: "열기",
+    headClassName: "w-16",
+    head: <span className="sr-only">열기</span>,
+    cell: (p) => (
+      <TableCell>
+        <OpenDetailIcon href={`/projects/${p.id}`} />
+      </TableCell>
+    ),
+  },
+];
+
+/** 설정 UI·목록 페이지가 참조하는 기본 순서 컬럼 메타(렌더 함수 제외). */
+export const PROJECTS_COLUMNS_META: ColumnMeta[] = COLUMNS.map((c) => ({
+  key: c.key,
+  label: c.label,
+}));
+
+/**
+ * 프로젝트 목록/하위목록 공용 표.
+ * - `edit` 제공(목록): 제목·담당자·시작일·종료일·우선순위·상태 인라인 편집. 레이블은 읽기전용.
+ * - `sortable` 제공(목록): 정렬 가능 컬럼 헤더를 SortableHead 로 렌더(하위목록은 URL 정렬 미지원).
+ * - `columnPref` 제공(목록): 유저별 컬럼 순서·노출 적용. 미제공 → 기본 컬럼 전체.
  * - 열기 셀: 패널 아이콘 클릭 = 우측 슬라이드 상세, 새 창 열기 = 새 탭 전체 페이지.
  */
 export function ProjectsTable({
   projects,
   emptyMessage = "프로젝트가 없습니다.",
   edit,
-  sortable = edit != null,
+  sortable,
+  columnPref,
 }: {
   projects: ProjectTableRow[];
   emptyMessage?: string;
   edit?: ProjectEditContext;
-  /**
-   * 정렬 헤더 노출 여부. 목록(PLP)에선 URL 기반 정렬이 동작하므로 기본 노출,
-   * 상세 하위목록(B6)에선 URL 정렬이 안 먹으므로 편집은 켜되 정렬 헤더는 끈다.
-   */
   sortable?: boolean;
+  columnPref?: ColumnPref | null;
 }) {
+  const cols = resolveColumns(COLUMNS, columnPref);
   return (
     <Table>
       <TableHeader>
         <TableRow>
-          {/* 정렬 헤더는 PLP(sortable)에서만 — 하위목록에선 URL 정렬이 안 먹으므로 일반 헤더. */}
-          {sortable ? (
-            <>
-              <SortableHead field="title">제목</SortableHead>
-              <TableHead className="w-32">담당자</TableHead>
-              <TableHead className="w-28">시작일</TableHead>
-              <SortableHead field="dueDate" className="w-28">
-                종료일
+          {/* 정렬 헤더는 목록(sortable)에서만 — 하위목록에선 URL 정렬이 안 먹으므로 일반 헤더. */}
+          {cols.map((col) =>
+            sortable && col.sortField ? (
+              <SortableHead
+                key={col.key}
+                field={col.sortField}
+                className={col.headClassName}
+              >
+                {col.label}
               </SortableHead>
-              <SortableHead field="priority" className="w-24">
-                우선순위
-              </SortableHead>
-              <SortableHead field="status" className="w-28">
-                상태
-              </SortableHead>
-              <TableHead className="w-40">레이블</TableHead>
-            </>
-          ) : (
-            <>
-              <TableHead>제목</TableHead>
-              <TableHead className="w-32">담당자</TableHead>
-              <TableHead className="w-28">시작일</TableHead>
-              <TableHead className="w-28">종료일</TableHead>
-              <TableHead className="w-24">우선순위</TableHead>
-              <TableHead className="w-28">상태</TableHead>
-              <TableHead className="w-40">레이블</TableHead>
-            </>
+            ) : (
+              <TableHead key={col.key} className={col.headClassName}>
+                {col.head ?? col.label}
+              </TableHead>
+            ),
           )}
-          <TableHead className="w-16">
-            <span className="sr-only">열기</span>
-          </TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {projects.length === 0 ? (
-          <EmptyRow colSpan={8} message={emptyMessage} />
+          <EmptyRow colSpan={cols.length} message={emptyMessage} />
         ) : (
           projects.map((p) => {
-            const cells = (
-              <>
-              <TableCell className="font-medium">
-                {edit ? (
-                  <InlineTitle
-                    type="project"
-                    id={p.id}
-                    value={p.title}
-                    href={`/projects/${p.id}`}
-                    className="text-sm font-medium"
-                  />
-                ) : (
-                  <Link href={`/projects/${p.id}`} className="hover:underline">
-                    {p.title}
-                  </Link>
-                )}
-              </TableCell>
-              <TableCell>
-                {edit ? (
-                  <InlineMember
-                    type="project"
-                    id={p.id}
-                    field="ownerId"
-                    value={p.owner}
-                    members={edit.members}
-                    avatarOnly
-                  />
-                ) : (
-                  <UserBadge user={p.owner} hideName />
-                )}
-              </TableCell>
-              <TableCell className="text-muted-foreground text-xs">
-                {edit ? (
-                  <InlineDate
-                    type="project"
-                    id={p.id}
-                    field="startDate"
-                    value={p.startDate ?? null}
-                  />
-                ) : (
-                  fmt(p.startDate)
-                )}
-              </TableCell>
-              <TableCell className="text-muted-foreground text-xs">
-                {edit ? (
-                  <InlineDate
-                    type="project"
-                    id={p.id}
-                    field="dueDate"
-                    value={p.dueDate ?? null}
-                  />
-                ) : (
-                  fmt(p.dueDate)
-                )}
-              </TableCell>
-              <TableCell>
-                {edit ? (
-                  <InlinePriority type="project" id={p.id} value={p.priority} />
-                ) : (
-                  <PriorityBadge priority={p.priority} />
-                )}
-              </TableCell>
-              <TableCell>
-                {edit ? (
-                  <InlineStatus type="project" id={p.id} value={p.status} />
-                ) : (
-                  <StatusBadge status={p.status} />
-                )}
-              </TableCell>
-              {/* 라벨 셀: auto-layout 표에서 컬럼이 밀리지 않도록 폭을 헤더(w-40)에
-                  맞춰 상한 두고 넘치면 줄바꿈(가로 blowout 방지). */}
-              <TableCell>
-                {edit ? (
-                  <div className="max-w-40">
-                    <ProjectLabels
-                      projectId={p.id}
-                      labels={p.labels?.map((l) => l.label) ?? []}
-                      allLabels={edit.labels}
-                      align="start"
-                      layout="row"
-                    />
-                  </div>
-                ) : (
-                  <span className="flex max-w-40 flex-wrap items-center gap-1">
-                    {p.labels?.length
-                      ? p.labels.map((l) => (
-                          <LabelBadge
-                            key={l.label.id}
-                            name={l.label.name}
-                            color={l.label.color}
-                          />
-                        ))
-                      : "—"}
-                  </span>
-                )}
-              </TableCell>
-              <TableCell>
-                <OpenDetailIcon href={`/projects/${p.id}`} />
-              </TableCell>
-              </>
-            );
+            const cells = cols.map((col) => (
+              <Fragment key={col.key}>{col.cell(p, edit)}</Fragment>
+            ));
             return edit ? (
               <RowContextMenu
                 key={p.id}

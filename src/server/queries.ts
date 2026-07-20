@@ -2,6 +2,22 @@ import { prisma } from "@/lib/prisma";
 import type { Prisma, Status } from "@prisma/client";
 import { formatIssueKey } from "@/lib/constants";
 import { searchExcerpt } from "@/lib/rich-content";
+import type { ColumnPref } from "@/components/tables/column-registry";
+
+/**
+ * 유저별 PLP 표 컬럼 순서·노출 설정(F4). 저장된 행이 없으면 null → 표는 기본 컬럼으로 폴백.
+ * columns 는 { key, visible }[] 로 저장된 JSON 이라 ColumnPref 로 캐스팅해 반환한다.
+ */
+export async function getColumnPref(
+  userId: string,
+  table: string,
+): Promise<ColumnPref | null> {
+  const row = await prisma.userColumnPref.findUnique({
+    where: { userId_table: { userId, table } },
+    select: { columns: true },
+  });
+  return (row?.columns as ColumnPref | null) ?? null;
+}
 
 const miniUser = {
   select: {
