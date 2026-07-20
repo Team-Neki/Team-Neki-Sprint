@@ -264,3 +264,13 @@ tiptap v3 패키지들은 peer 로 `@tiptap/core@정확버전`(캐럿 아님)을
 - **왜 폼에서만**: 필터(`owner/team-filter` `w-40`)·상세 인라인(`max-w-44`)·멤버-팀(`w-44`) 은 `triggerClassName` 으로 폭을 고정/제한해 덜 티났다. **폼 래퍼(`fields.tsx`)만 폭 제한 없이 기본 `w-fit`** 이라 터졌다.
 - **해결**: (1) `SelectValue` 에 `min-w-0` 추가(공유 근본 — 모든 셀렉트에서 truncate 활성화). (2) 폼 셀렉트 5종(`fields.tsx` 의 Status/Priority/Member/Team/Generic)에 `triggerClassName="w-full"` — 폼 필드는 Input/날짜와 동일하게 폭을 채우고 긴 텍스트는 안에서 truncate.
 - **일반화**: flex 컨테이너 안에서 자식이 truncate 되게 하려면 그 자식(또는 체인상의 flex 자식)에 `min-w-0` 이 필수. `overflow-hidden`/`truncate` 만으론 안 줄어든다.
+
+## 35. 중앙 정렬 `fixed` 다이얼로그는 `max-h`+`overflow` 없으면 상하가 잘려 접근 불가 (2026-07-20)
+
+- **증상**: 모바일에서 스프린트/프로젝트/에픽/태스크 **생성 다이얼로그의 상하가 잘려 아무 액션도 못 함**(제목·저장/취소가 화면 밖).
+- **원인**: `ui/dialog.tsx` 의 `DialogContent` 가 `fixed top-1/2 -translate-y-1/2` 로 중앙 정렬인데 `max-height`·`overflow` 가 없었다. 내용이 뷰포트보다 길면 위아래로 **균등하게** 삐져나가고, `fixed` 라 페이지 스크롤로도 닿지 못한다. 데스크톱은 뷰포트가 높아 안 드러남 → 모바일 전용처럼 보이는 버그.
+- **해결**: 팝업 자체를 스크롤 컨테이너로. `max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain`. `vh` 가 아니라 **`dvh`** — 모바일 주소창이 접히고 펴질 때 `vh` 는 안 따라와 여전히 잘린다. `overscroll-contain` 은 끝까지 스크롤했을 때 뒤 페이지가 딸려 스크롤되는 것(scroll chaining) 방지.
+- **함정 A — sticky 오프셋은 스크롤 컨테이너의 padding 만큼 이미 inset 된다**: `DialogFooter` 는 `-mx-4 -mb-4` 로 팝업 padding(`p-4`)을 상쇄해 가장자리에 붙는다. 이걸 `sticky` 로 바닥 고정할 때 음수 마진을 되돌리려 `bottom-4` 를 주면 **16px 이 이중 상쇄**돼 푸터가 팝업 하단에서 32px 뜬다(`bottom-0` 이면 16px). 브라우저가 sticky 제약 사각형을 스크롤 컨테이너 padding 만큼 이미 inset 하기 때문. **정답은 `-bottom-4`**(= `bottom:-16px`) — 실측으로 gap 0(=`rounded-b-xl` 모서리 정렬) 확인. 이론으로 추측하지 말고 `getBoundingClientRect` 로 재라.
+- **함정 B — sticky 요소 배경은 불투명이어야 한다**: 푸터가 `bg-muted/50`(반투명)이면 고정된 채 아래로 지나가는 폼 내용이 비친다. 불투명 `bg-muted`(인셋 면 `#f5f5f5`)로.
+- **함정 C — tailwind-merge 는 `overflow` 와 `overflow-y` 를 다른 그룹으로 본다**: `DialogContent` 기본값에 `overflow-y-auto` 가 생기자, 이를 `overflow-hidden` 으로 덮어쓰던 `ui/command.tsx`(커맨드 팔레트)가 **computed `overflow-y:auto`** 로 남았다(shorthand 가 longhand 를 못 이김). 공용 프리미티브 기본값에 축별 유틸을 넣으면, 이를 shorthand 로 덮던 소비자를 함께 축별(`overflow-x-hidden overflow-y-hidden`)로 고쳐야 한다.
+- **검증 팁(로그인 게이트 우회)**: 이 앱은 Google OAuth 전용이라 다이얼로그를 실제로 열기 어렵다. 대신 **dev 서버의 로그인 페이지에서 컴파일된 실제 CSS 로 구조를 복제**해 `getBoundingClientRect` 로 재면 된다. 이때 **주입한 클래스가 Tailwind JIT 로 생성됐는지 `getComputedStyle` 로 반드시 확인** — 소스에 없는 클래스(예: 아직 안 쓴 `-bottom-4`)는 CSS 가 없어 조용히 무시되고, 잘못된 결론(“sticky 가 안 먹는다”)을 낸다.

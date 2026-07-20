@@ -55,7 +55,12 @@ function CommandDialog({
       </DialogHeader>
       <DialogContent
         className={cn(
-          "top-1/3 translate-y-0 overflow-hidden rounded-xl! p-0",
+          // overflow 를 축별로 명시: DialogContent 기본값이 `overflow-y-auto`(긴 폼 잘림
+          // 방지)인데, tailwind-merge 는 `overflow`(shorthand)와 `overflow-y` 를 다른
+          // 그룹으로 봐서 `overflow-hidden` 만으론 y축을 덮어쓰지 못한다(computed 가
+          // overflow-y:auto 로 남음). 팔레트는 내부 CommandList(max-h-72)가 스크롤을
+          // 담당하므로 팝업 자체는 양축 모두 hidden 이어야 한다.
+          "top-1/3 translate-y-0 overflow-x-hidden overflow-y-hidden rounded-xl! p-0",
           className
         )}
         showCloseButton={showCloseButton}

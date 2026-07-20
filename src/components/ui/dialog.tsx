@@ -76,7 +76,11 @@ function DialogContent({
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-[65] grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          // max-h + overflow-y-auto: 폼이 긴 다이얼로그(태스크/에픽/스프린트 등)가 모바일
+          // 뷰포트보다 길면, fixed + -translate-y-1/2 특성상 상하가 화면 밖으로 잘려나가고
+          // 페이지 스크롤로도 닿을 수 없었다(제목·저장 버튼 접근 불가). 팝업 자체를
+          // 스크롤 컨테이너로 만들어 해결. 100dvh 는 모바일 브라우저 주소창 높이 변화 대응.
+          "fixed top-1/2 left-1/2 z-[65] grid max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto overscroll-contain rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className
         )}
         {...props}
@@ -125,7 +129,13 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
-        "-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/50 p-4 sm:flex-row sm:justify-end",
+        // sticky -bottom-4: DialogContent 가 스크롤 컨테이너이므로, 긴 폼에서도 저장/취소가
+        // 항상 보이게 바닥에 고정한다. offset 이 0 이 아니라 -4(=-1rem)인 건 브라우저가
+        // sticky 제약 사각형을 스크롤 컨테이너의 padding(p-4)만큼 이미 inset 하기 때문 —
+        // bottom-0 이면 팝업 하단에서 16px 떠서 rounded-b-xl 모서리가 어긋난다(실측 확인).
+        // 배경은 muted/50(반투명) 대신 불투명 muted(=인셋 면 #f5f5f5) — 고정된 동안 아래로
+        // 지나가는 본문이 비쳐 보이면 안 된다.
+        "sticky -bottom-4 z-10 -mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted p-4 sm:flex-row sm:justify-end",
         className
       )}
       {...props}

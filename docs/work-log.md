@@ -8,6 +8,7 @@
 
 | 날짜 | 세션 | 상태 |
 |---|---|---|
+| 2026-07-20 | 모바일 다이얼로그 상하 잘림 버그: 스프린트/프로젝트/에픽/태스크 생성 폼이 뷰포트보다 길면 `fixed`+`-translate-y-1/2` 특성상 상하가 화면 밖으로 나가고 스크롤도 불가 → 저장/취소 접근 불가. `DialogContent` 에 `max-h-[calc(100dvh-2rem)]`+`overflow-y-auto`, `DialogFooter` 를 `sticky -bottom-4` 로 고정(+불투명 배경). 파생으로 `command.tsx` overflow 축별 명시 | `DONE` |
 | 2026-07-19 | 엔티티 연동 3종(worktree 병렬 → PR #29/#30/#31): (1) sprint/project/epic→**위키 링크**(`WikiPage{Epic,Project,Sprint}Link` 조인, 태스크 `LinkedPages` 동형), (2) sprint/project/epic/task **댓글**(다형 `Comment`, 추가만·최신순·@멘션 알림, `addEntityComment`), (3) sprint/project/epic/task **위키 `@`멘션**(`@` 드롭다운에 위키 노출·`wikiMention` 링크 칩). 스키마 있는 (1)(2)는 순차, 없는 (3)은 병렬 서브에이전트 | worktree 검증(tsc0·eslint·vitest195) 완료, 병합 후 `migrate`+`generate` 필요 |
 | 2026-07-19 | 생성/수정 다이얼로그 셀렉트 오버플로 버그: 상위 항목(에픽/프로젝트/스프린트) 긴 제목이 트리거 밖으로 넘쳐 레이아웃 깨짐. 근본원인=`SelectValue` 에 `min-w-0` 부재(truncate 무력화)+폼 셀렉트만 폭 제한 없는 `w-fit`. `SelectValue` `min-w-0` + `fields.tsx` 5종 `w-full` | `DONE`\* |
 | 2026-07-19 | 위키 이미지 관리 강화: 편집 모드 드래그 리사이즈(px, `attrs.width`)·정렬 3종(`attrs.align`)·ALT 인라인 편집, 뷰 모드 더블클릭 라이트박스(원본 열기/다운로드). `image-view.tsx` React NodeView 하나로 편집/뷰 공용, 순수 로직 `image-utils.ts`(+vitest 8) | `DONE`\* |
@@ -33,6 +34,19 @@
 | ~2026-07-08 | Phase 1~4 + 로드맵 v2 8건 (이하 15개 세션) | `DONE` |
 
 \* 코드·빌드·테스트 검증 완료. 실렌더(mermaid/표/강조)는 로그인 게이트라 브라우저 확인 필요.
+
+---
+
+## 2026-07-20 — 모바일 다이얼로그 상하 잘림 수정 (스크롤 + sticky 푸터)
+
+모바일에서 스프린트/프로젝트/에픽/태스크를 **만들 때 다이얼로그 상하가 잘려 아무 액션도 못 하던** 버그.
+
+- **근본원인**: `ui/dialog.tsx` 의 `DialogContent` 가 `fixed top-1/2 -translate-y-1/2` 로 화면 중앙에 놓이는데 **`max-height` 도 `overflow` 도 없었다.** 폼이 뷰포트보다 길어지면 다이얼로그가 위아래로 균등하게 삐져나가고, `fixed` 라 페이지 스크롤로도 닿을 수 없어 제목·저장/취소가 영구히 화면 밖에 남았다. 태스크 폼(필드 12개)이 가장 심했고, 데스크톱에선 뷰포트가 높아 드러나지 않았다.
+- **해결**: (1) `DialogContent` 에 `max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain` — 팝업 자체를 스크롤 컨테이너로. `100dvh` 는 모바일 주소창 높이 변화 대응, `overscroll-contain` 은 끝에서 배경 페이지가 딸려 스크롤되는 것 방지. (2) `DialogFooter` 를 `sticky -bottom-4 z-10` 으로 바닥 고정 — 긴 폼에서도 저장/취소가 항상 보인다. 배경은 반투명 `bg-muted/50` → 불투명 `bg-muted`(인셋 면 `#f5f5f5`), 고정된 채 아래로 지나가는 본문이 비치지 않게.
+- **파생 수정**: `ui/command.tsx` 의 `overflow-hidden` 이 새 기본값 `overflow-y-auto` 를 못 덮었다(tailwind-merge 가 `overflow`/`overflow-y` 를 다른 그룹으로 취급 → computed `overflow-y:auto`). 축별로 `overflow-x-hidden overflow-y-hidden` 명시. [gotchas §35]
+- **sticky 오프셋이 `-bottom-4` 인 이유**: 푸터의 `-mb-4` 를 상쇄하려 `bottom-4` 로 뒀다가, 브라우저가 sticky 제약 사각형을 **스크롤 컨테이너의 padding(`p-4`)만큼 이미 inset** 한다는 걸 실측으로 확인. `bottom-0` 이면 팝업 하단에서 16px 떠 `rounded-b-xl` 모서리가 어긋난다. [gotchas §35]
+
+검증: 실행 중 dev 서버의 **컴파일된 실제 CSS** 로 다이얼로그 구조를 복제해 기하 측정 — 수정 전 `clippedAbove/Below: true, scrollable: false`(증상 재현), 수정 후 모든 스크롤 위치에서 잘림 없음·푸터 상시 노출·하단 flush(gap 0). computed style 로 클래스 생성 여부까지 확인(`max-height:1323px`, `overflow-y:auto`, `bottom:-16px`, `#f5f5f5`). `tsc --noEmit` 0 · `eslint` clean · `vitest` 208 pass. **로그인이 Google OAuth 전용이라 실제 앱 다이얼로그 육안 확인은 미실시** — 변경이 공용 프리미티브의 CSS 클래스뿐이라 복제 검증으로 갈음.
 
 ---
 
