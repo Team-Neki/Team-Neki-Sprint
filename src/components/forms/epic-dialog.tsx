@@ -123,12 +123,20 @@ function EpicForm({
     });
   }
 
+  // ⌘/Ctrl+Enter 로 저장(설명 Textarea 안에서도 동작하도록 폼 전체에서 캡처).
+  function onKeyDown(e: React.KeyboardEvent) {
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && !pending) {
+      e.preventDefault();
+      submit();
+    }
+  }
+
   return (
     <>
       <DialogHeader>
         <DialogTitle>{epic ? "에픽 수정" : "새 에픽"}</DialogTitle>
       </DialogHeader>
-      <div className="grid gap-4 py-2">
+      <div className="grid gap-4 py-2" onKeyDown={onKeyDown}>
         <TitleField
           value={title}
           onChange={setTitle}
