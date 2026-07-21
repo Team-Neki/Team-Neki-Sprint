@@ -1,6 +1,6 @@
 export function deepLink(
   base: string,
-  kind: "tasks" | "wiki",
+  kind: "tasks" | "wiki" | "epics" | "projects" | "sprints",
   id: string,
 ): string {
   return `${base.replace(/\/+$/, "")}/${kind}/${id}`;

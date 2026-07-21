@@ -1,8 +1,13 @@
 import { z } from "zod";
+import type { Status } from "@prisma/client";
 import { withMcpAuth, ok, fail, parseLimit } from "@/server/api/mcp-auth";
 import { createTaskCore } from "@/server/actions/tasks";
-import { searchTasks } from "@/server/queries";
-import { resolveTeamId, resolveUserId } from "@/lib/issue-key";
+import { getTasks, searchTasks } from "@/server/queries";
+import {
+  resolveEpicId,
+  resolveTeamId,
+  resolveUserId,
+} from "@/lib/issue-key";
 import { formatIssueKey } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
@@ -48,17 +53,71 @@ export const POST = withMcpAuth(async (actor, req) => {
   return ok({ id: created.id }, 201);
 });
 
+const STATUS_VALUES = ["TODO", "IN_PROGRESS", "DONE"] as const;
+
 export const GET = withMcpAuth(async (_actor, req) => {
   const url = new URL(req.url);
   const query = url.searchParams.get("query") ?? "";
   const limit = parseLimit(url.searchParams.get("limit"));
-  const rows = await searchTasks(query, limit);
+
+  // 구조화 필터(epic/status/assignee/team)가 하나라도 있으면 필터 목록 조회,
+  // 없으면 기존 제목/키 검색(searchTasks) — search_tickets 하위호환.
+  const epic = url.searchParams.get("epic");
+  const status = url.searchParams.get("status");
+  const assignee = url.searchParams.get("assignee");
+  const team = url.searchParams.get("team");
+  if (epic == null && status == null && assignee == null && team == null) {
+    const rows = await searchTasks(query, limit);
+    return ok(
+      rows.map((t) => ({
+        id: t.id,
+        key: formatIssueKey(t.team?.key, t.number),
+        title: t.title,
+        status: t.status,
+      })),
+    );
+  }
+
+  let epicId: string | undefined;
+  if (epic != null) {
+    const resolved = await resolveEpicId(epic);
+    if (!resolved) return fail(`unknown epic: ${epic}`, 422);
+    epicId = resolved;
+  }
+  if (status != null && !STATUS_VALUES.includes(status as Status)) {
+    return fail(`unknown status: ${status}`, 422);
+  }
+  let assigneeId: string | undefined;
+  if (assignee != null) {
+    const resolved = await resolveUserId(assignee);
+    if (!resolved) return fail(`unknown assignee: ${assignee}`, 422);
+    assigneeId = resolved;
+  }
+  let teamId: string | undefined;
+  if (team != null) {
+    const resolved = await resolveTeamId(team);
+    if (!resolved) return fail(`unknown team: ${team}`, 422);
+    teamId = resolved;
+  }
+
+  const rows = await getTasks({
+    epicId,
+    status: status != null ? [status as Status] : undefined,
+    assigneeId: assigneeId ? [assigneeId] : undefined,
+    teamId: teamId ? [teamId] : undefined,
+    q: query || undefined,
+  });
   return ok(
-    rows.map((t) => ({
+    rows.slice(0, limit).map((t) => ({
       id: t.id,
       key: formatIssueKey(t.team?.key, t.number),
       title: t.title,
       status: t.status,
+      priority: t.priority,
+      assignee: t.assignee
+        ? { id: t.assignee.id, name: t.assignee.name }
+        : null,
+      epic: t.epic ? { id: t.epic.id, title: t.epic.title } : null,
     })),
   );
 });

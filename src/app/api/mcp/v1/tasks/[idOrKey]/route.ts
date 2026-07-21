@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { withMcpAuth, ok, fail } from "@/server/api/mcp-auth";
-import { updateTaskFieldsCore } from "@/server/actions/tasks";
+import { updateTaskFieldsCore, deleteTaskCore } from "@/server/actions/tasks";
 import { getTask } from "@/server/queries";
 import { resolveTaskId, resolveUserId } from "@/lib/issue-key";
 import { formatIssueKey } from "@/lib/constants";
@@ -68,5 +68,14 @@ export const PATCH = withMcpAuth(async (actor, req, ctx) => {
   }
 
   await updateTaskFieldsCore(actor, id, patch);
+  return ok({ id });
+});
+
+export const DELETE = withMcpAuth(async (actor, _req, ctx) => {
+  const { idOrKey } = await ctx.params;
+  const id = await resolveTaskId(idOrKey);
+  if (!id) return fail(`task not found: ${idOrKey}`, 404);
+  // 삭제 권한(작성자/담당자/ADMIN)은 deleteTaskCore 의 assertCanManage 가 검사한다(위반 시 403).
+  await deleteTaskCore(actor, id);
   return ok({ id });
 });
