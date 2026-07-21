@@ -4,18 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { SprintStatus } from "@prisma/client";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -25,6 +14,14 @@ import {
 } from "@/components/ui/select";
 import { SPRINT_STATUS_ORDER, SPRINT_STATUS_META } from "@/lib/constants";
 import { toDateInput } from "@/components/forms/fields";
+import {
+  FormDialog,
+  FormField,
+  TitleField,
+  DescriptionField,
+  DateRangeFields,
+  FormFooter,
+} from "@/components/forms/form-dialog";
 import { createSprint, updateSprint } from "@/server/actions/sprints";
 
 type Existing = {
@@ -43,20 +40,12 @@ export function SprintDialog({
   sprint?: Existing;
   trigger: React.ReactElement;
 }) {
-  const [open, setOpen] = useState(false);
-
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={trigger} />
-      <DialogContent className="sm:max-w-md">
-        {/*
-          폼 필드 state 는 이 자식(SprintForm)에 둔다. Base UI 는 닫히면 popup 하위를
-          언마운트하므로(keepMounted=false), 매 열림마다 새로 마운트되어 폼이 항상
-          초기값으로 리셋된다(만들기=빈 폼, 수정=원본 값).
-        */}
-        <SprintForm sprint={sprint} onClose={() => setOpen(false)} />
-      </DialogContent>
-    </Dialog>
+    <FormDialog
+      trigger={trigger}
+      contentClassName="sm:max-w-md"
+      form={(onClose) => <SprintForm sprint={sprint} onClose={onClose} />}
+    />
   );
 }
 
@@ -103,26 +92,18 @@ function SprintForm({
         <DialogTitle>{sprint ? "스프린트 수정" : "새 스프린트"}</DialogTitle>
       </DialogHeader>
       <div className="grid gap-4 py-2">
-        <div className="grid gap-2">
-          <Label>이름</Label>
-          <Input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="예: 2026 상반기 스프린트"
-            autoFocus
-          />
-        </div>
-        <div className="grid gap-2">
-          <Label>설명</Label>
-          <Textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={3}
-            placeholder="마크다운 지원 (# 제목, - 목록, **굵게**, `코드`)"
-          />
-        </div>
-        <div className="grid gap-2">
-          <Label>상태</Label>
+        <TitleField
+          label="이름"
+          value={name}
+          onChange={setName}
+          placeholder="예: 2026 상반기 스프린트"
+        />
+        <DescriptionField
+          value={description}
+          onChange={setDescription}
+          placeholder="마크다운 지원 (# 제목, - 목록, **굵게**, `코드`)"
+        />
+        <FormField label="상태">
           <Select
             value={status}
             onValueChange={(v) => setStatus(v as SprintStatus)}
@@ -152,34 +133,15 @@ function SprintForm({
               ))}
             </SelectContent>
           </Select>
-        </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="grid gap-2">
-            <Label>시작일</Label>
-            <Input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label>종료일</Label>
-            <Input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-            />
-          </div>
-        </div>
+        </FormField>
+        <DateRangeFields
+          start={startDate}
+          onStartChange={setStartDate}
+          end={endDate}
+          onEndChange={setEndDate}
+        />
       </div>
-      <DialogFooter>
-        <Button variant="outline" onClick={onClose}>
-          취소
-        </Button>
-        <Button onClick={submit} disabled={pending}>
-          {pending ? "저장 중…" : "저장"}
-        </Button>
-      </DialogFooter>
+      <FormFooter pending={pending} onClose={onClose} onSubmit={submit} />
     </>
   );
 }

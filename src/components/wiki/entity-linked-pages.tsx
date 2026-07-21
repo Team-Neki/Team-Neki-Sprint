@@ -5,7 +5,11 @@ import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { FileText, X } from "lucide-react";
 import { toast } from "sonner";
-import { searchWikiPagesAction } from "@/server/actions/wiki";
+import {
+  linkTaskToPage,
+  unlinkTaskFromPage,
+  searchWikiPagesAction,
+} from "@/server/actions/wiki";
 import {
   linkPageToEntity,
   unlinkPageFromEntity,
@@ -19,16 +23,16 @@ export type LinkedPage = {
 };
 
 /**
- * sprint/project/epic 상세의 "연결된 위키" 카드. 태스크 상세의 LinkedPages 와 동형이나
- * (검색·연결·해제 UX 동일), 대상 엔티티가 태스크가 아니라 제네릭 링크 액션을 쓴다.
- * 태스크는 기존 LinkedPages 를 그대로 유지한다(그쪽 파일은 건드리지 않음).
+ * task/sprint/project/epic 상세의 "연결된 위키" 카드(4종 공용 — 2026-07-22 통합,
+ * 종전 태스크 전용 `LinkedPages` 를 흡수). 검색·연결·해제 UX 는 한 벌이고,
+ * 태스크만 조인 테이블이 달라 전용 링크 액션(`linkTaskToPage`)으로 분기한다.
  */
 export function EntityLinkedPages({
   entityType,
   entityId,
   pages,
 }: {
-  entityType: LinkEntityType;
+  entityType: LinkEntityType | "task";
   entityId: string;
   pages: LinkedPage[];
 }) {
@@ -50,14 +54,16 @@ export function EntityLinkedPages({
   }
 
   async function add(pageId: string) {
-    await linkPageToEntity(entityType, entityId, pageId);
+    if (entityType === "task") await linkTaskToPage(pageId, entityId);
+    else await linkPageToEntity(entityType, entityId, pageId);
     router.refresh();
   }
 
   function remove(pageId: string) {
     start(async () => {
       try {
-        await unlinkPageFromEntity(entityType, entityId, pageId);
+        if (entityType === "task") await unlinkTaskFromPage(pageId, entityId);
+        else await unlinkPageFromEntity(entityType, entityId, pageId);
         router.refresh();
       } catch {
         toast.error("연결 해제에 실패했습니다");

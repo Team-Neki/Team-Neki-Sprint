@@ -4,27 +4,26 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { Status, Priority } from "@prisma/client";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import type { MiniUser } from "@/components/user-badge";
 import {
-  StatusSelect,
-  PrioritySelect,
   GenericSelect,
   TeamSelect,
+  TeamKeyReadonly,
   type TeamOption,
   toDateInput,
 } from "@/components/forms/fields";
+import {
+  FormDialog,
+  FormField,
+  FormRow,
+  TitleField,
+  DescriptionField,
+  StatusPriorityFields,
+  DateRangeFields,
+  FormFooter,
+} from "@/components/forms/form-dialog";
 import {
   AssigneePicker,
   type AssigneeValue,
@@ -65,20 +64,11 @@ export function TaskDialog({
 }: FormProps & {
   trigger: React.ReactElement;
 }) {
-  const [open, setOpen] = useState(false);
-
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={trigger} />
-      <DialogContent className="sm:max-w-lg">
-        {/*
-          폼 필드 state 는 이 자식(TaskForm)에 둔다. Base UI 는 닫히면 popup 하위를
-          언마운트하므로(keepMounted=false), 매 열림마다 새로 마운트되어 폼이 항상
-          초기값으로 리셋된다(만들기=빈 폼, 수정=원본 값).
-        */}
-        <TaskForm {...formProps} onClose={() => setOpen(false)} />
-      </DialogContent>
-    </Dialog>
+    <FormDialog
+      trigger={trigger}
+      form={(onClose) => <TaskForm {...formProps} onClose={onClose} />}
+    />
   );
 }
 
@@ -180,26 +170,14 @@ function TaskForm({
         <DialogTitle>{task ? "태스크 수정" : "새 태스크"}</DialogTitle>
       </DialogHeader>
       <div className="grid gap-4 py-2">
-        <div className="grid gap-2">
-          <Label>제목</Label>
-          <Input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="예: 히어로 배너 카피 작성"
-            autoFocus
-          />
-        </div>
-        <div className="grid gap-2">
-          <Label>설명</Label>
-          <Textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={3}
-          />
-        </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="grid min-w-0 gap-2">
-            <Label>상위 에픽</Label>
+        <TitleField
+          value={title}
+          onChange={setTitle}
+          placeholder="예: 히어로 배너 카피 작성"
+        />
+        <DescriptionField value={description} onChange={setDescription} />
+        <FormRow>
+          <FormField label="상위 에픽">
             <GenericSelect
               value={epicId}
               onChange={onEpicChange}
@@ -207,32 +185,30 @@ function TaskForm({
               placeholder="에픽 선택"
               noneLabel="없음"
             />
-          </div>
-          <div className="grid min-w-0 gap-2">
-            <Label>
-              소유 팀
-              {isEdit ? " (변경 불가)" : epicTeamId ? " (에픽 상속)" : ""}
-            </Label>
+          </FormField>
+          <FormField
+            label={
+              <>
+                소유 팀
+                {isEdit ? " (변경 불가)" : epicTeamId ? " (에픽 상속)" : ""}
+              </>
+            }
+          >
             {isEdit || epicTeamId ? (
               <TeamKeyReadonly teams={teams} teamId={effectiveTeamId} />
             ) : (
               <TeamSelect value={teamId} onChange={setTeamId} teams={teams} />
             )}
-          </div>
-        </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="grid min-w-0 gap-2">
-            <Label>상태</Label>
-            <StatusSelect value={status} onChange={setStatus} />
-          </div>
-          <div className="grid min-w-0 gap-2">
-            <Label>우선순위</Label>
-            <PrioritySelect value={priority} onChange={setPriority} />
-          </div>
-        </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="grid min-w-0 gap-2">
-            <Label>담당자</Label>
+          </FormField>
+        </FormRow>
+        <StatusPriorityFields
+          status={status}
+          onStatusChange={setStatus}
+          priority={priority}
+          onPriorityChange={setPriority}
+        />
+        <FormRow>
+          <FormField label="담당자">
             <AssigneePicker
               value={assignee}
               members={members}
@@ -240,11 +216,10 @@ function TaskForm({
               onChange={setAssignee}
               triggerClassName="h-9 w-full justify-start border-input"
             />
-          </div>
-        </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="grid min-w-0 gap-2">
-            <Label>예상 MD</Label>
+          </FormField>
+        </FormRow>
+        <FormRow>
+          <FormField label="예상 MD">
             <Input
               type="number"
               min={0}
@@ -253,9 +228,8 @@ function TaskForm({
               onChange={(e) => setEstimatedMd(e.target.value)}
               placeholder="예: 2"
             />
-          </div>
-          <div className="grid min-w-0 gap-2">
-            <Label>실제 MD</Label>
+          </FormField>
+          <FormField label="실제 MD">
             <Input
               type="number"
               min={0}
@@ -264,56 +238,17 @@ function TaskForm({
               onChange={(e) => setActualMd(e.target.value)}
               placeholder="예: 1.5"
             />
-          </div>
-        </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="grid min-w-0 gap-2">
-            <Label>시작일</Label>
-            <Input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-            />
-          </div>
-          <div className="grid min-w-0 gap-2">
-            <Label>마감일</Label>
-            <Input
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-            />
-          </div>
-        </div>
+          </FormField>
+        </FormRow>
+        <DateRangeFields
+          start={startDate}
+          onStartChange={setStartDate}
+          end={dueDate}
+          onEndChange={setDueDate}
+          endLabel="마감일"
+        />
       </div>
-      <DialogFooter>
-        <Button variant="outline" onClick={onClose}>
-          취소
-        </Button>
-        <Button onClick={submit} disabled={pending}>
-          {pending ? "저장 중…" : "저장"}
-        </Button>
-      </DialogFooter>
+      <FormFooter pending={pending} onClose={onClose} onSubmit={submit} />
     </>
-  );
-}
-
-/** 팀이 고정된 경우(수정/에픽 상속) 팀 key를 읽기 전용으로 표시. */
-function TeamKeyReadonly({
-  teams,
-  teamId,
-}: {
-  teams: TeamOption[];
-  teamId: string | null;
-}) {
-  const team = teams.find((t) => t.id === teamId);
-  return (
-    <div className="border-input bg-muted/40 text-muted-foreground flex h-9 items-center gap-2 rounded-md border px-3 text-sm">
-      <span
-        className="size-2 shrink-0 rounded-full"
-        style={team?.color ? { backgroundColor: team.color } : undefined}
-      />
-      <span className="font-mono text-xs">{team?.key ?? "—"}</span>
-      <span>{team?.name}</span>
-    </div>
   );
 }

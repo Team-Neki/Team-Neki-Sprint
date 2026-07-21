@@ -11,8 +11,14 @@ import { requireUser } from "@/lib/session";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { EpicsTable, EPICS_COLUMNS_META } from "@/components/tables/epics-table";
+import { EntityTable } from "@/components/tables/entity-table";
+import {
+  EPIC_COLUMNS,
+  EPICS_COLUMNS_META,
+  EPIC_DELETE_DESCRIPTION,
+} from "@/components/tables/epic-columns";
 import { ColumnSettings } from "@/components/tables/column-settings";
+import { deleteEpic } from "@/server/actions/epics";
 import { OwnerFilter } from "@/components/filters/owner-filter";
 import { TeamFilter } from "@/components/filters/team-filter";
 import { EpicDialog } from "@/components/forms/epic-dialog";
@@ -70,11 +76,15 @@ export default async function EpicsPage({
 
       {/* 항목이 없어도 컬럼 헤더가 보이도록 항상 표를 렌더한다(빈 안내는 표 안 EmptyRow). */}
       <Card className="overflow-hidden py-0">
-        <EpicsTable
-          epics={epics}
+        <EntityTable
+          rows={epics}
+          columns={EPIC_COLUMNS}
+          rowHref={(e) => `/epics/${e.id}`}
           emptyMessage="아직 에픽이 없습니다. 상단 ‘새 에픽’으로 만들어보세요."
           edit={{ members, teams, projects, labels }}
           columnPref={pref}
+          deleteAction={deleteEpic}
+          deleteDescription={EPIC_DELETE_DESCRIPTION}
         />
       </Card>
     </div>

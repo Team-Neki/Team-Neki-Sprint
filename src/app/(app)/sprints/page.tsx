@@ -4,11 +4,14 @@ import { requireUser } from "@/lib/session";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { EntityTable } from "@/components/tables/entity-table";
 import {
-  SprintsTable,
+  SPRINT_COLUMNS,
   SPRINTS_COLUMNS_META,
-} from "@/components/tables/sprints-table";
+  SPRINT_DELETE_DESCRIPTION,
+} from "@/components/tables/sprint-columns";
 import { ColumnSettings } from "@/components/tables/column-settings";
+import { deleteSprint } from "@/server/actions/sprints";
 import { SprintDialog } from "@/components/forms/sprint-dialog";
 import { EmptyState } from "@/components/empty-state";
 
@@ -61,7 +64,15 @@ export default async function SprintsPage() {
             />
           </div>
           <Card className="overflow-hidden py-0">
-            <SprintsTable sprints={sprints} columnPref={pref} />
+            <EntityTable
+              rows={sprints}
+              columns={SPRINT_COLUMNS}
+              rowHref={(s) => `/sprints/${s.id}`}
+              emptyMessage="스프린트가 없습니다."
+              columnPref={pref}
+              deleteAction={deleteSprint}
+              deleteDescription={SPRINT_DELETE_DESCRIPTION}
+            />
           </Card>
         </>
       )}

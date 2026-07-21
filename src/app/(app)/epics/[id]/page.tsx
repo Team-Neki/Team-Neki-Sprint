@@ -11,13 +11,15 @@ import {
   getEntityWikiLinks,
 } from "@/server/queries";
 import { deleteEpic } from "@/server/actions/epics";
+import { deleteTask } from "@/server/actions/tasks";
 import { EpicLabels } from "@/components/detail/epic-labels";
 import { EntityComments } from "@/components/comments/entity-comments";
 import { EntityLinkedPages } from "@/components/wiki/entity-linked-pages";
 import { formatIssueKey } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { TasksTable } from "@/components/tables/tasks-table";
+import { EntityTable } from "@/components/tables/entity-table";
+import { TASK_COLUMNS } from "@/components/tables/task-columns";
 import { TaskDialog } from "@/components/forms/task-dialog";
 import { SheetDeleteButton } from "@/components/detail/sheet-delete-button";
 import { BackButton } from "@/components/detail/back-button";
@@ -112,8 +114,10 @@ export default async function EpicDetail({
         </div>
 
         <Card className="mb-6 overflow-hidden py-0">
-          <TasksTable
-            tasks={epic.tasks}
+          <EntityTable
+            rows={epic.tasks}
+            columns={TASK_COLUMNS}
+            rowHref={(t) => `/tasks/${t.id}`}
             emptyMessage="연결된 태스크가 없습니다."
             edit={{
               members,
@@ -123,6 +127,7 @@ export default async function EpicDetail({
               ],
               labels: labelOptions,
             }}
+            deleteAction={deleteTask}
           />
         </Card>
 

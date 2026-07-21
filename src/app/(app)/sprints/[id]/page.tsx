@@ -12,6 +12,7 @@ import {
   getEntityWikiLinks,
 } from "@/server/queries";
 import { deleteSprint } from "@/server/actions/sprints";
+import { deleteProject } from "@/server/actions/projects";
 import { EntityComments } from "@/components/comments/entity-comments";
 import { EntityLinkedPages } from "@/components/wiki/entity-linked-pages";
 import { PageHeader } from "@/components/page-header";
@@ -19,7 +20,11 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { RichContent } from "@/components/rich-text/rich-editor";
 import { isValueEmpty } from "@/lib/rich-content";
-import { ProjectsTable } from "@/components/tables/projects-table";
+import { EntityTable } from "@/components/tables/entity-table";
+import {
+  PROJECT_COLUMNS,
+  PROJECT_DELETE_DESCRIPTION,
+} from "@/components/tables/project-columns";
 import { SprintStatusBadge } from "@/components/badges";
 import { SprintDialog } from "@/components/forms/sprint-dialog";
 import { ProjectDialog } from "@/components/forms/project-dialog";
@@ -116,15 +121,18 @@ export default async function SprintDetail({
       </div>
 
       <Card className="overflow-hidden py-0">
-        <ProjectsTable
-          projects={sprint.projects}
+        <EntityTable
+          rows={sprint.projects}
+          columns={PROJECT_COLUMNS}
+          rowHref={(p) => `/projects/${p.id}`}
           emptyMessage="연결된 프로젝트가 없습니다."
           edit={{
             members,
             sprints: sprints.map((s) => ({ id: s.id, name: s.name })),
             labels: labelOptions,
           }}
-          sortable={false}
+          deleteAction={deleteProject}
+          deleteDescription={PROJECT_DELETE_DESCRIPTION}
         />
       </Card>
 

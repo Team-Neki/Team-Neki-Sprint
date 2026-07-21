@@ -13,7 +13,7 @@ import { formatIssueKey } from "@/lib/constants";
 import { Card } from "@/components/ui/card";
 import { SheetDeleteButton } from "@/components/detail/sheet-delete-button";
 import { EntityComments } from "@/components/comments/entity-comments";
-import { LinkedPages } from "@/components/wiki/linked-pages";
+import { EntityLinkedPages } from "@/components/wiki/entity-linked-pages";
 import { BackButton } from "@/components/detail/back-button";
 import { HistoryPanel } from "@/components/detail/history-panel";
 import { EpicField } from "@/components/detail/epic-field";
@@ -268,8 +268,9 @@ export default async function TaskDetail({
         </Card>
 
         <Card className="p-5">
-          <LinkedPages
-            taskId={task.id}
+          <EntityLinkedPages
+            entityType="task"
+            entityId={task.id}
             pages={task.wikiLinks.map((l) => ({
               id: l.page.id,
               title: l.page.title,

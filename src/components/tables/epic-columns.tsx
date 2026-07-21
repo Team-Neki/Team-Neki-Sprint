@@ -1,18 +1,8 @@
-import { Fragment } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import type { Priority, Status } from "@prisma/client";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { RowContextMenu } from "@/components/tables/row-context-menu";
-import { deleteEpic } from "@/server/actions/epics";
+import { TableCell } from "@/components/ui/table";
 import { StatusBadge, PriorityBadge, LabelBadge } from "@/components/badges";
 import { UserBadge, type MiniUser } from "@/components/user-badge";
 import type { TeamOption } from "@/components/forms/fields";
@@ -26,13 +16,7 @@ import {
 import { EpicLabels } from "@/components/detail/epic-labels";
 import type { LabelItem } from "@/components/detail/entity-labels";
 import { OpenDetailKey } from "./open-detail";
-import { EmptyRow } from "./cells";
-import {
-  resolveColumns,
-  type ColumnDef,
-  type ColumnMeta,
-  type ColumnPref,
-} from "./column-registry";
+import type { ColumnDef, ColumnMeta } from "./column-registry";
 
 /**
  * 에픽 표의 한 행에 필요한 데이터.
@@ -63,15 +47,20 @@ export type EpicEditContext = {
   labels: LabelItem[];
 };
 
+/** 에픽 행 삭제 확인 문구(`EntityTable` `deleteDescription`). */
+export const EPIC_DELETE_DESCRIPTION =
+  "에픽이 삭제됩니다. 하위 태스크는 삭제되지 않고 에픽 연결만 해제됩니다.";
+
 const fmt = (d: Date | null | undefined) =>
   d ? format(d, "yyyy.M.d", { locale: ko }) : "—";
 
 /**
- * 에픽 표 컬럼 레지스트리(F4). 각 `cell` 에 기존 인라인 셀 JSX 를 그대로 담는다.
+ * 에픽 표 컬럼 정의(F4). `EntityTable` 에 주입한다. 각 `cell` 은
+ * `edit ? <Inline/> : <읽기전용/>`.
  * 컬럼: [키] [제목] [담당자] [시작일] [종료일] [우선순위] [상태] [레이블] [MD]
  * - 프로젝트/태스크 표와 동일한 공통 컬럼 순서. MD(하위 롤업)는 항상 읽기전용.
  */
-const COLUMNS: ColumnDef<EpicTableRow, EpicEditContext>[] = [
+export const EPIC_COLUMNS: ColumnDef<EpicTableRow, EpicEditContext>[] = [
   {
     key: "key",
     label: "키",
@@ -241,64 +230,7 @@ const COLUMNS: ColumnDef<EpicTableRow, EpicEditContext>[] = [
 ];
 
 /** 설정 UI·목록 페이지가 참조하는 기본 순서 컬럼 메타(렌더 함수 제외). */
-export const EPICS_COLUMNS_META: ColumnMeta[] = COLUMNS.map((c) => ({
+export const EPICS_COLUMNS_META: ColumnMeta[] = EPIC_COLUMNS.map((c) => ({
   key: c.key,
   label: c.label,
 }));
-
-/**
- * 에픽 목록/하위목록 공용 표.
- * - `edit` 제공(목록): 각 셀 인라인 편집(MD 는 rollup 이라 항상 읽기전용).
- * - `columnPref` 제공(목록): 유저별 컬럼 순서·노출 적용. 미제공 → 기본 컬럼 전체.
- * - 키 클릭: 우측 슬라이드 상세, ↗: 새 탭 전체 페이지.
- */
-export function EpicsTable({
-  epics,
-  emptyMessage = "에픽이 없습니다.",
-  edit,
-  columnPref,
-}: {
-  epics: EpicTableRow[];
-  emptyMessage?: string;
-  edit?: EpicEditContext;
-  columnPref?: ColumnPref | null;
-}) {
-  const cols = resolveColumns(COLUMNS, columnPref);
-  return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          {cols.map((col) => (
-            <TableHead key={col.key} className={col.headClassName}>
-              {col.head ?? col.label}
-            </TableHead>
-          ))}
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {epics.length === 0 ? (
-          <EmptyRow colSpan={cols.length} message={emptyMessage} />
-        ) : (
-          epics.map((e) => {
-            const cells = cols.map((col) => (
-              <Fragment key={col.key}>{col.cell(e, edit)}</Fragment>
-            ));
-            return edit ? (
-              <RowContextMenu
-                key={e.id}
-                href={`/epics/${e.id}`}
-                id={e.id}
-                deleteAction={deleteEpic}
-                deleteDescription="에픽이 삭제됩니다. 하위 태스크는 삭제되지 않고 에픽 연결만 해제됩니다."
-              >
-                {cells}
-              </RowContextMenu>
-            ) : (
-              <TableRow key={e.id}>{cells}</TableRow>
-            );
-          })
-        )}
-      </TableBody>
-    </Table>
-  );
-}

@@ -4,26 +4,22 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { Status, Priority } from "@prisma/client";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { MiniUser } from "@/components/user-badge";
 import {
-  StatusSelect,
-  PrioritySelect,
   MemberSelect,
   GenericSelect,
   toDateInput,
 } from "@/components/forms/fields";
+import {
+  FormDialog,
+  FormField,
+  TitleField,
+  DescriptionField,
+  StatusPriorityFields,
+  DateRangeFields,
+  FormFooter,
+} from "@/components/forms/form-dialog";
 import { createProject, updateProject } from "@/server/actions/projects";
 
 type Existing = {
@@ -51,21 +47,11 @@ export function ProjectDialog({
 }: FormProps & {
   trigger: React.ReactElement;
 }) {
-  const [open, setOpen] = useState(false);
-
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={trigger} />
-      <DialogContent className="sm:max-w-lg">
-        {/*
-          폼 필드 state 는 이 자식(ProjectForm)에 둔다. Base UI 는 닫히면 popup 하위를
-          언마운트하므로(keepMounted=false), 매 열림마다 새로 마운트되어 폼이 항상
-          초기값으로 리셋된다(만들기=빈 폼, 수정=원본 값). 최상위에 두면 열림 사이에
-          이전 입력이 그대로 남는다.
-        */}
-        <ProjectForm {...formProps} onClose={() => setOpen(false)} />
-      </DialogContent>
-    </Dialog>
+    <FormDialog
+      trigger={trigger}
+      form={(onClose) => <ProjectForm {...formProps} onClose={onClose} />}
+    />
   );
 }
 
@@ -126,26 +112,17 @@ function ProjectForm({
         <DialogTitle>{project ? "프로젝트 수정" : "새 프로젝트"}</DialogTitle>
       </DialogHeader>
       <div className="grid gap-4 py-2">
-        <div className="grid gap-2">
-          <Label>제목</Label>
-          <Input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="예: 브랜드 캠페인 리뉴얼"
-            autoFocus
-          />
-        </div>
-        <div className="grid gap-2">
-          <Label>설명</Label>
-          <Textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={3}
-            placeholder="팀 횡단으로 진행할 작업의 목표와 배경"
-          />
-        </div>
-        <div className="grid gap-2">
-          <Label>스프린트</Label>
+        <TitleField
+          value={title}
+          onChange={setTitle}
+          placeholder="예: 브랜드 캠페인 리뉴얼"
+        />
+        <DescriptionField
+          value={description}
+          onChange={setDescription}
+          placeholder="팀 횡단으로 진행할 작업의 목표와 배경"
+        />
+        <FormField label="스프린트">
           <GenericSelect
             value={sprintId}
             onChange={setSprintId}
@@ -153,48 +130,24 @@ function ProjectForm({
             placeholder="스프린트 선택"
             noneLabel="없음"
           />
-        </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="grid gap-2">
-            <Label>상태</Label>
-            <StatusSelect value={status} onChange={setStatus} />
-          </div>
-          <div className="grid gap-2">
-            <Label>우선순위</Label>
-            <PrioritySelect value={priority} onChange={setPriority} />
-          </div>
-        </div>
-        <div className="grid gap-2">
-          <Label>담당자</Label>
+        </FormField>
+        <StatusPriorityFields
+          status={status}
+          onStatusChange={setStatus}
+          priority={priority}
+          onPriorityChange={setPriority}
+        />
+        <FormField label="담당자">
           <MemberSelect value={ownerId} onChange={setOwnerId} members={members} />
-        </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="grid gap-2">
-            <Label>시작일</Label>
-            <Input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label>종료일</Label>
-            <Input
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-            />
-          </div>
-        </div>
+        </FormField>
+        <DateRangeFields
+          start={startDate}
+          onStartChange={setStartDate}
+          end={dueDate}
+          onEndChange={setDueDate}
+        />
       </div>
-      <DialogFooter>
-        <Button variant="outline" onClick={onClose}>
-          취소
-        </Button>
-        <Button onClick={submit} disabled={pending}>
-          {pending ? "저장 중…" : "저장"}
-        </Button>
-      </DialogFooter>
+      <FormFooter pending={pending} onClose={onClose} onSubmit={submit} />
     </>
   );
 }

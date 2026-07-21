@@ -12,8 +12,10 @@ import { requireUser } from "@/lib/session";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { TasksTable, TASKS_COLUMNS_META } from "@/components/tables/tasks-table";
+import { EntityTable } from "@/components/tables/entity-table";
+import { TASK_COLUMNS, TASKS_COLUMNS_META } from "@/components/tables/task-columns";
 import { ColumnSettings } from "@/components/tables/column-settings";
+import { deleteTask } from "@/server/actions/tasks";
 import { TaskDialog } from "@/components/forms/task-dialog";
 import { TaskFilters } from "@/components/tasks/task-filters";
 
@@ -91,8 +93,10 @@ export default async function TasksPage({
 
       {/* 항목이 없어도 컬럼 헤더가 보이도록 항상 표를 렌더한다(빈 안내는 표 안 EmptyRow). */}
       <Card className="overflow-hidden py-0">
-        <TasksTable
-          tasks={tasks}
+        <EntityTable
+          rows={tasks}
+          columns={TASK_COLUMNS}
+          rowHref={(t) => `/tasks/${t.id}`}
           emptyMessage={
             hasFilter
               ? "조건에 맞는 태스크가 없습니다. 필터를 조정하거나 초기화해 보세요."
@@ -100,6 +104,7 @@ export default async function TasksPage({
           }
           edit={{ members, teams, epics: epicOptions, labels }}
           columnPref={pref}
+          deleteAction={deleteTask}
         />
       </Card>
     </div>

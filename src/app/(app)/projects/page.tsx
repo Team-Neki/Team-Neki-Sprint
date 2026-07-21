@@ -11,11 +11,14 @@ import { requireUser } from "@/lib/session";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { EntityTable } from "@/components/tables/entity-table";
 import {
-  ProjectsTable,
+  PROJECT_COLUMNS,
   PROJECTS_COLUMNS_META,
-} from "@/components/tables/projects-table";
+  PROJECT_DELETE_DESCRIPTION,
+} from "@/components/tables/project-columns";
 import { ColumnSettings } from "@/components/tables/column-settings";
+import { deleteProject } from "@/server/actions/projects";
 import { OwnerFilter } from "@/components/filters/owner-filter";
 import { ProjectDialog } from "@/components/forms/project-dialog";
 
@@ -80,12 +83,16 @@ export default async function ProjectsPage({
 
       {/* 항목이 없어도 컬럼 헤더가 보이도록 항상 표를 렌더한다(빈 안내는 표 안 EmptyRow). */}
       <Card className="overflow-hidden py-0">
-        <ProjectsTable
-          projects={projects}
+        <EntityTable
+          rows={projects}
+          columns={PROJECT_COLUMNS}
+          rowHref={(p) => `/projects/${p.id}`}
           emptyMessage="아직 프로젝트가 없습니다. 상단 ‘새 프로젝트’로 만들어보세요."
           edit={{ members, sprints, labels }}
           sortable
           columnPref={pref}
+          deleteAction={deleteProject}
+          deleteDescription={PROJECT_DELETE_DESCRIPTION}
         />
       </Card>
     </div>
