@@ -138,6 +138,30 @@ export function GenericSelect({
   );
 }
 
+/**
+ * 팀이 고정된 경우(수정 모드/에픽 상속) 팀 key를 읽기 전용으로 표시.
+ * 에픽·태스크 다이얼로그가 각자 복붙하던 것을 공용화(2026-07-22).
+ */
+export function TeamKeyReadonly({
+  teams,
+  teamId,
+}: {
+  teams: TeamOption[];
+  teamId: string | null;
+}) {
+  const team = teams.find((t) => t.id === teamId);
+  return (
+    <div className="border-input bg-muted/40 text-muted-foreground flex h-9 items-center gap-2 rounded-md border px-3 text-sm">
+      <span
+        className="size-2 shrink-0 rounded-full"
+        style={team?.color ? { backgroundColor: team.color } : undefined}
+      />
+      <span className="font-mono text-xs">{team?.key ?? "—"}</span>
+      <span>{team?.name}</span>
+    </div>
+  );
+}
+
 export function toDateInput(d: Date | string | null | undefined) {
   if (!d) return "";
   const date = typeof d === "string" ? new Date(d) : d;

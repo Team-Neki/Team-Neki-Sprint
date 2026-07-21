@@ -8,6 +8,8 @@
 
 | 날짜 | 세션 | 상태 |
 |---|---|---|
+| 2026-07-22 | 중복 컴포넌트 통합 2건(BACKEND-26/27): (1) 위키 연결 카드 — 태스크 전용 `wiki/linked-pages.tsx` 를 `entity-linked-pages.tsx` 로 흡수(렌더 동일, 태스크만 링크 액션 분기. `entityType: LinkEntityType \| "task"`), (2) 생성/수정 다이얼로그 4종 — 공용 셸·필드 블록 `forms/form-dialog.tsx`(FormDialog·FormField·FormRow·Title/Description/StatusPriority/DateRange/FormFooter) 추출, 중복 `TeamKeyReadonly` 는 `fields.tsx` 로 단일화. 엔티티 고유 필드·검증·submit 은 각 다이얼로그에 유지 | `DONE`\* |
+| 2026-07-22 | 목록 표 셸 통합(`EntityTable`): 4개 엔티티 표(tasks/epics/projects/sprints)에 복붙돼 있던 표 셸(헤더·바디·EmptyRow·RowContextMenu 분기)을 공용 `tables/entity-table.tsx` 하나로 통합. 컬럼 정의는 `*-columns.tsx` 로 분리해 호출부(페이지)가 주입, 행 메뉴는 `deleteAction` prop 유무로 결정(삭제 액션·확인 문구도 호출부 주입). `sortable`(SortableHead) 분기가 projects 셸에만 있던 drift 해소 — 이제 셸 공통 동작은 한 곳 수정으로 4개 표에 동시 적용 | `DONE`\* |
 | 2026-07-22 | MCP v2 — API/도구 커버리지 확장: 에픽 CRUD(`create/get/update/delete_epic`, 이슈키 해석 `resolveEpicId`), 티켓 구조화 필터(`search_tickets` `epic`/`status`/`assignee`/`team`)+`delete_ticket`, 프로젝트·스프린트 읽기(`list/get_projects`,`list/get_sprints`), 다형 댓글(`add_comment`, 마크다운→Tiptap doc). actor 주입 Core 분리 확장(epics/tasks delete/comments), 권한 거부 `ForbiddenError`→403 매핑. 도구 `BACKLOG` 죽은 enum 값 제거 | `DONE`\* |
 | 2026-07-20 | 모바일 다이얼로그 상하 잘림 버그: 스프린트/프로젝트/에픽/태스크 생성 폼이 뷰포트보다 길면 `fixed`+`-translate-y-1/2` 특성상 상하가 화면 밖으로 나가고 스크롤도 불가 → 저장/취소 접근 불가. `DialogContent` 에 `max-h-[calc(100dvh-2rem)]`+`overflow-y-auto`, `DialogFooter` 를 `sticky -bottom-4` 로 고정(+불투명 배경). 파생으로 `command.tsx` overflow 축별 명시 | `DONE` |
 | 2026-07-19 | 엔티티 연동 3종(worktree 병렬 → PR #29/#30/#31): (1) sprint/project/epic→**위키 링크**(`WikiPage{Epic,Project,Sprint}Link` 조인, 태스크 `LinkedPages` 동형), (2) sprint/project/epic/task **댓글**(다형 `Comment`, 추가만·최신순·@멘션 알림, `addEntityComment`), (3) sprint/project/epic/task **위키 `@`멘션**(`@` 드롭다운에 위키 노출·`wikiMention` 링크 칩). 스키마 있는 (1)(2)는 순차, 없는 (3)은 병렬 서브에이전트 | worktree 검증(tsc0·eslint·vitest195) 완료, 병합 후 `migrate`+`generate` 필요 |
@@ -37,6 +39,28 @@
 \* 코드·빌드·테스트 검증 완료. 실렌더(mermaid/표/강조)는 로그인 게이트라 브라우저 확인 필요.
 
 ---
+
+## 2026-07-22 — 중복 컴포넌트 통합 2건: 위키 연결 카드 · 폼 다이얼로그 셸 (브랜치 `koosco/butterflyfish`, BACKEND-26/27)
+
+EntityTable 통합 후 전수 점검에서 발견된 나머지 엔티티별 복붙 2곳을 같은 방식(공용 컴포넌트 + 호출부/엔티티별 주입)으로 통합.
+
+- **위키 연결 카드**(BACKEND-26): `wiki/linked-pages.tsx`(태스크 전용) 삭제, `wiki/entity-linked-pages.tsx` 가 `entityType: LinkEntityType | "task"` 를 받아 4종 공용. 렌더 JSX 는 원래 문자 그대로 동일했고 서버 액션만 달랐다 — 태스크는 조인 테이블이 달라 `linkTaskToPage`/`unlinkTaskFromPage` 로 내부 분기(서버 액션 변경 없음). `tasks/[id]` 호출부 전환.
+- **폼 다이얼로그**(BACKEND-27): 신규 `forms/form-dialog.tsx` — `FormDialog`(트리거·open state·mount-reset 규약 주석 단일화, `contentClassName` 으로 스프린트의 `sm:max-w-md` 유지), `FormField`/`FormRow`(레이아웃), `TitleField`/`DescriptionField`/`StatusPriorityFields`/`DateRangeFields`(공용 필드 블록), `FormFooter`(취소/저장·pending). 4개 다이얼로그는 상태·검증·submit·엔티티 고유 필드(태스크 에픽 상속/MD, 에픽 팀 불변, 프로젝트 스프린트, 스프린트 SprintStatus)만 보유. 에픽·태스크에 각자 복붙돼 있던 `TeamKeyReadonly` 는 `fields.tsx` 로 단일화.
+- 유일한 의도적 변화: `FormField` 가 `min-w-0` 을 기본 포함 — 종전엔 태스크 폼에만 있던 셀렉트 오버플로 방지([gotchas], 2026-07-19 SelectValue 수정과 같은 계열)가 에픽/프로젝트 폼에도 적용된다. 그 외 마크업·클래스·문구는 무변경 이동.
+
+검증: `tsc --noEmit` 0, `eslint` 0, vitest 208 통과. 다이얼로그 열림/저장/리셋(mount-reset)은 실화면 확인 필요(로그인 게이트) — 특히 4개 폼의 생성·수정 저장과 스프린트 상태 셀렉트.
+
+## 2026-07-22 — 목록 표 셸 통합: `EntityTable` + 엔티티별 컬럼 주입 (브랜치 `koosco/butterflyfish`)
+
+"같은 UI 인데 태스크에서는 되고 에픽에서는 안 되는" 표 동작 drift 의 구조적 원인 제거. 4개 표 파일이 컬럼 레지스트리(F4)는 공유하면서도 **표 셸(헤더 렌더·바디·EmptyRow·RowContextMenu 분기)을 각자 복붙**하고 있어, 공통 수정이 한 파일에만 적용되곤 했다(예: `SortableHead` 분기가 projects 셸에만 존재).
+
+- **신규 `tables/entity-table.tsx`**: 제네릭 공용 셸 `EntityTable<Row, Edit>`. props = `rows`/`columns`/`rowHref`/`emptyMessage`/`edit?`/`sortable?`/`columnPref?`/`deleteAction?`/`deleteDescription?`.
+  - 행 래핑은 **`deleteAction` 유무로 결정**(제공 → `RowContextMenu`, 미제공 → 일반 행). 종전엔 tasks/epics/projects 가 `edit` 유무로, sprints 는 무조건 감싸는 식으로 제각각이었다. `edit`(셀 인라인 편집)과 행 메뉴가 직교 prop 이 됨.
+  - `sortable`+`sortField` 헤더 분기가 셸 공통이 되어 이제 4개 표 모두에서 동작 가능(BACKEND-19/20 정렬·필터 작업의 선행 정지작업).
+- **`tasks-table.tsx` 등 4파일 → `task-columns.tsx`/`epic-columns.tsx`/`project-columns.tsx`/`sprint-columns.tsx`**: 셸 제거, 컬럼 정의(`*_COLUMNS`)·행 타입·`*_COLUMNS_META`·삭제 확인 문구(`*_DELETE_DESCRIPTION`)만 export. 셀 JSX·컬럼 구성은 변경 없음.
+- **호출부 7곳**(목록 4 + 상세 하위목록 3)이 `EntityTable` 에 컬럼·삭제 서버 액션을 직접 주입. 상세 하위목록도 종전처럼 행 메뉴 유지(기존에도 `edit` 를 넘겨 활성이었음), 삭제 액션 import 는 페이지로 이동.
+
+검증: `tsc --noEmit` 0, `eslint` 0, vitest 208 통과. 셀 JSX·클래스는 그대로 이동이라 CSS 복제 검증 불필요(구조 이동만). 실 화면 확인은 로그인 게이트로 미실시 — 목록 4곳·상세 하위목록 3곳의 행 클릭/우클릭 메뉴/인라인 편집이 육안 확인 대상.
 
 ## 2026-07-22 — MCP v2: 에픽 CRUD · 티켓 필터/삭제 · 프로젝트/스프린트 조회 · 댓글 (브랜치 `feat/mcp-v2-endpoints`)
 
