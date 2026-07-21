@@ -87,6 +87,17 @@ npm test        # vitest (config/client/format 순수 로직)
 npm run build   # dist/ 로 컴파일
 ```
 
+## 게시 (npm publish)
+
+`.github/workflows/publish-mcp.yml` 이 게시를 자동화한다.
+
+- `mcp/**` 변경이 main 에 반영되면 test+build 검증 후, `package.json` 버전이 npm 에
+  **아직 없을 때만** `npm publish` 한다. 즉 **버전 bump 커밋을 머지하는 것이 곧 게시**이고,
+  버전이 그대로면 검증만 하고 끝난다(no-op, 재실행 안전).
+- 최초 게시·실패 재시도는 Actions 탭에서 "Publish MCP to npm" 수동 실행(workflow_dispatch).
+- 사전 준비: 레포 시크릿 `NPM_TOKEN` — npm **automation token**(또는 이 패키지 publish
+  권한의 granular token). 대화형 2FA 는 CI 에서 불가하므로 automation 타입이어야 한다.
+
 ## 보안
 
 - 토큰은 앱 DB에 sha-256 해시로만 저장되고 원문은 저장되지 않는다.

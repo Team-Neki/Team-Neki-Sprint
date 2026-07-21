@@ -1,0 +1,74 @@
+name: Publish MCP to npm
+
+# mcp/ 변경이 main 에 반영되면 검증(test+build) 후, mcp/package.json 의 버전이
+# npm 레지스트리에 아직 없을 때만 게시한다. 즉 "버전 bump 를 머지하는 것"이
+# 게시 의사표시이고, 버전이 그대로면 검증만 하고 끝난다(no-op, 재실행 안전).
+# 최초 게시나 실패 재시도는 Actions 탭에서 workflow_dispatch 로 수동 실행.
+#
+# 사전 준비: 레포 시크릿 NPM_TOKEN (npm automation token,
+# @neki-team/sprint-mcp publish 권한. 2FA 대화형 승인이 없는 CI 용 토큰이어야 한다.)
+on:
+  push:
+    branches: [main]
+    paths: ["mcp/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# 게시 job 이 겹치지 않게 직렬화한다. 진행 중 실행은 취소하지 않는다
+# (publish 도중 취소되면 레지스트리 상태만 남는 어중간한 실패가 될 수 있음).
+concurrency:
+  group: publish-mcp
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Test / Build / Publish
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mcp
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: "https://registry.npmjs.org"
+          cache: npm
+          cache-dependency-path: mcp/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      # npm view 는 미존재 버전에서 npm 버전에 따라 exit 0 + 빈 출력일 수 있어
+      # exit code 대신 출력 문자열을 비교한다.
+      - name: Decide whether to publish
+        id: check
+        run: |
+          NAME=$(node -p "require('./package.json').name")
+          VERSION=$(node -p "require('./package.json').version")
+          PUBLISHED=$(npm view "$NAME@$VERSION" version 2>/dev/null || true)
+          if [ "$PUBLISHED" = "$VERSION" ]; then
+            echo "$NAME@$VERSION is already on npm - skipping publish."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "$NAME@$VERSION is not on npm yet - will publish."
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # prepublishOnly(test+build)가 한 번 더 돌지만 무해하다.
+      - name: Publish to npm
+        if: steps.check.outputs.publish == 'true'
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
