@@ -12,11 +12,16 @@ import {
   getEntityWikiLinks,
 } from "@/server/queries";
 import { deleteProject } from "@/server/actions/projects";
+import { deleteEpic } from "@/server/actions/epics";
 import { EntityComments } from "@/components/comments/entity-comments";
 import { EntityLinkedPages } from "@/components/wiki/entity-linked-pages";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { EpicsTable } from "@/components/tables/epics-table";
+import { EntityTable } from "@/components/tables/entity-table";
+import {
+  EPIC_COLUMNS,
+  EPIC_DELETE_DESCRIPTION,
+} from "@/components/tables/epic-columns";
 import { EpicDialog } from "@/components/forms/epic-dialog";
 import { SheetDeleteButton } from "@/components/detail/sheet-delete-button";
 import { BackButton } from "@/components/detail/back-button";
@@ -107,10 +112,14 @@ export default async function ProjectDetail({
         </div>
 
         <Card className="mb-6 overflow-hidden py-0">
-          <EpicsTable
-            epics={project.epics}
+          <EntityTable
+            rows={project.epics}
+            columns={EPIC_COLUMNS}
+            rowHref={(e) => `/epics/${e.id}`}
             emptyMessage="연결된 에픽이 없습니다."
             edit={{ members, teams, projects, labels: labelOptions }}
+            deleteAction={deleteEpic}
+            deleteDescription={EPIC_DELETE_DESCRIPTION}
           />
         </Card>
 

@@ -1,18 +1,8 @@
-import { Fragment } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import type { Priority, Status } from "@prisma/client";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { RowContextMenu } from "@/components/tables/row-context-menu";
-import { deleteTask } from "@/server/actions/tasks";
+import { TableCell } from "@/components/ui/table";
 import {
   StatusBadge,
   PriorityBadge,
@@ -34,13 +24,7 @@ import { InlineAssignee } from "@/components/detail/inline-assignee";
 import { TaskLabels } from "@/components/detail/task-labels";
 import type { LabelItem } from "@/components/detail/entity-labels";
 import { OpenDetailKey } from "./open-detail";
-import { EmptyRow } from "./cells";
-import {
-  resolveColumns,
-  type ColumnDef,
-  type ColumnMeta,
-  type ColumnPref,
-} from "./column-registry";
+import type { ColumnDef, ColumnMeta } from "./column-registry";
 
 /**
  * 태스크 표의 한 행에 필요한 데이터.
@@ -78,12 +62,12 @@ const fmt = (d: Date | null | undefined) =>
   d ? format(d, "yyyy.M.d", { locale: ko }) : "—";
 
 /**
- * 태스크 표 컬럼 레지스트리(F4). 각 `cell` 에 기존 인라인 셀 JSX 를 그대로 담는다
- * (`edit ? <Inline/> : <읽기전용/>`). 순서/노출은 columnPref 로 재구성한다.
+ * 태스크 표 컬럼 정의(F4). `EntityTable` 에 주입한다. 각 `cell` 은
+ * `edit ? <Inline/> : <읽기전용/>`. 순서/노출은 columnPref 로 재구성한다.
  * 컬럼: [키] [제목] [담당자] [시작일] [종료일] [우선순위] [상태] [레이블] [MD]
  * - 프로젝트/에픽 표와 동일한 공통 컬럼 순서. 키(식별자)는 맨 앞, MD 는 맨 뒤.
  */
-const COLUMNS: ColumnDef<TaskTableRow, TaskEditContext>[] = [
+export const TASK_COLUMNS: ColumnDef<TaskTableRow, TaskEditContext>[] = [
   {
     key: "key",
     label: "키",
@@ -271,64 +255,7 @@ const COLUMNS: ColumnDef<TaskTableRow, TaskEditContext>[] = [
 ];
 
 /** 설정 UI·목록 페이지가 참조하는 기본 순서 컬럼 메타(렌더 함수 제외). */
-export const TASKS_COLUMNS_META: ColumnMeta[] = COLUMNS.map((c) => ({
+export const TASKS_COLUMNS_META: ColumnMeta[] = TASK_COLUMNS.map((c) => ({
   key: c.key,
   label: c.label,
 }));
-
-/**
- * 태스크 목록/하위목록 공용 표.
- * - `edit` 제공(목록): 각 셀 인라인 편집. 미제공(상세 하위목록): 읽기전용 표시.
- * - `columnPref` 제공(목록): 유저별 컬럼 순서·노출 적용. 미제공 → 기본 컬럼 전체.
- * - 키 클릭: 우측 슬라이드 상세(목록 세그먼트 한정), ↗: 새 탭 전체 페이지.
- */
-export function TasksTable({
-  tasks,
-  emptyMessage = "조건에 맞는 태스크가 없습니다.",
-  edit,
-  columnPref,
-}: {
-  tasks: TaskTableRow[];
-  emptyMessage?: string;
-  edit?: TaskEditContext;
-  columnPref?: ColumnPref | null;
-}) {
-  const cols = resolveColumns(COLUMNS, columnPref);
-  return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          {cols.map((col) => (
-            <TableHead key={col.key} className={col.headClassName}>
-              {col.head ?? col.label}
-            </TableHead>
-          ))}
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {tasks.length === 0 ? (
-          <EmptyRow colSpan={cols.length} message={emptyMessage} />
-        ) : (
-          tasks.map((t) => {
-            const cells = cols.map((col) => (
-              <Fragment key={col.key}>{col.cell(t, edit)}</Fragment>
-            ));
-            // 목록(edit): 행 클릭 → 우측 슬라이드 상세(편집 컨트롤·링크·↗ 는 가드로 제외).
-            return edit ? (
-              <RowContextMenu
-                key={t.id}
-                href={`/tasks/${t.id}`}
-                id={t.id}
-                deleteAction={deleteTask}
-              >
-                {cells}
-              </RowContextMenu>
-            ) : (
-              <TableRow key={t.id}>{cells}</TableRow>
-            );
-          })
-        )}
-      </TableBody>
-    </Table>
-  );
-}
