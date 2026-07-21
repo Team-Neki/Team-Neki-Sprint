@@ -29,6 +29,29 @@ export async function resolveTaskId(idOrKey: string): Promise<string | null> {
   return byId?.id ?? null;
 }
 
+/**
+ * Resolve an epic id given either a cuid or a "TEAM-123" key. Returns the id or null.
+ * 에픽 번호는 태스크와 팀 시퀀스를 공유하므로(nextTeamNumber) 키가 태스크와 겹치지 않는다.
+ */
+export async function resolveEpicId(idOrKey: string): Promise<string | null> {
+  const key = parseIssueKey(idOrKey);
+  if (key) {
+    const epic = await prisma.epic.findFirst({
+      where: {
+        number: key.number,
+        team: { key: { equals: key.teamKey, mode: "insensitive" } },
+      },
+      select: { id: true },
+    });
+    return epic?.id ?? null;
+  }
+  const byId = await prisma.epic.findUnique({
+    where: { id: idOrKey },
+    select: { id: true },
+  });
+  return byId?.id ?? null;
+}
+
 /** Resolve a team id from a team id or a team key (e.g. "NEKI"). Returns id or null. */
 export async function resolveTeamId(idOrKey: string): Promise<string | null> {
   const team = await prisma.team.findFirst({

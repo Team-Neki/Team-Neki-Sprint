@@ -14,6 +14,17 @@ export function canManage(
   return ownerIds.some((id) => !!id && id === actor.id);
 }
 
+/**
+ * 관리 권한 없음을 나타내는 타입드 에러. MCP API 라우트(withMcpAuth)가 이 타입을
+ * 403 으로 매핑한다 — message 문자열 매칭 없이 권한 거부를 식별하기 위한 클래스.
+ */
+export class ForbiddenError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ForbiddenError";
+  }
+}
+
 /** 관리 권한이 없으면 throw. 삭제 계열 서버 액션 진입부 게이트로 사용. */
 export function assertCanManage(
   actor: Actor,
@@ -21,7 +32,7 @@ export function assertCanManage(
   ...ownerIds: (string | null | undefined)[]
 ): void {
   if (!canManage(actor, ...ownerIds)) {
-    throw new Error(
+    throw new ForbiddenError(
       `${entityLabel} 삭제 권한이 없습니다. 소유자 또는 관리자만 삭제할 수 있습니다.`,
     );
   }

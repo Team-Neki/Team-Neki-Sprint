@@ -25,4 +25,17 @@ describe("SprintClient", () => {
     await expect(c.post("/x", {})).rejects.toBeInstanceOf(ApiError);
     await expect(c.post("/x", {})).rejects.toThrow(/unknown team/);
   });
+
+  it("supports DELETE via del()", async () => {
+    const c = new SprintClient(cfg, fakeFetch(200, { ok: true, data: { id: "1" } }));
+    expect(await c.del("/x")).toEqual({ id: "1" });
+  });
+
+  it("maps 403 delete rejection to ApiError", async () => {
+    const c = new SprintClient(
+      cfg,
+      fakeFetch(403, { ok: false, error: "에픽 삭제 권한이 없습니다." }),
+    );
+    await expect(c.del("/x")).rejects.toThrow(/삭제 권한/);
+  });
 });

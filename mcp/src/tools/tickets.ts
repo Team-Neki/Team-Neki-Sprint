@@ -3,9 +3,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { SprintClient } from "../client.js";
 import type { Config } from "../config.js";
 import { deepLink } from "../format.js";
-
-const STATUS = z.enum(["BACKLOG", "TODO", "IN_PROGRESS", "DONE"]);
-const PRIORITY = z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]);
+import { STATUS, PRIORITY } from "./enums.js";
 
 export function registerTicketTools(
   server: McpServer,
@@ -97,15 +95,48 @@ export function registerTicketTools(
   server.registerTool(
     "search_tickets",
     {
-      description: "Search tickets by title/key. Returns id, key, title, status.",
-      inputSchema: { query: z.string().nullish(), limit: z.number().nullish() },
+      description:
+        "Search/list tickets. Plain 'query' searches title/key. Structured filters (epic/status/assignee/team) list matching tickets with assignee and epic; combine freely with 'query'.",
+      inputSchema: {
+        query: z.string().nullish(),
+        limit: z.number().nullish(),
+        epic: z
+          .string()
+          .nullish()
+          .describe("Filter by epic id or issue key (e.g. NEKI-14)"),
+        status: STATUS.nullish(),
+        assignee: z
+          .string()
+          .nullish()
+          .describe("Filter by assignee email or user id"),
+        team: z.string().nullish().describe("Filter by team key or id"),
+      },
     },
-    async ({ query, limit }) => {
+    async ({ query, limit, epic, status, assignee, team }) => {
       const qs = new URLSearchParams();
       if (query) qs.set("query", query);
       if (limit) qs.set("limit", String(limit));
+      if (epic) qs.set("epic", epic);
+      if (status) qs.set("status", status);
+      if (assignee) qs.set("assignee", assignee);
+      if (team) qs.set("team", team);
       const data = await client.get(`/api/mcp/v1/tasks?${qs.toString()}`);
       return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
+    "delete_ticket",
+    {
+      description:
+        "Delete a ticket by id or issue key. DESTRUCTIVE and irreversible - confirm with the user before calling. Only the reporter, assignee, or an ADMIN token can delete (403 otherwise).",
+      inputSchema: { idOrKey: z.string() },
+    },
+    async ({ idOrKey }) => {
+      const data = await client.del<{ id: string }>(
+        `/api/mcp/v1/tasks/${encodeURIComponent(idOrKey)}`,
+      );
+      return { content: [{ type: "text", text: `Deleted ticket ${data.id}` }] };
     },
   );
 }

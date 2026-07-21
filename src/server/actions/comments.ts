@@ -7,6 +7,7 @@ import { taskCommentBodySchema } from "@/lib/validators";
 import { logActivity } from "@/server/activity";
 import { notifyNewMentions } from "@/server/notify";
 import { isValueEmpty } from "@/lib/rich-content";
+import type { Actor } from "@/lib/authz";
 
 // 댓글(task/epic/project/sprint 공용). 대댓글 없이 추가만 제공.
 // 태스크 전용이던 addComment(actions/tasks.ts)를 다형 Comment 로 일반화한 것.
@@ -28,6 +29,16 @@ export async function addEntityComment(
   body: string,
 ) {
   const user = await requireUser();
+  return addEntityCommentCore(user, entityType, entityId, body);
+}
+
+/** addEntityComment의 actor 주입 코어. 서버 액션과 MCP API 라우트가 공유한다. */
+export async function addEntityCommentCore(
+  actor: Actor,
+  entityType: CommentEntityType,
+  entityId: string,
+  body: string,
+) {
   const parsed = taskCommentBodySchema.parse(body);
   if (isValueEmpty(parsed)) return;
 
@@ -42,7 +53,7 @@ export async function addEntityComment(
       if (!t) throw new Error("대상을 찾을 수 없습니다");
       context = t.title;
       await prisma.comment.create({
-        data: { taskId: entityId, body: parsed, authorId: user.id },
+        data: { taskId: entityId, body: parsed, authorId: actor.id },
       });
       break;
     }
@@ -54,7 +65,7 @@ export async function addEntityComment(
       if (!e) throw new Error("대상을 찾을 수 없습니다");
       context = e.title;
       await prisma.comment.create({
-        data: { epicId: entityId, body: parsed, authorId: user.id },
+        data: { epicId: entityId, body: parsed, authorId: actor.id },
       });
       break;
     }
@@ -66,7 +77,7 @@ export async function addEntityComment(
       if (!p) throw new Error("대상을 찾을 수 없습니다");
       context = p.title;
       await prisma.comment.create({
-        data: { projectId: entityId, body: parsed, authorId: user.id },
+        data: { projectId: entityId, body: parsed, authorId: actor.id },
       });
       break;
     }
@@ -78,20 +89,20 @@ export async function addEntityComment(
       if (!s) throw new Error("대상을 찾을 수 없습니다");
       context = s.name;
       await prisma.comment.create({
-        data: { sprintId: entityId, body: parsed, authorId: user.id },
+        data: { sprintId: entityId, body: parsed, authorId: actor.id },
       });
       break;
     }
   }
 
   await logActivity({
-    userId: user.id,
+    userId: actor.id,
     entityType,
     entityId,
     action: "commented",
   });
   await notifyNewMentions({
-    actorId: user.id,
+    actorId: actor.id,
     entityType,
     entityId,
     context,

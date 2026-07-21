@@ -7,10 +7,15 @@ import { epicSchema } from "@/lib/validators";
 import { logActivity, diffFields } from "@/server/activity";
 import { notifyNewMentions } from "@/server/notify";
 import { nextTeamNumber } from "@/server/keys";
-import { assertCanManage } from "@/lib/authz";
+import { assertCanManage, type Actor } from "@/lib/authz";
 
 export async function createEpic(input: unknown) {
   const user = await requireUser();
+  return createEpicCore(user, input);
+}
+
+/** createEpic의 actor 주입 코어. 서버 액션과 MCP API 라우트가 공유한다. */
+export async function createEpicCore(actor: Actor, input: unknown) {
   const data = epicSchema.parse(input);
 
   // 팀 시퀀스를 원자적으로 증가시켜 number를 부여한다(epic·task 공유).
@@ -23,7 +28,7 @@ export async function createEpic(input: unknown) {
   });
 
   await logActivity({
-    userId: user.id,
+    userId: actor.id,
     entityType: "epic",
     entityId: epic.id,
     action: "created",
@@ -82,6 +87,15 @@ const EPIC_EDITABLE = {
  */
 export async function updateEpicFields(id: string, input: unknown) {
   const user = await requireUser();
+  return updateEpicFieldsCore(user, id, input);
+}
+
+/** updateEpicFields의 actor 주입 코어. 서버 액션과 MCP API 라우트가 공유한다. */
+export async function updateEpicFieldsCore(
+  actor: Actor,
+  id: string,
+  input: unknown,
+) {
   const patch = epicSchema.partial().parse(input) as Record<string, unknown>;
   // 팀(teamId)은 생성 후 불변 — 표시 key 안정성 위해 patch 에서 제외.
   delete patch.teamId;
@@ -100,7 +114,7 @@ export async function updateEpicFields(id: string, input: unknown) {
   await Promise.all(
     changes.map((c) =>
       logActivity({
-        userId: user.id,
+        userId: actor.id,
         entityType: "epic",
         entityId: id,
         action: "field_changed",
@@ -111,7 +125,7 @@ export async function updateEpicFields(id: string, input: unknown) {
 
   if (changes.some((c) => c.field === "description")) {
     await notifyNewMentions({
-      actorId: user.id,
+      actorId: actor.id,
       entityType: "epic",
       entityId: id,
       context: epic.title,
@@ -130,16 +144,21 @@ export async function updateEpicFields(id: string, input: unknown) {
 
 export async function deleteEpic(id: string) {
   const user = await requireUser();
+  return deleteEpicCore(user, id);
+}
+
+/** deleteEpic의 actor 주입 코어. 서버 액션과 MCP API 라우트가 공유한다. */
+export async function deleteEpicCore(actor: Actor, id: string) {
   const epic = await prisma.epic.findUnique({
     where: { id },
     select: { ownerId: true },
   });
   if (!epic) throw new Error("에픽을 찾을 수 없습니다");
   // 삭제는 소유자(owner) 또는 ADMIN 만.
-  assertCanManage(user, "에픽", epic.ownerId);
+  assertCanManage(actor, "에픽", epic.ownerId);
   await prisma.epic.delete({ where: { id } });
   await logActivity({
-    userId: user.id,
+    userId: actor.id,
     entityType: "epic",
     entityId: id,
     action: "deleted",

@@ -8,6 +8,7 @@
 
 | 날짜 | 세션 | 상태 |
 |---|---|---|
+| 2026-07-22 | MCP v2 — API/도구 커버리지 확장: 에픽 CRUD(`create/get/update/delete_epic`, 이슈키 해석 `resolveEpicId`), 티켓 구조화 필터(`search_tickets` `epic`/`status`/`assignee`/`team`)+`delete_ticket`, 프로젝트·스프린트 읽기(`list/get_projects`,`list/get_sprints`), 다형 댓글(`add_comment`, 마크다운→Tiptap doc). actor 주입 Core 분리 확장(epics/tasks delete/comments), 권한 거부 `ForbiddenError`→403 매핑. 도구 `BACKLOG` 죽은 enum 값 제거 | `DONE`\* |
 | 2026-07-20 | 모바일 다이얼로그 상하 잘림 버그: 스프린트/프로젝트/에픽/태스크 생성 폼이 뷰포트보다 길면 `fixed`+`-translate-y-1/2` 특성상 상하가 화면 밖으로 나가고 스크롤도 불가 → 저장/취소 접근 불가. `DialogContent` 에 `max-h-[calc(100dvh-2rem)]`+`overflow-y-auto`, `DialogFooter` 를 `sticky -bottom-4` 로 고정(+불투명 배경). 파생으로 `command.tsx` overflow 축별 명시 | `DONE` |
 | 2026-07-19 | 엔티티 연동 3종(worktree 병렬 → PR #29/#30/#31): (1) sprint/project/epic→**위키 링크**(`WikiPage{Epic,Project,Sprint}Link` 조인, 태스크 `LinkedPages` 동형), (2) sprint/project/epic/task **댓글**(다형 `Comment`, 추가만·최신순·@멘션 알림, `addEntityComment`), (3) sprint/project/epic/task **위키 `@`멘션**(`@` 드롭다운에 위키 노출·`wikiMention` 링크 칩). 스키마 있는 (1)(2)는 순차, 없는 (3)은 병렬 서브에이전트 | worktree 검증(tsc0·eslint·vitest195) 완료, 병합 후 `migrate`+`generate` 필요 |
 | 2026-07-19 | 생성/수정 다이얼로그 셀렉트 오버플로 버그: 상위 항목(에픽/프로젝트/스프린트) 긴 제목이 트리거 밖으로 넘쳐 레이아웃 깨짐. 근본원인=`SelectValue` 에 `min-w-0` 부재(truncate 무력화)+폼 셀렉트만 폭 제한 없는 `w-fit`. `SelectValue` `min-w-0` + `fields.tsx` 5종 `w-full` | `DONE`\* |
@@ -36,6 +37,20 @@
 \* 코드·빌드·테스트 검증 완료. 실렌더(mermaid/표/강조)는 로그인 게이트라 브라우저 확인 필요.
 
 ---
+
+## 2026-07-22 — MCP v2: 에픽 CRUD · 티켓 필터/삭제 · 프로젝트/스프린트 조회 · 댓글 (브랜치 `feat/mcp-v2-endpoints`)
+
+MCP 로 "에픽을 태스크로 이관" 작업을 하다 막힌 공백(에픽 상세/삭제 불가, 하위 태스크 필터 조회 불가)을 메움. 서버에 이미 있는 액션/쿼리를 `/api/mcp/v1/*` 라우트 + `mcp/` 도구로 노출한 것이 대부분.
+
+- **에픽 CRUD**: `POST /epics`, `GET|PATCH|DELETE /epics/[idOrKey]`(이슈키 허용 — `lib/issue-key.ts` 에 `resolveEpicId` 추가, 에픽·태스크가 팀 시퀀스를 공유하므로 키 충돌 없음). GET 은 하위 태스크·MD 롤업 포함. 도구 `create_epic`/`get_epic`/`update_epic`/`delete_epic`.
+- **티켓**: `GET /tasks` 에 구조화 필터(`epic`/`status`/`assignee`/`team`) 추가 — 있으면 `getTasks` 필터 조회(assignee·epic 포함 rich 행), 없으면 기존 `searchTasks` 하위호환. `DELETE /tasks/[idOrKey]` + 도구 `delete_ticket`.
+- **프로젝트/스프린트 읽기**: `GET /projects`, `GET /projects/[id]`(하위 에픽+MD), `GET /sprints`, `GET /sprints/[id]`(하위 프로젝트). 도구 `list_projects`/`get_project`/`list_sprints`/`get_sprint`.
+- **댓글**: `POST /comments`(task/epic/project/sprint 다형, task/epic 은 이슈키 허용). body 마크다운 → `markdownToDoc` → Tiptap doc JSON 문자열로 저장(UI 와 동일 포맷). 도구 `add_comment`.
+- **Core 분리 확장**: `createEpicCore`/`updateEpicFieldsCore`/`deleteEpicCore`/`deleteTaskCore`/`addEntityCommentCore` — 기존 `createTaskCore` 패턴대로 actor 주입형으로 분리, 서버 액션 래퍼는 `requireUser()` 후 위임.
+- **권한**: 삭제는 UI 와 동일한 `assertCanManage` 게이트. `ForbiddenError` 타입드 예외 신설(`lib/authz.ts`) → `withMcpAuth` 가 403 으로 매핑(기존엔 message 구분 불가로 500 이 났을 것). 삭제 도구 설명에 파괴적 경고+사용자 확인 지침 포함, `mcp/README.md` 의 "삭제 미노출" 정책 문구를 게이트 설명으로 교체.
+- **정리**: MCP 도구의 `STATUS` enum 에서 DB 에 없는 `BACKLOG` 제거(API 400 유발 죽은 값) — `tools/enums.ts` 로 공유화. `deepLink` 에 epics/projects/sprints 추가. `client.del()` 추가(+vitest 2). 버전 0.2.0.
+
+검증: `tsc --noEmit` 0, `eslint` 신규 이슈 0, vitest(앱 195+/MCP 7) 통과, `next build` 통과. 실호출 검증은 배포 후 MCP 재연결이 필요(로컬 MCP 서버는 프로드 API 를 향하므로 새 라우트는 배포 전 404).
 
 ## 2026-07-20 — 모바일 다이얼로그 상하 잘림 수정 (스크롤 + sticky 푸터)
 

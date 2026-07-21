@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { ZodError, flattenError } from "zod";
-import type { Actor } from "@/lib/authz";
+import { ForbiddenError, type Actor } from "@/lib/authz";
 import { authenticateBearer } from "@/lib/api-token";
 
 export function ok<T>(data: T, status = 200) {
@@ -58,6 +58,8 @@ export function withMcpAuth(handler: AuthedHandler): RouteHandler {
       if (e instanceof ZodError)
         return fail("validation_error", 400, flattenError(e));
       if (e instanceof HttpError) return fail(e.message, e.status);
+      // 삭제 권한 거부(assertCanManage) — 소유자/ADMIN 아님.
+      if (e instanceof ForbiddenError) return fail(e.message, 403);
       // 미상/예상외 예외(DB, 버그): 내부 메시지 노출 금지 + 재시도 가능한 서버오류로 신호.
       console.error("[mcp-api] unhandled error:", e);
       return fail("internal_error", 500);

@@ -271,16 +271,21 @@ export async function updateTaskFieldsCore(
 
 export async function deleteTask(id: string) {
   const user = await requireUser();
+  return deleteTaskCore(user, id);
+}
+
+/** deleteTask의 actor 주입 코어. 서버 액션과 MCP API 라우트가 공유한다. */
+export async function deleteTaskCore(actor: Actor, id: string) {
   const task = await prisma.task.findUnique({
     where: { id },
     select: { reporterId: true, assigneeId: true },
   });
   if (!task) throw new Error("태스크를 찾을 수 없습니다");
   // 삭제는 작성자(reporter)·담당자(assignee) 또는 ADMIN 만.
-  assertCanManage(user, "태스크", task.reporterId, task.assigneeId);
+  assertCanManage(actor, "태스크", task.reporterId, task.assigneeId);
   await prisma.task.delete({ where: { id } });
   await logActivity({
-    userId: user.id,
+    userId: actor.id,
     entityType: "task",
     entityId: id,
     action: "deleted",
