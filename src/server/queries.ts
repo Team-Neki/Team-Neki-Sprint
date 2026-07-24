@@ -3,6 +3,7 @@ import type { Prisma, Status } from "@prisma/client";
 import { formatIssueKey } from "@/lib/constants";
 import { searchExcerpt } from "@/lib/rich-content";
 import type { ColumnPref } from "@/components/tables/column-registry";
+import { orderByDefaultStatus, orderBySprintStatus } from "@/lib/order";
 
 /**
  * 유저별 PLP 표 컬럼 순서·노출 설정(F4). 저장된 행이 없으면 null → 표는 기본 컬럼으로 폴백.
@@ -129,7 +130,8 @@ export const getTeamOptions = () =>
 
 export const getSprints = async () => {
   const sprints = await prisma.sprint.findMany({
-    orderBy: [{ status: "asc" }, { startDate: "desc" }, { createdAt: "desc" }],
+    // 2차 키만 DB 정렬(상태는 아래 인메모리로 진행→예정→완료 재배치).
+    orderBy: [{ startDate: "desc" }, { createdAt: "desc" }, { id: "asc" }],
   });
   // 스프린트별 예상 MD 합: Task → Epic → Project → Sprint 로 이어지는 관계를
   // groupBy 로는 못 타므로 raw 집계(태스크 estimatedMd 합)로 계산한다.
@@ -143,7 +145,9 @@ export const getSprints = async () => {
       GROUP BY p."sprintId"
     `;
   const mdBySprint = new Map(mdRows.map((r) => [r.sprintId, roundMd(r.md)]));
-  return sprints.map((s) => ({ ...s, estimatedMd: mdBySprint.get(s.id) ?? 0 }));
+  return orderBySprintStatus(
+    sprints.map((s) => ({ ...s, estimatedMd: mdBySprint.get(s.id) ?? 0 })),
+  );
 };
 
 export async function getSprint(id: string) {
@@ -151,8 +155,8 @@ export async function getSprint(id: string) {
     where: { id },
     include: {
       projects: {
-        // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO) → 최신 생성 우선.
-        orderBy: [{ status: "desc" }, { createdAt: "desc" }],
+        // 2차 키만 DB 정렬(상태·우선순위 순서는 아래 인메모리 재배치).
+        orderBy: [{ priority: "desc" }, { createdAt: "desc" }, { id: "asc" }],
         include: {
           owner: miniUser,
           // 하위 목록 인라인 편집(B6)의 라벨 셀용.
@@ -163,7 +167,8 @@ export async function getSprint(id: string) {
     },
   });
   if (!sprint) return null;
-  return sprint;
+  // 기본 정렬: 진행중 → 할 일 → 완료(각 그룹 내 우선순위 desc → 생성일 desc).
+  return { ...sprint, projects: orderByDefaultStatus(sprint.projects) };
 }
 
 export const getSprintOptions = () =>
@@ -183,10 +188,12 @@ export type ProjectFilter = {
   sort?: { field: ProjectSortField; dir: "asc" | "desc" };
 };
 
-// 기본 정렬(정렬 지정 없을 때). 상태 내림차(DONE→IN_PROGRESS→TODO) → 최신 생성 우선.
+// 기본 정렬(정렬 지정 없을 때)의 2차 키: 우선순위 desc → 최신 생성 → id.
+// 상태는 enum 정의 순서상 진행중→할일→완료 를 DB 로 못 내므로 getProjects 에서 인메모리 재배치.
 const PROJECT_DEFAULT_ORDER: Prisma.ProjectOrderByWithRelationInput[] = [
-  { status: "desc" },
+  { priority: "desc" },
   { createdAt: "desc" },
+  { id: "asc" },
 ];
 
 function projectOrderBy(
@@ -235,7 +242,8 @@ export const getProjects = async (filter: ProjectFilter = {}) => {
       _count: { select: { epics: true } },
     },
   });
-  return projects;
+  // 명시적 정렬(URL ?sort=)이 없을 때만 상태(진행중→할일→완료)로 재배치.
+  return filter.sort ? projects : orderByDefaultStatus(projects);
 };
 
 export async function getProject(id: string) {
@@ -245,7 +253,8 @@ export async function getProject(id: string) {
       owner: miniUser,
       sprint: { select: { id: true, name: true, status: true } },
       epics: {
-        orderBy: { createdAt: "desc" },
+        // 2차 키만 DB 정렬(상태·우선순위 순서는 아래 인메모리 재배치).
+        orderBy: [{ priority: "desc" }, { createdAt: "desc" }, { id: "asc" }],
         include: {
           owner: miniUser,
           team: miniTeam,
@@ -259,10 +268,13 @@ export async function getProject(id: string) {
   if (!project) return null;
   // 하위 에픽별 MD + 프로젝트 총합(읽기전용 롤업).
   const perEpic = await mdByEpic(project.epics.map((e) => e.id));
-  const epics = project.epics.map((e) => ({
-    ...e,
-    md: perEpic.get(e.id) ?? ZERO_MD,
-  }));
+  // 기본 정렬: 진행중 → 할 일 → 완료(각 그룹 내 우선순위 desc → 생성일 desc).
+  const epics = orderByDefaultStatus(
+    project.epics.map((e) => ({
+      ...e,
+      md: perEpic.get(e.id) ?? ZERO_MD,
+    })),
+  );
   const md = roundRollup(
     epics.reduce<MdRollup>(
       (a, e) => ({
@@ -336,7 +348,8 @@ export async function getEpic(id: string) {
       project: { select: { id: true, title: true } },
       labels: labelInclude,
       tasks: {
-        orderBy: { createdAt: "desc" },
+        // 2차 키만 DB 정렬(상태·우선순위 순서는 아래 인메모리 재배치).
+        orderBy: [{ priority: "desc" }, { createdAt: "desc" }, { id: "asc" }],
         // labels: 하위 목록 인라인 편집(B6)의 라벨 셀용. assigneeTeam: 담당자 팀 배지(B4).
         include: {
           assignee: miniUser,
@@ -348,8 +361,12 @@ export async function getEpic(id: string) {
     },
   });
   if (!epic) return null;
-  // 하위 태스크 MD 합(이미 로드된 tasks 로 계산).
-  return { ...epic, md: sumMd(epic.tasks) };
+  // 하위 태스크 MD 합(이미 로드된 tasks 로 계산). 표시 순서는 진행중→할일→완료.
+  return {
+    ...epic,
+    tasks: orderByDefaultStatus(epic.tasks),
+    md: sumMd(epic.tasks),
+  };
 }
 
 /** 에픽 옵션(폼 select). 태스크 생성 시 에픽의 팀을 상속하기 위해 team도 함께. */
@@ -438,15 +455,9 @@ export const getTasks = async (filter: TaskFilter = {}) => {
           : undefined,
       title: filter.q ? { contains: filter.q, mode: "insensitive" } : undefined,
     },
-    // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO) 우선.
-    // id 를 마지막 tiebreaker 로 추가 → (status,priority,createdAt) 동점 행들도
-    // 결정적 순서 보장. 없으면 MD 등 수정 시 동점 구간이 재배열돼 순서가 흔들린다.
-    orderBy: [
-      { status: "desc" },
-      { priority: "asc" },
-      { createdAt: "desc" },
-      { id: "asc" },
-    ],
+    // 2차 키만 DB 정렬(우선순위 desc → 생성일 desc → id). 상태는 아래 인메모리로
+    // 진행중→할일→완료 재배치(enum 정의 순서로는 못 냄). id tiebreaker 로 결정적 순서.
+    orderBy: [{ priority: "desc" }, { createdAt: "desc" }, { id: "asc" }],
     include: {
       assignee: miniUser,
       assigneeTeam: miniTeam,
@@ -457,10 +468,13 @@ export const getTasks = async (filter: TaskFilter = {}) => {
       blockedBy: { select: { blocker: { select: { status: true } } } },
     },
   });
-  return rows.map(({ blockedBy, ...t }) => ({
-    ...t,
-    blocked: blockedBy.some((d) => d.blocker.status !== "DONE"),
-  }));
+  // 기본 정렬: 진행중 → 할 일 → 완료(각 그룹 내 우선순위 desc → 생성일 desc).
+  return orderByDefaultStatus(
+    rows.map(({ blockedBy, ...t }) => ({
+      ...t,
+      blocked: blockedBy.some((d) => d.blocker.status !== "DONE"),
+    })),
+  );
 };
 
 export function getTask(id: string) {
