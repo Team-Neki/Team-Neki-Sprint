@@ -98,10 +98,12 @@ export function CommentThreadCard({
         thread.resolved && "opacity-70",
       )}
     >
-      {/* 앵커 인용문 */}
-      <div className="text-muted-foreground mb-2 border-l-2 border-amber-400 pl-2 text-xs italic">
-        “{thread.quote}”
-      </div>
+      {/* 앵커 인용문. 페이지 전체 댓글(quote 빈 스레드)은 인용할 대상이 없어 생략. */}
+      {thread.quote && (
+        <div className="text-muted-foreground mb-2 border-l-2 border-amber-400 pl-2 text-xs italic">
+          “{thread.quote}”
+        </div>
+      )}
 
       <div className="space-y-2.5">
         {thread.comments.map((c, i) => (
