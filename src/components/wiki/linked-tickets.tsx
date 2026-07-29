@@ -72,7 +72,9 @@ export function LinkedTickets({
   }
 
   return (
-    <section className="mx-auto mt-8 max-w-3xl">
+    // 폭은 본문·헤더와 동일한 max-w-5xl — 좁게 잡으면 중앙정렬 특성상 좌측이
+    // 본문보다 안쪽으로 밀려 정렬이 어긋난다(하단 섹션 공통 규약).
+    <section className="mx-auto mt-8 max-w-5xl">
       <div className="mb-2 flex items-center justify-between">
         <h3 className="text-sm font-medium">연결된 티켓</h3>
         <LinkSearchPopover
