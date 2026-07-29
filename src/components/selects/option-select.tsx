@@ -1,14 +1,29 @@
 "use client";
 
-import type * as React from "react";
+import * as React from "react";
 import type { Status, Priority } from "@prisma/client";
+import { ChevronDownIcon } from "lucide-react";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
+  selectTriggerClass,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 import { STATUS_META, PRIORITY_META } from "@/lib/constants";
 import type { MiniUser } from "@/components/user-badge";
 import { initialsOf } from "@/components/user-badge";
@@ -48,11 +63,15 @@ export type LeadingOption = {
  * 트리거 표기가 항목과 달라야 하는 경우(예: 팀 필터는 항목엔 이름까지, 트리거엔 key만)
  * `renderTriggerOption` 으로 트리거 전용 렌더를 주면 된다. 없으면 `renderOption` 재사용.
  */
+/** 이 개수 이상이면(검색 텍스트가 제공된 경우) 검색 입력을 자동으로 붙인다. */
+const SEARCH_THRESHOLD = 8;
+
 export function OptionSelect<T>({
   value,
   onValueChange,
   options,
   getValue,
+  getSearchText,
   renderOption,
   renderTriggerOption,
   placeholder,
@@ -60,11 +79,18 @@ export function OptionSelect<T>({
   disabled,
   triggerClassName,
   size,
+  searchable,
+  searchPlaceholder = "검색",
 }: {
   value: string | undefined;
   onValueChange: (value: string) => void;
   options: readonly T[];
   getValue: (option: T) => string;
+  /**
+   * 검색 매칭용 평문(이름·이메일·키 등). 제공되면 옵션이 많을 때 검색 입력이 붙는다.
+   * `renderOption` 은 ReactNode 라 텍스트 매칭에 쓸 수 없어 따로 받는다.
+   */
+  getSearchText?: (option: T) => string;
   renderOption: (option: T) => React.ReactNode;
   renderTriggerOption?: (option: T) => React.ReactNode;
   placeholder?: string;
@@ -72,8 +98,35 @@ export function OptionSelect<T>({
   disabled?: boolean;
   triggerClassName?: string;
   size?: "sm" | "default";
+  /** 검색 UI 강제 on/off. 미지정 시 `getSearchText` + 옵션 수로 자동 판단. */
+  searchable?: boolean;
+  searchPlaceholder?: string;
 }) {
   const renderTrigger = renderTriggerOption ?? renderOption;
+  // 검색 텍스트가 없으면 매칭이 불가능하므로 자동 활성 대상에서 제외(안전한 기본값).
+  const useSearch =
+    searchable ?? (!!getSearchText && options.length >= SEARCH_THRESHOLD);
+
+  if (useSearch) {
+    return (
+      <SearchableOptionSelect
+        value={value}
+        onValueChange={onValueChange}
+        options={options}
+        getValue={getValue}
+        getSearchText={getSearchText}
+        renderOption={renderOption}
+        renderTriggerOption={renderTrigger}
+        placeholder={placeholder}
+        leadingOption={leadingOption}
+        disabled={disabled}
+        triggerClassName={triggerClassName}
+        size={size}
+        searchPlaceholder={searchPlaceholder}
+      />
+    );
+  }
+
   return (
     <Select
       value={value}
@@ -108,6 +161,104 @@ export function OptionSelect<T>({
         ))}
       </SelectContent>
     </Select>
+  );
+}
+
+/**
+ * 검색 가능한 셀렉트(Popover + cmdk Command). `AssigneePicker` 와 같은 패턴이며,
+ * 트리거는 `selectTriggerClass` 를 재사용해 Base UI Select 와 시각적으로 동일하다.
+ * cmdk 는 항목의 `value` 문자열로 필터링하므로 `getSearchText` 결과를 넣는다
+ * (동명이인·중복 라벨 대비로 실제 값도 함께 넣어 항목이 서로 상쇄되지 않게 한다).
+ */
+function SearchableOptionSelect<T>({
+  value,
+  onValueChange,
+  options,
+  getValue,
+  getSearchText,
+  renderOption,
+  renderTriggerOption,
+  placeholder,
+  leadingOption,
+  disabled,
+  triggerClassName,
+  size = "default",
+  searchPlaceholder,
+}: {
+  value: string | undefined;
+  onValueChange: (value: string) => void;
+  options: readonly T[];
+  getValue: (option: T) => string;
+  getSearchText?: (option: T) => string;
+  renderOption: (option: T) => React.ReactNode;
+  renderTriggerOption: (option: T) => React.ReactNode;
+  placeholder?: string;
+  leadingOption?: LeadingOption;
+  disabled?: boolean;
+  triggerClassName?: string;
+  size?: "sm" | "default";
+  searchPlaceholder: string;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const selected = options.find((o) => getValue(o) === value);
+
+  // 트리거 표기 규칙은 Select 분기와 동일: 선택 옵션 → sentinel 라벨 → placeholder.
+  const triggerContent = selected
+    ? renderTriggerOption(selected)
+    : leadingOption
+      ? (leadingOption.triggerLabel ?? leadingOption.label)
+      : (placeholder ?? null);
+
+  function choose(next: string) {
+    setOpen(false);
+    onValueChange(next);
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        render={
+          <button
+            type="button"
+            data-slot="select-trigger"
+            data-size={size}
+            disabled={disabled}
+            className={cn(selectTriggerClass, triggerClassName)}
+          >
+            <span className="flex min-w-0 flex-1 items-center gap-1.5 truncate text-left">
+              {triggerContent}
+            </span>
+            <ChevronDownIcon className="text-muted-foreground pointer-events-none size-4 shrink-0" />
+          </button>
+        }
+      />
+      <PopoverContent align="start" className="w-(--anchor-width) min-w-56 p-0">
+        <Command>
+          <CommandInput placeholder={searchPlaceholder} />
+          <CommandList>
+            <CommandEmpty>결과가 없습니다</CommandEmpty>
+            {leadingOption && (
+              <CommandItem
+                value={`${leadingOption.value} ${typeof leadingOption.label === "string" ? leadingOption.label : ""}`}
+                onSelect={() => choose(leadingOption.value)}
+              >
+                {leadingOption.label}
+              </CommandItem>
+            )}
+            {options.map((o) => (
+              <CommandItem
+                key={getValue(o)}
+                value={`${getSearchText ? getSearchText(o) : ""} ${getValue(o)}`}
+                onSelect={() => choose(getValue(o))}
+                disabled={disabled}
+              >
+                {renderOption(o)}
+              </CommandItem>
+            ))}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }
 

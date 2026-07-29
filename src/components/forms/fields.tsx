@@ -73,8 +73,10 @@ export function MemberSelect({
       onValueChange={(v) => onChange(v === UNASSIGNED ? null : v)}
       options={members}
       getValue={(m) => m.id}
+      getSearchText={(m) => `${m.name ?? ""} ${m.email}`}
       renderOption={renderMemberOption}
       renderTriggerOption={memberLabel}
+      searchPlaceholder="담당자 검색"
       placeholder={placeholder}
       leadingOption={{ value: UNASSIGNED, label: "미지정" }}
       triggerClassName="w-full"
@@ -102,7 +104,9 @@ export function TeamSelect({
       }}
       options={teams}
       getValue={(t) => t.id}
+      getSearchText={(t) => `${t.key} ${t.name}`}
       renderOption={(t) => renderTeamOption(t)}
+      searchPlaceholder="팀 검색"
       placeholder={placeholder}
       triggerClassName="w-full"
     />
@@ -128,9 +132,11 @@ export function GenericSelect({
       onValueChange={(v) => onChange(v === UNASSIGNED ? null : v)}
       options={options}
       getValue={(o) => o.id}
+      getSearchText={(o) => o.label}
       renderOption={(o) => (
         <span className="min-w-0 truncate">{o.label}</span>
       )}
+      searchPlaceholder={placeholder ?? "검색"}
       placeholder={placeholder}
       leadingOption={{ value: UNASSIGNED, label: noneLabel }}
       triggerClassName="w-full"

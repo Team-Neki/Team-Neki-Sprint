@@ -41,7 +41,9 @@ export function MemberTeamSelect({
       disabled={pending}
       options={teams}
       getValue={(t) => t.id}
+      getSearchText={(t) => `${t.key} ${t.name}`}
       renderOption={(t) => renderTeamOption(t)}
+      searchPlaceholder="팀 검색"
       triggerClassName="w-44"
       leadingOption={{ value: NONE, label: "무소속" }}
     />
