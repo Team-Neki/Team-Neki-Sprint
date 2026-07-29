@@ -1,4 +1,5 @@
 import { Plus } from "lucide-react";
+import type { Status } from "@prisma/client";
 import {
   getEpics,
   getProjectOptions,
@@ -22,6 +23,7 @@ import { ColumnSettings } from "@/components/tables/column-settings";
 import { deleteEpic } from "@/server/actions/epics";
 import { OwnerFilter } from "@/components/filters/owner-filter";
 import { TeamFilter } from "@/components/filters/team-filter";
+import { StatusFilter } from "@/components/filters/status-filter";
 import { EpicDialog } from "@/components/forms/epic-dialog";
 
 export const dynamic = "force-dynamic";
@@ -29,14 +31,19 @@ export const dynamic = "force-dynamic";
 export default async function EpicsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ owner?: string; team?: string }>;
+  searchParams: Promise<{ owner?: string; team?: string; status?: string }>;
 }) {
   const sp = await searchParams;
   const user = await requireUser();
   // 다중선택 필터는 콤마구분 값(예: `?owner=a,b`) → 배열로 파싱한다(F6).
   const toArray = (v?: string) => (v ?? "").split(",").filter(Boolean);
+  const hasFilter = !!(sp.owner || sp.team || sp.status);
   const [epics, projects, teams, members, labels, pref, me] = await Promise.all([
-    getEpics({ ownerId: toArray(sp.owner), teamId: toArray(sp.team) }),
+    getEpics({
+      ownerId: toArray(sp.owner),
+      teamId: toArray(sp.team),
+      status: toArray(sp.status) as Status[],
+    }),
     getProjectOptions(),
     getTeamOptions(),
     getMembers(),
@@ -65,9 +72,11 @@ export default async function EpicsPage({
       </PageHeader>
 
       <div className="flex items-start justify-between gap-2">
-        <OwnerFilter members={members}>
-          <TeamFilter teams={teams} />
-        </OwnerFilter>
+        <StatusFilter>
+          <OwnerFilter members={members}>
+            <TeamFilter teams={teams} />
+          </OwnerFilter>
+        </StatusFilter>
         <div className="mb-4 shrink-0">
           <ColumnSettings
             table="epics"
@@ -83,7 +92,11 @@ export default async function EpicsPage({
           rows={epics}
           columns={EPIC_COLUMNS}
           rowHref={(e) => `/epics/${e.id}`}
-          emptyMessage="아직 에픽이 없습니다. 상단 ‘새 에픽’으로 만들어보세요."
+          emptyMessage={
+            hasFilter
+              ? "조건에 맞는 에픽이 없습니다. 필터를 조정하거나 초기화해 보세요."
+              : "아직 에픽이 없습니다. 상단 ‘새 에픽’으로 만들어보세요."
+          }
           edit={{ members, teams, projects, labels }}
           columnPref={pref}
           deleteAction={deleteEpic}

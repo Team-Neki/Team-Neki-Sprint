@@ -1,4 +1,5 @@
 import { Plus } from "lucide-react";
+import type { Status } from "@prisma/client";
 import {
   getProjects,
   getMembers,
@@ -20,6 +21,7 @@ import {
 import { ColumnSettings } from "@/components/tables/column-settings";
 import { deleteProject } from "@/server/actions/projects";
 import { OwnerFilter } from "@/components/filters/owner-filter";
+import { StatusFilter } from "@/components/filters/status-filter";
 import { ProjectDialog } from "@/components/forms/project-dialog";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +29,13 @@ export const dynamic = "force-dynamic";
 export default async function ProjectsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ owner?: string; sort?: string; dir?: string }>;
+  searchParams: Promise<{
+    owner?: string;
+    sort?: string;
+    dir?: string;
+    status?: string;
+    sprint?: string;
+  }>;
 }) {
   const sp = await searchParams;
   const SORT_FIELDS: ProjectSortField[] = [
@@ -45,8 +53,14 @@ export default async function ProjectsPage({
   const user = await requireUser();
   // 다중선택 필터는 콤마구분 값(예: `?owner=a,b`) → 배열로 파싱한다(F6).
   const toArray = (v?: string) => (v ?? "").split(",").filter(Boolean);
+  const hasFilter = !!(sp.owner || sp.status || sp.sprint);
   const [projects, members, sprints, labels, pref] = await Promise.all([
-    getProjects({ ownerId: toArray(sp.owner), sort }),
+    getProjects({
+      ownerId: toArray(sp.owner),
+      status: toArray(sp.status) as Status[],
+      sprintId: toArray(sp.sprint),
+      sort,
+    }),
     getMembers(),
     getSprintOptions(),
     getLabelOptions(),
@@ -71,7 +85,9 @@ export default async function ProjectsPage({
       </PageHeader>
 
       <div className="flex items-start justify-between gap-2">
-        <OwnerFilter members={members} />
+        <StatusFilter>
+          <OwnerFilter members={members} />
+        </StatusFilter>
         <div className="mb-4 shrink-0">
           <ColumnSettings
             table="projects"
@@ -87,7 +103,11 @@ export default async function ProjectsPage({
           rows={projects}
           columns={PROJECT_COLUMNS}
           rowHref={(p) => `/projects/${p.id}`}
-          emptyMessage="아직 프로젝트가 없습니다. 상단 ‘새 프로젝트’로 만들어보세요."
+          emptyMessage={
+            hasFilter
+              ? "조건에 맞는 프로젝트가 없습니다. 필터를 조정하거나 초기화해 보세요."
+              : "아직 프로젝트가 없습니다. 상단 ‘새 프로젝트’로 만들어보세요."
+          }
           edit={{ members, sprints, labels }}
           sortable
           columnPref={pref}
