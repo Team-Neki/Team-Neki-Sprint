@@ -1,4 +1,36 @@
-import type { Status, SprintStatus } from "@prisma/client";
+import type { Prisma, Status, SprintStatus } from "@prisma/client";
+
+/**
+ * 목록(PLP·상세 하위목록) 기본 정렬의 **DB 2차 키**: 종료일 가까운 순(미설정은 맨 뒤)
+ * → 최신 생성 → id(동점 tiebreaker).
+ *
+ * 상태 순서(진행중→할 일→완료)는 enum 정의 순서로 DB 에서 낼 수 없으므로, 이 상수를
+ * 쓰는 조회는 **결과에 반드시 `orderByDefaultStatus`(스프린트는 `orderBySprintStatus`)를
+ * 적용**해야 한다. 규칙을 바꿀 땐 이 파일만 고친다 — 개별 쿼리에 배열을 직접 쓰면
+ * 일부 쿼리만 옛 규칙으로 남는 누락이 생긴다(에픽 목록에서 실제로 발생, BACKEND-19).
+ */
+const LIST_ORDER_BY_DUE_DATE = [
+  { dueDate: { sort: "asc", nulls: "last" } },
+  { createdAt: "desc" },
+  { id: "asc" },
+] as const;
+
+export const TASK_LIST_ORDER: Prisma.TaskOrderByWithRelationInput[] = [
+  ...LIST_ORDER_BY_DUE_DATE,
+];
+export const EPIC_LIST_ORDER: Prisma.EpicOrderByWithRelationInput[] = [
+  ...LIST_ORDER_BY_DUE_DATE,
+];
+export const PROJECT_LIST_ORDER: Prisma.ProjectOrderByWithRelationInput[] = [
+  ...LIST_ORDER_BY_DUE_DATE,
+];
+
+/** 스프린트는 종료일 필드명이 `endDate`(우선순위 필드도 없음). 재배치는 orderBySprintStatus. */
+export const SPRINT_LIST_ORDER: Prisma.SprintOrderByWithRelationInput[] = [
+  { endDate: { sort: "asc", nulls: "last" } },
+  { createdAt: "desc" },
+  { id: "asc" },
+];
 
 /**
  * 목록(PLP·상세 하위목록) 기본 정렬의 상태 우선순위: 진행중 → 할 일 → 완료.
