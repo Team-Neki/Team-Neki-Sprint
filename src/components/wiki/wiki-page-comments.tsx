@@ -65,7 +65,9 @@ export function WikiPageComments({
   }
 
   return (
-    <section className="mt-10 border-t pt-6">
+    // 폭은 본문·헤더와 동일한 max-w-5xl(하단 섹션 공통 규약) — 지정하지 않으면
+    // 전체 폭을 차지해 중앙정렬된 본문과 좌측이 어긋난다.
+    <section className="mx-auto mt-10 max-w-5xl border-t pt-6">
       <h2 className="mb-3 text-sm font-medium">댓글 {threads.length}</h2>
 
       <div className="mb-4 flex flex-col gap-2">
