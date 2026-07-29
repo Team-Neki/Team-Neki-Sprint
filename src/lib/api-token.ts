@@ -56,8 +56,11 @@ export async function authenticateBearer(
   const now = Date.now();
   const last = token.lastUsedAt?.getTime() ?? 0;
   if (now - last > 60_000) {
+    // updateMany: 그 사이 토큰이 폐기됐으면 update 는 P2025 를 던지고, catch 로 삼켜도
+    // prisma:error 로그가 남는다(0건이면 조용히 끝나는 updateMany 로 회피).
+    // catch 는 유지 — 사용시각 갱신 실패(DB 일시 오류 등)가 인증 자체를 막으면 안 된다.
     await prisma.apiToken
-      .update({ where: { id: token.id }, data: { lastUsedAt: new Date() } })
+      .updateMany({ where: { id: token.id }, data: { lastUsedAt: new Date() } })
       .catch(() => {});
   }
   return { id: token.user.id, role: token.user.role };
