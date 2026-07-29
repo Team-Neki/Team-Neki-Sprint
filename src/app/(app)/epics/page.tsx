@@ -6,6 +6,7 @@ import {
   getMembers,
   getLabelOptions,
   getColumnPref,
+  getMe,
 } from "@/server/queries";
 import { requireUser } from "@/lib/session";
 import { PageHeader } from "@/components/page-header";
@@ -34,13 +35,14 @@ export default async function EpicsPage({
   const user = await requireUser();
   // 다중선택 필터는 콤마구분 값(예: `?owner=a,b`) → 배열로 파싱한다(F6).
   const toArray = (v?: string) => (v ?? "").split(",").filter(Boolean);
-  const [epics, projects, teams, members, labels, pref] = await Promise.all([
+  const [epics, projects, teams, members, labels, pref, me] = await Promise.all([
     getEpics({ ownerId: toArray(sp.owner), teamId: toArray(sp.team) }),
     getProjectOptions(),
     getTeamOptions(),
     getMembers(),
     getLabelOptions(),
     getColumnPref(user.id, "epics"),
+    getMe(user.id),
   ]);
 
   return (
@@ -53,6 +55,7 @@ export default async function EpicsPage({
           members={members}
           teams={teams}
           projects={projects}
+          me={me}
           trigger={
             <Button>
               <Plus className="size-4" /> 새 에픽

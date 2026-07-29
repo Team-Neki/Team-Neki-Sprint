@@ -119,6 +119,16 @@ export const getTeams = () =>
     },
   });
 
+/**
+ * 폼 퀵필 버튼('나에게 할당'·'나의 팀')용 현재 사용자 최소 정보.
+ * 세션에는 teamId 가 없고 `MiniUser` 타입에도 없어, 소속 팀은 여기서 따로 읽는다.
+ */
+export const getMe = (userId: string) =>
+  prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, teamId: true },
+  });
+
 /** 폼 select 등에 쓰는 팀 옵션(경량). */
 export const getTeamOptions = () =>
   prisma.team.findMany({

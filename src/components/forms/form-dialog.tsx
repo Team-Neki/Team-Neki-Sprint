@@ -48,19 +48,56 @@ export function FormDialog({
   );
 }
 
-/** 라벨 + 컨트롤 세로 묶음. `min-w-0` 은 2열 행에서 셀렉트 오버플로 방지(gotchas). */
+/**
+ * 라벨 + 컨트롤 세로 묶음. `min-w-0` 은 2열 행에서 셀렉트 오버플로 방지(gotchas).
+ * `action` 은 라벨 행 우측 슬롯(예: '나에게 할당' 퀵필 버튼) — `Label` 이 `<label>`
+ * 요소라 그 **안에** 버튼을 넣으면 라벨 클릭이 버튼을 트리거하므로 형제로 둔다.
+ */
 export function FormField({
   label,
+  action,
   children,
 }: {
   label: React.ReactNode;
+  action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <div className="grid min-w-0 gap-2">
-      <Label>{label}</Label>
+      {action ? (
+        <div className="flex min-h-5 items-center justify-between gap-2">
+          <Label>{label}</Label>
+          {action}
+        </div>
+      ) : (
+        <Label>{label}</Label>
+      )}
       {children}
     </div>
+  );
+}
+
+/**
+ * 라벨 행 우측의 작은 퀵필 버튼('나에게 할당'·'나의 팀'). 값이 이미 그 값이면
+ * 호출부에서 렌더하지 않는다(중복 클릭 방지).
+ */
+export function QuickFillButton({
+  onClick,
+  children,
+}: {
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      onClick={onClick}
+      className="text-muted-foreground hover:text-foreground h-6 px-1.5 text-xs font-normal"
+    >
+      {children}
+    </Button>
   );
 }
 

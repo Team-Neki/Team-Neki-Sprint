@@ -10,7 +10,9 @@ import {
   getEntityActivity,
   getEntityComments,
   getEntityWikiLinks,
+  getMe,
 } from "@/server/queries";
+import { requireUser } from "@/lib/session";
 import { deleteProject } from "@/server/actions/projects";
 import { deleteEpic } from "@/server/actions/epics";
 import { EntityComments } from "@/components/comments/entity-comments";
@@ -46,6 +48,7 @@ export default async function ProjectDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const user = await requireUser();
   const [
     project,
     members,
@@ -56,6 +59,7 @@ export default async function ProjectDetail({
     activities,
     comments,
     wikiLinks,
+    me,
   ] = await Promise.all([
     getProject(id),
     getMembers(),
@@ -66,6 +70,7 @@ export default async function ProjectDetail({
     getEntityActivity("project", id),
     getEntityComments("project", id),
     getEntityWikiLinks("project", id),
+    getMe(user.id),
   ]);
   if (!project) notFound();
 
@@ -103,6 +108,7 @@ export default async function ProjectDetail({
             teams={teams}
             projects={projects}
             defaultProjectId={project.id}
+            me={me}
             trigger={
               <Button size="sm" variant="outline">
                 <Plus className="size-4" /> 에픽 추가
