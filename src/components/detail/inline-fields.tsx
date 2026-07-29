@@ -202,7 +202,10 @@ export function InlineTitle({
   // 상세 페이지(큰 제목): 항상 편집 가능한 인풋.
   if (!href) return input;
   // 목록 셀: 편집 중이면 열 길이만큼 인풋, 아니면 글자 폭 텍스트 + 우측 빈공간 상세 링크.
-  if (editing) return input;
+  // 편집/읽기 모두 같은 flex 컨테이너로 감싼다 — 인풋만 반환하면 셀의 flex 컨테이너
+  // 안에서 flex item 이 되어 `w-full` 이 shrink 에 밀려 폭이 줄어든다(편집 진입 시 축소 버그).
+  if (editing)
+    return <span className="flex min-w-0 flex-1 items-center">{input}</span>;
   return (
     <span className="flex min-w-0 flex-1 items-center">
       <button
