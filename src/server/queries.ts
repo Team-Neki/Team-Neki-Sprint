@@ -130,8 +130,12 @@ export const getTeamOptions = () =>
 
 export const getSprints = async () => {
   const sprints = await prisma.sprint.findMany({
-    // 2차 키만 DB 정렬(상태는 아래 인메모리로 진행→예정→완료 재배치).
-    orderBy: [{ startDate: "desc" }, { createdAt: "desc" }, { id: "asc" }],
+    // 2차 키만 DB 정렬(종료일 가까운 순 → 생성일; 상태는 인메모리로 진행→예정→완료 재배치).
+    orderBy: [
+      { endDate: { sort: "asc", nulls: "last" } },
+      { createdAt: "desc" },
+      { id: "asc" },
+    ],
   });
   // 스프린트별 예상 MD 합: Task → Epic → Project → Sprint 로 이어지는 관계를
   // groupBy 로는 못 타므로 raw 집계(태스크 estimatedMd 합)로 계산한다.
@@ -155,8 +159,12 @@ export async function getSprint(id: string) {
     where: { id },
     include: {
       projects: {
-        // 2차 키만 DB 정렬(상태·우선순위 순서는 아래 인메모리 재배치).
-        orderBy: [{ priority: "desc" }, { createdAt: "desc" }, { id: "asc" }],
+        // 2차 키만 DB 정렬(종료일 가까운 순 → 생성일; 상태는 아래 인메모리 재배치).
+        orderBy: [
+          { dueDate: { sort: "asc", nulls: "last" } },
+          { createdAt: "desc" },
+          { id: "asc" },
+        ],
         include: {
           owner: miniUser,
           // 하위 목록 인라인 편집(B6)의 라벨 셀용.
@@ -188,10 +196,10 @@ export type ProjectFilter = {
   sort?: { field: ProjectSortField; dir: "asc" | "desc" };
 };
 
-// 기본 정렬(정렬 지정 없을 때)의 2차 키: 우선순위 desc → 최신 생성 → id.
+// 기본 정렬(정렬 지정 없을 때)의 2차 키: 종료일 가까운 순(미설정 맨 뒤) → 최신 생성 → id.
 // 상태는 enum 정의 순서상 진행중→할일→완료 를 DB 로 못 내므로 getProjects 에서 인메모리 재배치.
 const PROJECT_DEFAULT_ORDER: Prisma.ProjectOrderByWithRelationInput[] = [
-  { priority: "desc" },
+  { dueDate: { sort: "asc", nulls: "last" } },
   { createdAt: "desc" },
   { id: "asc" },
 ];
@@ -253,8 +261,12 @@ export async function getProject(id: string) {
       owner: miniUser,
       sprint: { select: { id: true, name: true, status: true } },
       epics: {
-        // 2차 키만 DB 정렬(상태·우선순위 순서는 아래 인메모리 재배치).
-        orderBy: [{ priority: "desc" }, { createdAt: "desc" }, { id: "asc" }],
+        // 2차 키만 DB 정렬(종료일 가까운 순 → 생성일; 상태는 아래 인메모리 재배치).
+        orderBy: [
+          { dueDate: { sort: "asc", nulls: "last" } },
+          { createdAt: "desc" },
+          { id: "asc" },
+        ],
         include: {
           owner: miniUser,
           team: miniTeam,
@@ -348,8 +360,12 @@ export async function getEpic(id: string) {
       project: { select: { id: true, title: true } },
       labels: labelInclude,
       tasks: {
-        // 2차 키만 DB 정렬(상태·우선순위 순서는 아래 인메모리 재배치).
-        orderBy: [{ priority: "desc" }, { createdAt: "desc" }, { id: "asc" }],
+        // 2차 키만 DB 정렬(종료일 가까운 순 → 생성일; 상태는 아래 인메모리 재배치).
+        orderBy: [
+          { dueDate: { sort: "asc", nulls: "last" } },
+          { createdAt: "desc" },
+          { id: "asc" },
+        ],
         // labels: 하위 목록 인라인 편집(B6)의 라벨 셀용. assigneeTeam: 담당자 팀 배지(B4).
         include: {
           assignee: miniUser,
@@ -455,9 +471,13 @@ export const getTasks = async (filter: TaskFilter = {}) => {
           : undefined,
       title: filter.q ? { contains: filter.q, mode: "insensitive" } : undefined,
     },
-    // 2차 키만 DB 정렬(우선순위 desc → 생성일 desc → id). 상태는 아래 인메모리로
-    // 진행중→할일→완료 재배치(enum 정의 순서로는 못 냄). id tiebreaker 로 결정적 순서.
-    orderBy: [{ priority: "desc" }, { createdAt: "desc" }, { id: "asc" }],
+    // 2차 키만 DB 정렬(종료일 가까운 순 → 생성일 desc → id). 상태는 아래 인메모리로
+    // 진행중→할일→완료 재배치(enum 정의 순서로는 못 냄). 종료일 미설정(null)은 맨 뒤.
+    orderBy: [
+      { dueDate: { sort: "asc", nulls: "last" } },
+      { createdAt: "desc" },
+      { id: "asc" },
+    ],
     include: {
       assignee: miniUser,
       assigneeTeam: miniTeam,
