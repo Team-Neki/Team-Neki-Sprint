@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import type { Prisma, Status } from "@prisma/client";
+import type { Prisma, Status, SprintStatus } from "@prisma/client";
 import { formatIssueKey } from "@/lib/constants";
 import { searchExcerpt } from "@/lib/rich-content";
 import type { ColumnPref } from "@/components/tables/column-registry";
@@ -138,8 +138,18 @@ export const getTeamOptions = () =>
 
 // ---------- Sprint ----------
 
-export const getSprints = async () => {
+export type SprintFilter = {
+  status?: SprintStatus[];
+};
+
+export const getSprints = async (filter: SprintFilter = {}) => {
   const sprints = await prisma.sprint.findMany({
+    where: {
+      status:
+        filter.status && filter.status.length
+          ? { in: filter.status }
+          : undefined,
+    },
     // 2차 키만 DB 정렬(종료일 가까운 순 → 생성일; 상태는 인메모리로 진행→예정→완료 재배치).
     orderBy: [
       { endDate: { sort: "asc", nulls: "last" } },
@@ -203,6 +213,7 @@ export type ProjectSortField =
 export type ProjectFilter = {
   ownerId?: string[];
   sprintId?: string[];
+  status?: Status[];
   sort?: { field: ProjectSortField; dir: "asc" | "desc" };
 };
 
@@ -250,6 +261,10 @@ export const getProjects = async (filter: ProjectFilter = {}) => {
       sprintId:
         filter.sprintId && filter.sprintId.length
           ? { in: filter.sprintId }
+          : undefined,
+      status:
+        filter.status && filter.status.length
+          ? { in: filter.status }
           : undefined,
     },
     orderBy: projectOrderBy(filter.sort),
@@ -320,6 +335,7 @@ export const getProjectOptions = () =>
 export type EpicFilter = {
   ownerId?: string[];
   teamId?: string[];
+  status?: Status[];
 };
 
 export const getEpics = async (filter: EpicFilter = {}) => {
@@ -333,9 +349,17 @@ export const getEpics = async (filter: EpicFilter = {}) => {
         filter.teamId && filter.teamId.length
           ? { in: filter.teamId }
           : undefined,
+      status:
+        filter.status && filter.status.length
+          ? { in: filter.status }
+          : undefined,
     },
-    // 기본 정렬: 상태 내림차(DONE→IN_PROGRESS→TODO) → 최신 생성 우선.
-    orderBy: [{ status: "desc" }, { createdAt: "desc" }],
+    // 2차 키만 DB 정렬(종료일 가까운 순 → 생성일; 상태는 아래 인메모리 재배치).
+    orderBy: [
+      { dueDate: { sort: "asc", nulls: "last" } },
+      { createdAt: "desc" },
+      { id: "asc" },
+    ],
     include: {
       owner: miniUser,
       team: miniTeam,
@@ -355,10 +379,13 @@ export const getEpics = async (filter: EpicFilter = {}) => {
   const mdByEpicId = new Map(
     mdGroups.map((g) => [g.epicId, roundMd(g._sum.estimatedMd ?? 0)]),
   );
-  return epics.map((e) => ({
-    ...e,
-    estimatedMd: mdByEpicId.get(e.id) ?? 0,
-  }));
+  // 기본 정렬: 진행중 → 할 일 → 완료(각 그룹 내 종료일 가까운 순 → 생성일 desc).
+  return orderByDefaultStatus(
+    epics.map((e) => ({
+      ...e,
+      estimatedMd: mdByEpicId.get(e.id) ?? 0,
+    })),
+  );
 };
 
 export async function getEpic(id: string) {
