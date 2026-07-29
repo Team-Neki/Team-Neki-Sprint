@@ -3,7 +3,7 @@ import type { Status, SprintStatus } from "@prisma/client";
 /**
  * 목록(PLP·상세 하위목록) 기본 정렬의 상태 우선순위: 진행중 → 할 일 → 완료.
  * Status enum 의 정의 순서는 TODO→IN_PROGRESS→DONE 라 Prisma `orderBy`(asc/desc)로는
- * 이 순서를 낼 수 없다 → priority·createdAt 은 DB 에서 정렬하고 상태만 인메모리로 재배치한다.
+ * 이 순서를 낼 수 없다 → 종료일·생성일 은 DB 에서 정렬하고 상태만 인메모리로 재배치한다.
  */
 const STATUS_RANK: Record<Status, number> = {
   IN_PROGRESS: 0,
@@ -19,9 +19,9 @@ const SPRINT_STATUS_RANK: Record<SprintStatus, number> = {
 };
 
 /**
- * 이미 2차 키(우선순위 desc → 생성일 desc → id)로 정렬된 배열을 상태 순서로만
+ * 이미 2차 키(종료일 가까운 순 → 생성일 desc → id)로 정렬된 배열을 상태 순서로만
  * **안정(stable)** 재정렬한다. JS sort 는 안정 정렬이므로 같은 상태 안에선 입력 순서
- * (=DB 정렬)가 유지된다. 결과: 진행중 → 할 일 → 완료, 각 그룹 내 우선순위·생성일 순.
+ * (=DB 정렬)가 유지된다. 결과: 진행중 → 할 일 → 완료, 각 그룹 내 종료일·생성일 순.
  */
 export function orderByDefaultStatus<T extends { status: Status }>(
   rows: T[],
