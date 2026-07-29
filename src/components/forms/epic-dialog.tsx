@@ -18,6 +18,7 @@ import {
   FormDialog,
   FormField,
   FormRow,
+  QuickFillButton,
   TitleField,
   DescriptionField,
   StatusPriorityFields,
@@ -46,6 +47,8 @@ type FormProps = {
   epic?: Existing;
   defaultProjectId?: string;
   defaultTeamId?: string;
+  /** 현재 로그인 사용자(퀵필 버튼용). 없으면 버튼을 렌더하지 않는다. */
+  me?: { id: string; teamId: string | null } | null;
 };
 
 export function EpicDialog({
@@ -69,6 +72,7 @@ function EpicForm({
   epic,
   defaultProjectId,
   defaultTeamId,
+  me,
   onClose,
 }: FormProps & { onClose: () => void }) {
   const router = useRouter();
@@ -89,6 +93,8 @@ function EpicForm({
   const [dueDate, setDueDate] = useState(toDateInput(epic?.dueDate));
 
   const isEdit = !!epic;
+  // 내 소속 팀(퀵필 '나의 팀'). 팀 미배정이면 null 이라 버튼을 렌더하지 않는다.
+  const myTeamId = me?.teamId ?? null;
 
   function submit() {
     if (!title.trim()) {
@@ -144,7 +150,17 @@ function EpicForm({
         />
         <DescriptionField value={description} onChange={setDescription} />
         <FormRow>
-          <FormField label={<>소유 팀{isEdit && " (변경 불가)"}</>}>
+          <FormField
+            label={<>소유 팀{isEdit && " (변경 불가)"}</>}
+            // 팀은 생성 시에만 바꿀 수 있고, 내 소속 팀이 있고 아직 그 팀이 아닐 때만 노출.
+            action={
+              !isEdit && myTeamId && teamId !== myTeamId ? (
+                <QuickFillButton onClick={() => setTeamId(myTeamId)}>
+                  나의 팀
+                </QuickFillButton>
+              ) : null
+            }
+          >
             {isEdit ? (
               <TeamKeyReadonly teams={teams} teamId={epic!.teamId} />
             ) : (
@@ -167,7 +183,16 @@ function EpicForm({
           priority={priority}
           onPriorityChange={setPriority}
         />
-        <FormField label="담당자">
+        <FormField
+          label="담당자"
+          action={
+            me && ownerId !== me.id ? (
+              <QuickFillButton onClick={() => setOwnerId(me.id)}>
+                나에게 할당
+              </QuickFillButton>
+            ) : null
+          }
+        >
           <MemberSelect value={ownerId} onChange={setOwnerId} members={members} />
         </FormField>
         <DateRangeFields
