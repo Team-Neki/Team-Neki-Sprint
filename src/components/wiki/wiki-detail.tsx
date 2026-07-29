@@ -11,6 +11,7 @@ import {
   type WikiEditorState,
 } from "@/components/wiki/editor";
 import { WikiCommentsView } from "@/components/wiki/wiki-comments-view";
+import { WikiPageComments } from "@/components/wiki/wiki-page-comments";
 import type { ThreadItem } from "@/components/wiki/comment-thread-card";
 import { WikiPageMenu } from "@/components/wiki/wiki-page-menu";
 import type { RevisionListItem } from "@/components/wiki/version-history";
@@ -64,6 +65,11 @@ export function WikiDetail({
     (s: WikiEditorState) => setEditState(s),
     [],
   );
+
+  // 스레드 분리: quote 가 있으면 본문 구간에 앵커된 인라인 댓글(우측 거터),
+  // 비어 있으면 문서 전체에 대한 페이지 댓글(본문 하단 섹션).
+  const anchoredThreads = threads.filter((t) => t.quote);
+  const pageThreads = threads.filter((t) => !t.quote);
 
   return (
     <div>
@@ -137,14 +143,21 @@ export function WikiDetail({
           onStateChange={handleEditState}
         />
       ) : (
-        <WikiCommentsView
-          pageId={pageId}
-          title={title}
-          content={content}
-          threads={threads}
-          currentUserId={currentUserId}
-          updatedAt={updatedAt}
-        />
+        <>
+          <WikiCommentsView
+            pageId={pageId}
+            title={title}
+            content={content}
+            threads={anchoredThreads}
+            currentUserId={currentUserId}
+            updatedAt={updatedAt}
+          />
+          <WikiPageComments
+            pageId={pageId}
+            threads={pageThreads}
+            currentUserId={currentUserId}
+          />
+        </>
       )}
     </div>
   );
