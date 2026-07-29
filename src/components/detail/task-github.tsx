@@ -154,9 +154,11 @@ export function TaskGithub({
             onValueChange={setRepo}
             options={repos ?? []}
             getValue={(r) => r.fullName}
+            getSearchText={(r) => r.fullName}
             renderOption={(r) => (
               <span className="font-mono text-xs">{r.fullName}</span>
             )}
+            searchPlaceholder="레포 검색"
             placeholder={repos ? "레포 선택" : "불러오는 중…"}
           />
           <span className="text-muted-foreground text-xs">유형</span>

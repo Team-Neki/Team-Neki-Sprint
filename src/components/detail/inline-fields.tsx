@@ -355,10 +355,12 @@ export function InlineMember({
       onValueChange={(v) => save({ [field]: v === UNASSIGNED ? null : v })}
       options={members}
       getValue={(m) => m.id}
+      getSearchText={(m) => `${m.name ?? ""} ${m.email}`}
       renderOption={renderMemberOption}
       renderTriggerOption={
         avatarOnly ? (m) => <UserBadge user={m} hideName /> : memberLabel
       }
+      searchPlaceholder="담당자 검색"
       placeholder={placeholder}
       leadingOption={{ value: UNASSIGNED, label: "미지정" }}
       disabled={pending}
@@ -394,7 +396,9 @@ export function InlineLink({
       onValueChange={(v) => save({ [field]: v === NONE ? null : v })}
       options={options}
       getValue={(o) => o.id}
+      getSearchText={(o) => o.label}
       renderOption={(o) => o.label}
+      searchPlaceholder={placeholder}
       placeholder={placeholder}
       leadingOption={{ value: NONE, label: noneLabel }}
       disabled={pending}
