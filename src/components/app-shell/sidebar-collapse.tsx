@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
  */
 const SidebarContext = createContext<{
   collapsed: boolean;
+  setCollapsed: (v: boolean) => void;
   toggle: () => void;
   width: number;
   setWidth: (w: number) => void;
@@ -23,6 +24,11 @@ const SidebarContext = createContext<{
 const DEFAULT_W = 240;
 const MIN_W = 200;
 const MAX_W = 400;
+// 접힘(아이콘 레일) 폭. 과거 `w-14` 클래스로 주던 값을 px 로 명시 — 펼침/접힘 모두
+// 인라인 style 한 곳에서 폭을 결정해야 `transition-[width]` 가 끊기지 않는다.
+const RAIL_W = 56;
+// 드래그로 이 폭보다 더 좁히면 접힘 상태로 전환(왼쪽 끝까지 드래그 = 닫기).
+const COLLAPSE_AT = MIN_W - 40;
 const STORAGE_KEY = "app:sidebarW";
 
 function clampW(w: number) {
@@ -51,6 +57,7 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
     <SidebarContext.Provider
       value={{
         collapsed,
+        setCollapsed,
         toggle: () => setCollapsed((c) => !c),
         width,
         setWidth,
@@ -79,19 +86,31 @@ export function DesktopSidebar({
   brand: React.ReactNode;
   children: React.ReactNode;
 }) {
-  const { collapsed, width, setWidth } = useSidebar();
+  const { collapsed, setCollapsed, width, setWidth } = useSidebar();
+  // 드래그 중에는 width transition 을 끈다 — 켜두면 포인터를 200ms 씩 쫓아가 끊겨 보인다.
+  const [resizing, setResizing] = useState(false);
 
   // 우측 엣지 드래그 리사이즈 — epic-timeline 의 onResizeStart 패턴 재사용.
-  // pointerdown 에서 startX+startWidth 캡처, window pointermove 로 [MIN,MAX] 클램프,
-  // pointerup 에서 리스너 해제. 접힘(레일) 상태에선 핸들을 숨겨 호출되지 않는다.
+  // pointerdown 에서 startX+startWidth 캡처, window pointermove 로 폭 갱신,
+  // pointerup 에서 리스너 해제.
+  // 접힘 전환: 목표 폭이 COLLAPSE_AT 미만이면 접고(왼쪽 끝까지 드래그 = 닫기),
+  // 접힌 상태에서 오른쪽으로 다시 끌면 펼친다(핸들을 접힘 상태에서도 렌더).
   function onResizeStart(e: React.PointerEvent) {
     e.preventDefault();
     const startX = e.clientX;
-    const startW = width;
+    const startW = collapsed ? RAIL_W : width;
+    setResizing(true);
     const onMove = (ev: PointerEvent) => {
-      setWidth(startW + (ev.clientX - startX));
+      const next = startW + (ev.clientX - startX);
+      if (next < COLLAPSE_AT) {
+        setCollapsed(true);
+        return;
+      }
+      setCollapsed(false);
+      setWidth(next);
     };
     const onUp = () => {
+      setResizing(false);
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
     };
@@ -102,25 +121,25 @@ export function DesktopSidebar({
   return (
     <aside
       className={cn(
-        "bg-background relative hidden shrink-0 flex-col overflow-hidden border-r transition-[width] duration-200 md:flex",
-        collapsed && "w-14",
+        "bg-background relative hidden shrink-0 flex-col overflow-hidden border-r md:flex",
+        // 드래그 중엔 전환을 끄고(포인터를 즉시 추종), 토글 클릭 시에만 200ms 애니메이션.
+        resizing ? "transition-none" : "transition-[width] duration-200",
       )}
-      // 펼친 상태에서만 인라인 폭을 적용(접히면 w-14 레일 클래스 사용).
-      style={collapsed ? undefined : { width }}
+      // 펼침·접힘 모두 인라인 style 로 폭을 준다. 과거처럼 접힘만 클래스(w-14)로 주면
+      // 전환 중 width 소스가 인라인↔클래스로 바뀌어 토글 애니메이션이 튄다.
+      style={{ width: collapsed ? RAIL_W : width }}
     >
       {brand}
       <div className="flex-1 overflow-y-auto">{children}</div>
-      {/* 우측 엣지 드래그 핸들(펼친 상태 전용). 얇은 세로 바 + hover 하이라이트
-          (epic-timeline 거터 핸들과 동일 톤). 접힘(레일)일 땐 렌더 안 함. */}
-      {!collapsed && (
-        <div
-          onPointerDown={onResizeStart}
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="사이드바 너비 조절"
-          className="hover:bg-link/30 absolute inset-y-0 -right-0.5 z-40 w-1.5 cursor-col-resize"
-        />
-      )}
+      {/* 우측 엣지 드래그 핸들. 얇은 세로 바 + hover 하이라이트(epic-timeline 거터 핸들과
+          동일 톤). 접힘 상태에서도 렌더해 오른쪽으로 끌면 다시 펼칠 수 있게 한다. */}
+      <div
+        onPointerDown={onResizeStart}
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="사이드바 너비 조절"
+        className="hover:bg-link/30 absolute inset-y-0 -right-0.5 z-40 w-1.5 cursor-col-resize"
+      />
     </aside>
   );
 }
