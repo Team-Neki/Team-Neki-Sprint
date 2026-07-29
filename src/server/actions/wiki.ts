@@ -186,9 +186,12 @@ export async function updateWikiContentCore(
   }
 
   // 저장(커밋)했으니 이 유저의 임시저장본은 정리(있으면).
-  await prisma.wikiDraft
-    .delete({ where: { pageId_userId: { pageId: id, userId: actor.id } } })
-    .catch(() => {});
+  // deleteMany: 초안이 없는 경우가 정상 흐름(초안 없이 바로 저장)이라 delete 를 쓰면
+  // P2025 가 나고, .catch() 로 삼켜도 Prisma 가 예외 전에 prisma:error 를 먼저
+  // 출력해 로그가 쌓인다. deleteMany 는 매칭 0건이면 count:0 으로 조용히 끝난다.
+  await prisma.wikiDraft.deleteMany({
+    where: { pageId: id, userId: actor.id },
+  });
 
   revalidatePath("/wiki", "layout");
   revalidatePath(`/wiki/${id}`);
@@ -217,12 +220,13 @@ export async function saveWikiDraft(
   return { ok: true };
 }
 
-/** 임시저장본 폐기('취소' 또는 저장 완료 시). */
+/**
+ * 임시저장본 폐기('취소' 또는 저장 완료 시).
+ * 초안이 없는 상태에서도 호출될 수 있어(취소 연타·저장 직후 취소) deleteMany 로 no-op 처리.
+ */
 export async function discardWikiDraft(pageId: string) {
   const user = await requireUser();
-  await prisma.wikiDraft
-    .delete({ where: { pageId_userId: { pageId, userId: user.id } } })
-    .catch(() => {});
+  await prisma.wikiDraft.deleteMany({ where: { pageId, userId: user.id } });
   return { ok: true };
 }
 
