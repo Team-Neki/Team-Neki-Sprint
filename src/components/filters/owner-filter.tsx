@@ -14,19 +14,19 @@ import type { MiniUser } from "@/components/user-badge";
  * paramKey 로 URL 파라미터 키를 바꿔 오너(`owner`)/담당자(`assignee`) 양쪽에 대응한다.
  * F6 이후 다중선택 체크박스(콤마구분 값)로 동작하며, 초기화는 자기 파라미터만 지우므로
  * 4번(유저 그룹) 필터를 같은 바에 얹어도 서로의 값을 건드리지 않는다.
+ *
+ * 자기 칩(+초기화)만 렌더한다 — 줄 배치는 `FilterBar` 가 소유한다.
  */
 export function OwnerFilter({
   members,
   paramKey = "owner",
   placeholder = "오너",
-  children,
 }: {
   members: MiniUser[];
   paramKey?: string;
   placeholder?: string;
   /** 하위호환용 prop(다중선택 전환 후 트리거에는 미사용). */
   allLabel?: string;
-  children?: React.ReactNode;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -48,7 +48,7 @@ export function OwnerFilter({
   }));
 
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-2">
+    <>
       <CheckboxFilter
         paramKey={paramKey}
         label={placeholder}
@@ -60,8 +60,6 @@ export function OwnerFilter({
           <X className="size-4" /> 초기화
         </Button>
       )}
-
-      {children}
-    </div>
+    </>
   );
 }

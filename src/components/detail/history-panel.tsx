@@ -1,11 +1,10 @@
 import { formatDistanceToNow } from "date-fns";
 import { ko } from "date-fns/locale";
-import type { Status } from "@prisma/client";
-import { STATUS_META } from "@/lib/constants";
 import { UserBadge, type MiniUser } from "@/components/user-badge";
 import {
   FIELD_LABEL,
   formatFieldValue,
+  statusLabel,
   buildLookups,
   type Lookups,
   type NamedRef,
@@ -107,7 +106,7 @@ function Sentence({
   }
 
   if (activity.action === "status_changed" && typeof meta.status === "string") {
-    const to = STATUS_META[meta.status as Status]?.label ?? meta.status;
+    const to = statusLabel(meta.status);
     return (
       <>
         {actorEl}님이 상태를{" "}

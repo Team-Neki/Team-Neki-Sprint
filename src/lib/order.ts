@@ -32,6 +32,30 @@ export const SPRINT_LIST_ORDER: Prisma.SprintOrderByWithRelationInput[] = [
   { id: "asc" },
 ];
 
+/** 미설정(null)이 있을 수 있는 날짜 컬럼 — 정렬 방향과 무관하게 항상 맨 뒤로 보낸다. */
+const NULLABLE_DATE_FIELDS = new Set(["startDate", "dueDate", "endDate"]);
+
+/**
+ * URL 정렬 1건(`?sort=&dir=`) → prisma `orderBy` **배열**.
+ * 호출부가 **모델별 허용 필드 화이트리스트로 먼저 거른 뒤**(lib/list-sort) 쓰는 것을
+ * 전제로 한다 — 그래서 여기선 필드명을 다시 검사하지 않고 모델별 OrderBy 로 좁혀 쓴다.
+ * 기본 정렬(정렬 미지정)은 위 `*_LIST_ORDER` + 상태 재배치가 담당한다.
+ *
+ * 2차 키 `id: "asc"` 를 항상 덧붙인다. 정렬 키가 같은 행들의 순서를 명시하지 않으면
+ * PostgreSQL 이 요청마다 다른 순서를 낼 수 있고, 목록은 `force-dynamic` 이라 매 요청
+ * 재조회하므로 새로고침할 때마다 같은 상태의 행들이 뒤섞여 보인다. 기본 정렬 상수들도
+ * 같은 이유로 `{ id: "asc" }` 를 마지막에 둔다.
+ */
+export function listSortOrderBy(
+  field: string,
+  dir: "asc" | "desc",
+): Record<string, unknown>[] {
+  const primary = NULLABLE_DATE_FIELDS.has(field)
+    ? { [field]: { sort: dir, nulls: "last" } }
+    : { [field]: dir };
+  return [primary, { id: "asc" }];
+}
+
 /**
  * 목록(PLP·상세 하위목록) 기본 정렬의 상태 우선순위: 진행중 → 할 일 → 완료.
  * Status enum 의 정의 순서는 TODO→IN_PROGRESS→DONE 라 Prisma `orderBy`(asc/desc)로는

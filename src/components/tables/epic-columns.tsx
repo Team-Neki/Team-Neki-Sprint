@@ -78,6 +78,7 @@ export const EPIC_COLUMNS: ColumnDef<EpicTableRow, EpicEditContext>[] = [
   {
     key: "title",
     label: "제목",
+    sortField: "title",
     cell: (e, edit) => (
       <TableCell className="font-medium">
         {edit ? (
@@ -121,6 +122,7 @@ export const EPIC_COLUMNS: ColumnDef<EpicTableRow, EpicEditContext>[] = [
     key: "startDate",
     label: "시작일",
     headClassName: "w-28",
+    sortField: "startDate",
     cell: (e, edit) => (
       <TableCell className="text-muted-foreground text-xs">
         {edit ? (
@@ -140,6 +142,7 @@ export const EPIC_COLUMNS: ColumnDef<EpicTableRow, EpicEditContext>[] = [
     key: "dueDate",
     label: "종료일",
     headClassName: "w-28",
+    sortField: "dueDate",
     cell: (e, edit) => (
       <TableCell className="text-muted-foreground text-xs">
         {edit ? (
@@ -159,6 +162,7 @@ export const EPIC_COLUMNS: ColumnDef<EpicTableRow, EpicEditContext>[] = [
     key: "priority",
     label: "우선순위",
     headClassName: "w-24",
+    sortField: "priority",
     cell: (e, edit) => (
       <TableCell>
         {edit ? (
@@ -173,6 +177,7 @@ export const EPIC_COLUMNS: ColumnDef<EpicTableRow, EpicEditContext>[] = [
     key: "status",
     label: "상태",
     headClassName: "w-28",
+    sortField: "status",
     cell: (e, edit) => (
       <TableCell>
         {edit ? (

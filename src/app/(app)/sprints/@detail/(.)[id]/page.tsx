@@ -1,0 +1,22 @@
+import { Suspense } from "react";
+import SprintDetail from "../../[id]/page";
+import { DetailSheet } from "@/components/detail/detail-sheet";
+import { DetailSkeleton } from "@/components/detail/detail-skeleton";
+
+export const dynamic = "force-dynamic";
+
+/** 목록에서 스프린트 열기 클릭을 가로채 우측 슬라이드 상세로 띄운다(전체 상세 페이지 재사용). */
+export default async function InterceptedSprintDetail({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  return (
+    <DetailSheet fullHref={`/sprints/${id}`}>
+      <Suspense fallback={<DetailSkeleton />}>
+        <SprintDetail params={params} />
+      </Suspense>
+    </DetailSheet>
+  );
+}

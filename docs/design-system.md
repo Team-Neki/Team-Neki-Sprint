@@ -82,6 +82,49 @@ flowchart TD
     WIKI["WikiPage (트리)"] -. WikiPageTaskLink .-> TASK
 ```
 
+## 엔티티 목록/상세 화면 규격
+
+스프린트·프로젝트·에픽·태스크 네 엔티티는 서로 다른 계층을 가리키지만, 사용자가 하는 일은 같습니다. 목록에서 고르고, 상세에서 값을 고치고, 하위 항목을 추가하고, 댓글과 히스토리를 봅니다. **따라서 네 화면은 같은 조작 규격을 공유해야 하고, 예외는 데이터 모델에 근거가 있을 때만 둡니다.** 근거 없이 갈린 차이는 한 화면에서 익힌 조작이 다른 화면에서 통하지 않게 만듭니다(BACKEND-47/48/49에서 실제로 정리한 부채).
+
+### 목록 화면
+
+```text
+PageHeader(제목 · 설명 · 생성 CTA)
+  -> 필터 행 [FilterBar > 필터 칩들]      [ColumnSettings]
+  -> Card(overflow-hidden py-0) > EntityTable
+```
+
+- 표 셸은 `tables/entity-table.tsx` 하나를 공유하고, 컬럼 정의만 `tables/*-columns.tsx`에서 주입함
+- 필터 칩은 `filters/filter-bar.tsx`(`FilterBar`) 안에 **형제로 나열**함. 각 필터 컴포넌트는 자기 칩(+초기화)만 렌더하고 줄바꿈·간격·아래 여백은 셸이 소유함 — 필터가 서로를 `children`으로 감싸면 안쪽 래퍼의 `mb-4`가 flex 아이템 높이를 부풀려 바깥 `items-center`가 첫 칩을 밀어낸다(BACKEND-50에서 실제로 8px 어긋남)
+- 바 안 컨트롤 높이는 칩과 같은 `h-7`로 맞춤. 높이가 섞이면 `items-center`가 낮은 쪽을 내려 어긋남
+- 항목이 0건이어도 **표를 걷어내지 않음**. 컬럼 헤더를 남기고 표 안 `EmptyRow`로 안내(필터를 조정할 수 있어야 하므로). 별도 `EmptyState` 전환은 쓰지 않음
+- 정렬은 URL(`?sort=&dir=`) 기반. 페이지가 `parseListSort(sp, *_SORT_FIELDS)`로 검증해 쿼리에 넘기고, 표에 `sortable`을 주면 `sortField` 있는 헤더가 `SortableHead`로 렌더됨
+- 정렬 가능 필드는 DB 컬럼만입니다. 담당자·레이블(관계)과 MD(하위 롤업 계산값)는 제외합니다
+- 명시적 정렬이 걸리면 기본 정렬의 상태 재배치(진행중→할 일→완료)는 적용하지 않음
+
+### 상세 화면
+
+```text
+@container/detail (max-w-5xl) > grid @3xl:grid-cols-3
+  좌 2단: BackButton · InlineTitle · 설명 Card · [하위 목록] · CommentsHistoryTabs
+  우 1단: 메타 Card(MetaRow 나열) · [엔티티별 카드] · 위키 연결 Card
+```
+
+- 두 컬럼 모두 `min-w-0`을 줍니다. grid 아이템 기본값이 `min-width:auto`라 긴 코드블록이나 URL이 들어오면 컬럼이 밀립니다
+- 제목·설명·메타는 인라인 편집이 기본. 상세에는 수정 다이얼로그를 두지 않음(생성만 다이얼로그)
+- 설명 카드는 값이 비어도 항상 렌더. 카드째 숨기면 상세에서 설명을 새로 쓸 수 없음
+- 댓글·업무 히스토리는 `detail/comments-history-tabs.tsx` 탭으로 통일. 카드로 나열하지 않음
+- 뒤로가기(`BackButton`)와 삭제 후 이동은 **자기 목록**으로. 태스크 상세는 보드에서도 열리지만 `/tasks`로 돌아갑니다
+- 목록 → 상세는 우측 슬라이드(`@detail` 인터셉트 라우트). 네 엔티티 모두 세그먼트에 `layout.tsx` + `@detail/(.)[id]` + `@detail/default.tsx`를 둡니다
+
+### 모델 차이로 정당한 예외
+
+이 셋은 통일 대상이 아니라 스키마에서 나온 차이입니다.
+
+- 이슈 key : 태스크·에픽만 팀 접두어 key가 있어 맨 앞 `키` 컬럼(`OpenDetailKey`)으로 상세를 엽니다. key가 없는 프로젝트·스프린트는 맨 뒤 아이콘 컬럼(`OpenDetailIcon`)이 같은 역할을 합니다
+- 스프린트 메타 : `Sprint` 모델에는 담당자·우선순위·팀이 없어 해당 `MetaRow`를 두지 않습니다. 제목 필드가 `name`, 기한이 `endDate`, 상태가 `SprintStatus`라 `InlineTitle field="name"` · `InlineDate field="endDate"` · `InlineSprintStatus`를 씁니다
+- 태스크 전용 : 의존성·GitHub 카드는 태스크에만 있고, 하위 목록은 태스크에만 없습니다(최하위 계층)
+
 ## 참고
 
 - 공용 프리미티브(`Card`, `badges.tsx`, `page-header.tsx`, `user-badge.tsx`, `forms/fields.tsx`)는 모두 토큰 기반이라 토큰 변경이 전 화면에 일관 전파된다.

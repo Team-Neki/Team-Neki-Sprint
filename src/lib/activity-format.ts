@@ -1,7 +1,11 @@
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
-import type { Status, Priority } from "@prisma/client";
-import { STATUS_META, PRIORITY_META } from "@/lib/constants";
+import type { Status, Priority, SprintStatus } from "@prisma/client";
+import {
+  STATUS_META,
+  PRIORITY_META,
+  SPRINT_STATUS_META,
+} from "@/lib/constants";
 import { plainTextOf } from "@/lib/rich-content";
 
 /**
@@ -22,6 +26,9 @@ export type Lookups = {
 // 필드 → 한국어 라벨.
 export const FIELD_LABEL: Record<string, string> = {
   title: "제목",
+  // 스프린트만 제목 필드명이 name, 기한 필드명이 endDate 다(모델 차이).
+  name: "이름",
+  endDate: "종료일",
   description: "설명",
   status: "상태",
   priority: "우선순위",
@@ -40,6 +47,19 @@ export const FIELD_LABEL: Record<string, string> = {
 
 export function truncateText(s: string, n = 40): string {
   return s.length > n ? `${s.slice(0, n)}…` : s;
+}
+
+/**
+ * 상태 값 → 한국어 라벨. task/epic/project 는 Status, 스프린트는 SprintStatus 로
+ * enum 이 갈리는데 Activity.meta 에는 문자열로만 남아 어느 쪽인지 알 수 없다.
+ * 두 표를 차례로 찾고, 둘 다 없으면 원문을 유지한다.
+ */
+export function statusLabel(raw: string): string {
+  return (
+    STATUS_META[raw as Status]?.label ??
+    SPRINT_STATUS_META[raw as SprintStatus]?.label ??
+    raw
+  );
 }
 
 function toMap(items?: NamedRef[]): Map<string, string> {
@@ -76,11 +96,12 @@ export function formatFieldValue(
   const s = String(raw);
   switch (field) {
     case "status":
-      return STATUS_META[raw as Status]?.label ?? s;
+      return statusLabel(s);
     case "priority":
       return PRIORITY_META[raw as Priority]?.label ?? s;
     case "startDate":
-    case "dueDate": {
+    case "dueDate":
+    case "endDate": {
       const d = new Date(s);
       return isNaN(d.getTime()) ? s : format(d, "yyyy.M.d", { locale: ko });
     }
@@ -100,6 +121,7 @@ export function formatFieldValue(
       // 설명은 Tiptap doc JSON(B6) — 순수 텍스트로 풀어 발췌.
       return truncateText(plainTextOf(s));
     case "title":
+    case "name":
       return truncateText(s);
     default:
       return s;
@@ -124,8 +146,7 @@ export function activityDescription(
     return `${label} ${from} → ${to} 로 변경`;
   }
   if (action === "status_changed" && typeof m.status === "string") {
-    const to = STATUS_META[m.status as Status]?.label ?? String(m.status);
-    return `상태를 ${to} 로 변경`;
+    return `상태를 ${statusLabel(m.status)} 로 변경`;
   }
   if (action === "dependency_added" || action === "dependency_removed") {
     const verb = action === "dependency_added" ? "추가" : "제거";

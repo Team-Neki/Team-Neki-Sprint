@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import type { Status, Priority } from "@prisma/client";
+import type { Status, Priority, SprintStatus } from "@prisma/client";
 import { ChevronDownIcon } from "lucide-react";
 import {
   Select,
@@ -24,7 +24,11 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
-import { STATUS_META, PRIORITY_META } from "@/lib/constants";
+import {
+  STATUS_META,
+  PRIORITY_META,
+  SPRINT_STATUS_META,
+} from "@/lib/constants";
 import type { MiniUser } from "@/components/user-badge";
 import { initialsOf } from "@/components/user-badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -313,6 +317,16 @@ export function renderStatusOption(s: Status): React.ReactNode {
     <span className="flex items-center gap-2">
       <span className={`size-1.5 rounded-full ${STATUS_META[s].dot}`} />
       {STATUS_META[s].label}
+    </span>
+  );
+}
+
+/** 스프린트 상태: 색 도트 + SPRINT_STATUS_META 라벨(enum 이 Status 와 다르다). */
+export function renderSprintStatusOption(s: SprintStatus): React.ReactNode {
+  return (
+    <span className="flex items-center gap-2">
+      <span className={`size-1.5 rounded-full ${SPRINT_STATUS_META[s].dot}`} />
+      {SPRINT_STATUS_META[s].label}
     </span>
   );
 }

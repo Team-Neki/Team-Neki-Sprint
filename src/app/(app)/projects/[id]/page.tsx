@@ -15,8 +15,8 @@ import {
 import { requireUser } from "@/lib/session";
 import { deleteProject } from "@/server/actions/projects";
 import { deleteEpic } from "@/server/actions/epics";
-import { EntityComments } from "@/components/comments/entity-comments";
 import { EntityLinkedPages } from "@/components/wiki/entity-linked-pages";
+import { ProjectLabels } from "@/components/detail/project-labels";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EntityTable } from "@/components/tables/entity-table";
@@ -27,7 +27,7 @@ import {
 import { EpicDialog } from "@/components/forms/epic-dialog";
 import { SheetDeleteButton } from "@/components/detail/sheet-delete-button";
 import { BackButton } from "@/components/detail/back-button";
-import { HistoryPanel } from "@/components/detail/history-panel";
+import { CommentsHistoryTabs } from "@/components/detail/comments-history-tabs";
 import { MdRollupText } from "@/components/detail/md-rollup";
 import {
   MetaRow,
@@ -129,22 +129,14 @@ export default async function ProjectDetail({
           />
         </Card>
 
-        <Card className="mb-6 p-5">
-          <h3 className="mb-3 text-sm font-medium">댓글 {comments.length}</h3>
-          <EntityComments
-            entityType="project"
-            entityId={project.id}
-            comments={comments}
-          />
-        </Card>
-
-        <Card className="p-5">
-          <HistoryPanel
-            activities={activities}
-            members={members}
-            sprints={sprints.map((s) => ({ id: s.id, name: s.name }))}
-          />
-        </Card>
+        <CommentsHistoryTabs
+          entityType="project"
+          entityId={project.id}
+          comments={comments}
+          activities={activities}
+          members={members}
+          sprints={sprints.map((s) => ({ id: s.id, name: s.name }))}
+        />
       </div>
 
       <div className="flex min-w-0 flex-col gap-4 @3xl/detail:col-span-1">
@@ -179,7 +171,7 @@ export default async function ProjectDetail({
               field="sprintId"
               value={project.sprintId}
               options={sprints.map((s) => ({ id: s.id, label: s.name }))}
-              noneLabel="미지정"
+              noneLabel="없음"
               placeholder="스프린트 선택"
             />
           </MetaRow>
@@ -204,6 +196,13 @@ export default async function ProjectDetail({
               estimated={project.md.estimated}
               actual={project.md.actual}
               className="text-sm"
+            />
+          </MetaRow>
+          <MetaRow label="라벨" align="start">
+            <ProjectLabels
+              projectId={project.id}
+              labels={project.labels.map((l) => l.label)}
+              allLabels={labelOptions}
             />
           </MetaRow>
         </Card>

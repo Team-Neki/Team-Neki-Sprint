@@ -85,6 +85,7 @@ export const TASK_COLUMNS: ColumnDef<TaskTableRow, TaskEditContext>[] = [
   {
     key: "title",
     label: "제목",
+    sortField: "title",
     cell: (t, edit) => (
       <TableCell className="font-medium">
         <span className="flex flex-wrap items-center gap-1.5">
@@ -135,6 +136,7 @@ export const TASK_COLUMNS: ColumnDef<TaskTableRow, TaskEditContext>[] = [
     key: "startDate",
     label: "시작일",
     headClassName: "w-28",
+    sortField: "startDate",
     cell: (t, edit) => (
       <TableCell className="text-muted-foreground text-xs">
         {edit ? (
@@ -154,6 +156,7 @@ export const TASK_COLUMNS: ColumnDef<TaskTableRow, TaskEditContext>[] = [
     key: "dueDate",
     label: "종료일",
     headClassName: "w-28",
+    sortField: "dueDate",
     cell: (t, edit) => (
       <TableCell className="text-muted-foreground text-xs">
         {edit ? (
@@ -173,6 +176,7 @@ export const TASK_COLUMNS: ColumnDef<TaskTableRow, TaskEditContext>[] = [
     key: "priority",
     label: "우선순위",
     headClassName: "w-24",
+    sortField: "priority",
     cell: (t, edit) => (
       <TableCell>
         {edit ? (
@@ -187,6 +191,7 @@ export const TASK_COLUMNS: ColumnDef<TaskTableRow, TaskEditContext>[] = [
     key: "status",
     label: "상태",
     headClassName: "w-28",
+    sortField: "status",
     cell: (t, edit) => (
       <TableCell>
         {edit ? (
