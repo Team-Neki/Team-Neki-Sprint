@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { tiptapDocSchema } from "./tiptap-doc";
+import { tiptapDocSchema } from "@/lib/tiptap-doc";
 
 describe("tiptapDocSchema", () => {
   it("accepts a minimal doc and preserves the original object", () => {

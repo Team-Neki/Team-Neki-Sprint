@@ -6,7 +6,7 @@ import {
   findUploadPlaceholder,
   removeUploadPlaceholder,
   uploadPlaceholderPlugin,
-} from "./upload-placeholder";
+} from "@/components/wiki/upload-placeholder";
 
 const schema = new Schema({
   nodes: {

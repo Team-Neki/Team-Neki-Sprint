@@ -6,7 +6,7 @@ import {
   EPIC_LIST_ORDER,
   PROJECT_LIST_ORDER,
   SPRINT_LIST_ORDER,
-} from "./order";
+} from "@/lib/order";
 
 describe("orderByDefaultStatus", () => {
   it("진행중 → 할 일 → 완료 순으로 재배치한다", () => {

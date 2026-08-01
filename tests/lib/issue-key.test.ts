@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseIssueKey } from "./issue-key";
+import { parseIssueKey } from "@/lib/issue-key";
 
 describe("parseIssueKey", () => {
   it("splits TEAM-123 into key and number", () => {

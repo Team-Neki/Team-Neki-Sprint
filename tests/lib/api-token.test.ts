@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { TOKEN_PREFIX, hashToken, parseBearer, buildToken } from "./api-token";
+import { TOKEN_PREFIX, hashToken, parseBearer, buildToken } from "@/lib/api-token";
 
 describe("api-token", () => {
   it("hashToken is deterministic sha-256 hex (64 chars)", () => {
