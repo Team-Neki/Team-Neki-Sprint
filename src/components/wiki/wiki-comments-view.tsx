@@ -34,9 +34,11 @@ type Composer = {
 // 우측 댓글 거터 폭(px). 본문은 이만큼 padding-right 로 비워 카드와 겹치지 않게 한다.
 const GUTTER = 296; // w-72(288) 카드 + 여유
 const CARD_GAP = 8; // 세로로 겹칠 때 카드 간 최소 간격
+const COMPOSER_WIDTH = 256; // 컴포저 팝업 폭(w-64) — 좌측 위치 클램프에 사용
+const POPOVER_GAP = 6; // 모바일 팝오버와 앵커 사이 간격
 
 // 우측 마진노트(거터) 레이아웃은 md 이상에서만. 모바일은 거터 폭이 안 나와 본문이
-// 뭉개지므로, 댓글을 본문 아래 일반 흐름으로 스택한다. useSyncExternalStore 로
+// 뭉개지므로, 앵커를 탭했을 때 그 바로 아래에 팝오버로 띄운다. useSyncExternalStore 로
 // 하이드레이션 안전하게 뷰포트를 읽는다(SSR/초기엔 데스크톱 가정 → 마운트 후 보정).
 const WIDE_QUERY = "(min-width: 768px)";
 function subscribeWide(cb: () => void) {
@@ -57,6 +59,9 @@ function useIsWide() {
  * 텍스트를 선택하면 플로팅 '댓글' 버튼이 뜨고, 달면 선택 범위에 commentMark(앵커)를
  * 씌운 뒤 우측 거터에 그 앵커 세로위치에 맞춰 스레드 카드가 나타난다(sticky 아님 —
  * 본문과 함께 스크롤하며 댓글이 달린 위치 우측에 고정). 앵커 클릭 ↔ 카드 상호 하이라이트.
+ *
+ * 모바일(<md)은 거터 폭이 안 나오므로 본문을 전체폭으로 쓰고, 앵커를 탭하면 **그 앵커
+ * 바로 아래**에 스레드 카드를 팝오버로 띄운다(본문 흐름 위에 absolute 오버레이).
  *
  * 편집은 상위 WikiDetail 헤더('...' 좌측)의 '수정' 버튼(WikiEditor)에서 하며,
  * 여기선 하지 않는다. 마크 적용 시에만 잠깐 editable 을 켰다 끈다(읽기전용에서
@@ -92,6 +97,10 @@ export function WikiCommentsView({
   const [busy, setBusy] = useState(false);
   // 스레드별 카드 세로 위치(컨테이너 내부 px). 앵커 위치 + 겹침 회피 결과.
   const [cardTops, setCardTops] = useState<Record<string, number>>({});
+  // 스레드별 앵커 하단(컨테이너 내부 px). 모바일 팝오버를 앵커 바로 아래 붙일 때 사용.
+  const [anchorBottoms, setAnchorBottoms] = useState<Record<string, number>>(
+    {},
+  );
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const editor = useEditor({
@@ -149,14 +158,20 @@ export function WikiCommentsView({
     }
     const rect = range.getBoundingClientRect();
     const base = root.getBoundingClientRect();
+    // 컴포저(w-64)가 컨테이너를 벗어나지 않게 클램프. 거터는 데스크톱에만 있으므로
+    // 모바일에서 GUTTER 를 빼면 left 가 음수가 돼 팝업이 화면 왼쪽 밖으로 나갔다(~320px).
+    const gutter = isWide ? GUTTER : 0;
     setComposer({
       from,
       to,
       quote: quote.slice(0, 300),
       top: rect.top - base.top,
-      left: Math.min(rect.left - base.left, base.width - GUTTER - 40),
+      left: Math.max(
+        0,
+        Math.min(rect.left - base.left, base.width - gutter - COMPOSER_WIDTH),
+      ),
     });
-  }, [editor, composing]);
+  }, [editor, composing, isWide]);
 
   useEffect(() => {
     document.addEventListener("mouseup", onMouseUp);
@@ -240,16 +255,41 @@ export function WikiCommentsView({
     [editor, activeId, router, persistAnchors],
   );
 
-  // 앵커 마크 클릭 → 스레드 활성화(이벤트 위임).
+  // 앵커 마크 클릭 → 스레드 활성화(이벤트 위임). 모바일은 팝오버가 뜨므로 같은 앵커를
+  // 다시 탭하면 닫히게 토글한다(데스크톱 거터 카드는 상시 표시라 토글 대상이 아님).
   function onDocClick(e: React.MouseEvent) {
     const el = (e.target as HTMLElement).closest?.(
       ".wiki-comment-mark",
     ) as HTMLElement | null;
     if (el) {
       const id = el.getAttribute("data-comment-thread");
-      if (id) setActiveId(id);
+      if (id) setActiveId((cur) => (!isWide && cur === id ? null : id));
     }
   }
+
+  // 모바일 팝오버는 바깥 탭 / Esc 로 닫는다. 앵커 마크 탭은 onDocClick 이 처리하므로
+  // 여기선 제외(다른 앵커로 바로 전환되게).
+  useEffect(() => {
+    if (isWide || !activeId) return;
+    function onPointerDown(e: PointerEvent) {
+      const t = e.target as HTMLElement | null;
+      if (
+        t?.closest?.(".wiki-comment-popover") ||
+        t?.closest?.(".wiki-comment-mark")
+      )
+        return;
+      setActiveId(null);
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setActiveId(null);
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [isWide, activeId]);
 
   // 마크 span 에 is-active/is-resolved 클래스 동기화 + 각 스레드 카드를 앵커(첫 마크)
   // 세로위치에 맞춰 배치(겹치면 아래로 밀어 스택). 카드 높이는 렌더된 ref 로 측정하므로
@@ -263,19 +303,34 @@ export function WikiCommentsView({
       threads.filter((t) => t.resolved).map((t) => t.id),
     );
 
-    // 스레드별 첫 앵커의 컨테이너 내부 top + 마크 클래스 동기화.
-    const anchors: { id: string; top: number }[] = [];
-    const seen = new Set<string>();
+    // 스레드별 앵커의 컨테이너 내부 top/bottom + 마크 클래스 동기화. 한 스레드의 마크가
+    // 여러 span 으로 쪼개질 수 있어(중첩 마크·노드 경계) top 은 최소, bottom 은 최대를 취한다
+    // — 모바일 팝오버가 하이라이트 '전체' 아래에 붙어야 하므로 bottom 이 필요하다.
+    const rects: Record<string, { top: number; bottom: number }> = {};
     dom.querySelectorAll<HTMLElement>(".wiki-comment-mark").forEach((m) => {
       const id = m.getAttribute("data-comment-thread");
       m.classList.toggle("is-resolved", !!id && resolvedIds.has(id));
       m.classList.toggle("is-active", !!id && id === activeId);
-      if (!id || !valid.has(id) || seen.has(id)) return;
-      seen.add(id);
-      anchors.push({ id, top: m.getBoundingClientRect().top - base.top });
+      if (!id || !valid.has(id)) return;
+      const r = m.getBoundingClientRect();
+      const top = r.top - base.top;
+      const bottom = r.bottom - base.top;
+      const cur = rects[id];
+      rects[id] = cur
+        ? { top: Math.min(cur.top, top), bottom: Math.max(cur.bottom, bottom) }
+        : { top, bottom };
     });
+    setAnchorBottoms(
+      Object.fromEntries(
+        Object.entries(rects).map(([id, r]) => [id, r.bottom]),
+      ),
+    );
 
     // 겹침 회피: 앵커 순서대로 이전 카드 bottom + gap 이하로는 안 내려가게.
+    const anchors = Object.entries(rects).map(([id, r]) => ({
+      id,
+      top: r.top,
+    }));
     anchors.sort((a, b) => a.top - b.top);
     let prevBottom = -Infinity;
     const tops: Record<string, number> = {};
@@ -307,10 +362,22 @@ export function WikiCommentsView({
 
   const hasComments = threads.length > 0;
 
+  // 모바일 팝오버 대상: 활성 스레드 + 그 앵커 하단 위치가 모두 측정된 경우에만.
+  // (본문 편집으로 앵커 마크가 사라진 고아 스레드는 위치가 없어 자연히 제외 — 데스크톱
+  //  거터에서 visibility:hidden 으로 숨기는 것과 같은 취급.)
+  const activeThread = activeId
+    ? (threads.find((t) => t.id === activeId) ?? null)
+    : null;
+  const activeAnchorBottom = activeId ? anchorBottoms[activeId] : undefined;
+  const activePopover =
+    activeThread && activeAnchorBottom != null
+      ? { thread: activeThread, top: activeAnchorBottom + POPOVER_GAP }
+      : null;
+
   return (
     <div ref={rootRef} className="relative mx-auto max-w-5xl">
       {/* 본문: 데스크톱은 우측 댓글 거터만큼 비워 카드와 겹치지 않게. 모바일은 거터 폭이
-          안 나오므로 전체폭 사용(댓글은 본문 아래로 스택). */}
+          안 나오므로 전체폭 사용(댓글은 앵커 아래 팝오버로). */}
       <div style={{ paddingRight: hasComments && isWide ? GUTTER : undefined }}>
         <div className="mb-4">
           <h1 className="min-w-0 text-2xl font-semibold break-words md:text-3xl">
@@ -350,24 +417,24 @@ export function WikiCommentsView({
           );
         })}
 
-      {/* 모바일(<md): 마진노트 대신 본문 아래 일반 흐름으로 댓글 스택. 앵커 클릭 시
-          해당 카드로 스크롤(id 유지). */}
-      {!isWide && hasComments && (
-        <div className="mt-8 space-y-3 border-t pt-6">
-          <h2 className="text-muted-foreground text-sm font-medium">
-            댓글 {threads.length}
-          </h2>
-          {threads.map((t) => (
-            <div key={t.id} id={`thread-card-${t.id}`}>
-              <CommentThreadCard
-                thread={t}
-                currentUserId={currentUserId}
-                active={activeId === t.id}
-                onActivate={() => setActiveId(t.id)}
-                onDeleteThread={deleteThread}
-              />
-            </div>
-          ))}
+      {/* 모바일(<md): 마진노트 대신, 탭한 앵커 '바로 아래'에 스레드 카드를 팝오버로.
+          컨테이너(rootRef, relative) 기준 absolute 라 본문과 함께 스크롤한다. 스레드가
+          길면 팝오버 안에서 스크롤(본문을 통째로 덮지 않게). */}
+      {!isWide && activePopover && (
+        <div
+          className="wiki-comment-popover absolute inset-x-0 z-30"
+          style={{ top: activePopover.top }}
+        >
+          <div className="max-h-[55dvh] overflow-y-auto rounded-lg shadow-md">
+            <CommentThreadCard
+              thread={activePopover.thread}
+              currentUserId={currentUserId}
+              active
+              onActivate={() => {}}
+              onDeleteThread={deleteThread}
+              onClose={() => setActiveId(null)}
+            />
+          </div>
         </div>
       )}
 
