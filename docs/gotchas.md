@@ -124,7 +124,12 @@
 
 ## 15. 반응형 — 마진노트/고정폭 레이아웃은 모바일에서 붕괴 (특히 위키)
 
-- **위키 인라인 댓글(구글독스식)**: 댓글이 있으면 본문에 `padding-right: 296px` 를 강제하고 카드를 `absolute right-0 w-72` 로 배치한다(§ wiki-comments-view). 데스크톱 마진노트엔 맞지만 **모바일(~320px)에선 본문이 ~24px 로 뭉개진다.** → `useSyncExternalStore` 로 `(min-width:768px)` 를 감지해 **md+ 만 거터/절대배치, 모바일은 전체폭 본문 + 댓글을 본문 아래 일반 흐름으로 스택**.
+- **위키 인라인 댓글(구글독스식)**: 댓글이 있으면 본문에 `padding-right: 296px` 를 강제하고 카드를 `absolute right-0 w-72` 로 배치한다(§ wiki-comments-view). 데스크톱 마진노트엔 맞지만 **모바일(~320px)에선 본문이 ~24px 로 뭉개진다.** → `useSyncExternalStore` 로 `(min-width:768px)` 를 감지해 **md+ 만 거터/절대배치**.
+- **모바일 인라인 댓글은 '앵커 아래 팝오버'**(2026-08-01, BACKEND-54): 위 분기의 초기 구현은 모바일에서 댓글 카드를 **본문 아래 일반 흐름으로 스택**했는데, 그러면 앵커를 탭해도 카드가 **페이지 최하단**에 있어 확인이 안 됐다(게다가 바로 아래 `WikiPageComments` 와 "댓글 N" 섹션이 두 개로 중복). → 하단 스택을 없애고, `layout()` 이 스레드별 **앵커 bottom**(마크가 여러 span 으로 쪼개지면 `Math.max`)을 재서 그 바로 아래에 `absolute inset-x-0` 팝오버로 띄운다.
+  - **`fixed` 가 아니라 컨테이너(`rootRef`) 기준 `absolute`** 인 게 핵심 — 본문과 함께 스크롤하므로 재계산이 필요 없고, 마지막 줄에 달린 댓글이어도 오버레이가 스크롤 영역(`scrollHeight`)에 포함돼 스크롤로 닿는다(§35 의 `fixed` 잘림 실패모드를 애초에 안 만든다). 실측 확인: 앵커가 문서 마지막 줄일 때 `scrollHeight` 가 팝오버 하단까지 정확히 확장됨.
+  - 그래도 **`max-h-[55dvh] overflow-y-auto`** 는 필요하다(답글 많은 스레드가 본문을 통째로 덮지 않게). `vh` 아님 — 모바일 주소창. 844/386/300 높이 모두에서 내부 스크롤로 접근 가능 확인.
+  - 닫기: 바깥 `pointerdown` / `Esc` / 카드 우상단 X(`CommentThreadCard` 의 **선택적** `onClose` prop — 주면 X 가 생긴다) / 같은 앵커 재탭 토글. 앵커 마크 탭은 dismiss 핸들러에서 제외해야 **다른 앵커로 바로 전환**된다.
+  - 앵커 마크가 사라진 고아 스레드(본문 편집으로 마크 삭제)는 위치가 없어 팝오버 대상에서 자연히 빠진다 — 데스크톱 거터가 `visibility:hidden` 으로 숨기는 것과 같은 취급.
 - **위키 좌측 사이드바(`hidden md:block`)**: 모바일에서 페이지 트리가 통째로 사라져 문서 탐색 불가였음 → 모바일 전용 Sheet 드로어(`wiki-nav-sheet.tsx`)로 접근 제공(앱 셸 모바일 메뉴 패턴 재사용).
 - **react-hooks 규칙이 아주 엄격**: 이 레포 eslint 는 `react-hooks/set-state-in-effect`(effect 에서 setState 금지) **뿐 아니라** `react-hooks/refs`(**render 중 `ref.current` 접근 금지**)도 켜져 있다. "경로 변경 시 시트 닫기" 같은 prop→state 동기화는 effect 도, ref 로 이전값 비교도 막힌다 → **이전 값을 `useState` 로 들고 render 중 조건부 `setState`**(React 공식 "adjusting state when a prop changes")로 해결. 뷰포트 등 외부 소스 구독은 `useSyncExternalStore` 가 lint-safe + 하이드레이션 안전.
 - **고정폭 그리드 점검**: `grid-cols-[15rem_1fr]`·`grid grid-cols-2`(반응형 없음)는 좁은 폭(다이얼로그·모바일)에서 협소/붕괴 → `grid-cols-1 ... sm:grid-cols-*` 로 스택. 테이블은 ui/table 이 이미 `overflow-x-auto` 래핑, 보드는 `overflow-x-auto`, 다이얼로그는 `max-w-[calc(100%-2rem)] sm:max-w-*` 라 대체로 안전.

@@ -8,6 +8,7 @@
 
 | 날짜 | 세션 | 상태 |
 |---|---|---|
+| 2026-08-01 | 모바일 위키 인라인 댓글 위치 버그(BACKEND-54): 앵커를 탭해도 카드가 **페이지 최하단** 스택 목록에 떠서 확인 불가(+ `WikiPageComments` 와 "댓글 N" 섹션 중복). 하단 스택 제거 후 **앵커 bottom 바로 아래 팝오버**(`absolute inset-x-0`, `max-h-[55dvh] overflow-y-auto`)로 전환. 닫기=바깥탭/Esc/X(`CommentThreadCard` 선택적 `onClose`)/재탭 토글. 곁다리로 컴포저 `left` 클램프가 모바일에서도 데스크톱 거터(296px)를 빼 ~320px 폭에서 화면 밖으로 나가던 것 수정 | `DONE` |
 | 2026-07-22 | 중복 컴포넌트 통합 2건(BACKEND-26/27): (1) 위키 연결 카드 — 태스크 전용 `wiki/linked-pages.tsx` 를 `entity-linked-pages.tsx` 로 흡수(렌더 동일, 태스크만 링크 액션 분기. `entityType: LinkEntityType \| "task"`), (2) 생성/수정 다이얼로그 4종 — 공용 셸·필드 블록 `forms/form-dialog.tsx`(FormDialog·FormField·FormRow·Title/Description/StatusPriority/DateRange/FormFooter) 추출, 중복 `TeamKeyReadonly` 는 `fields.tsx` 로 단일화. 엔티티 고유 필드·검증·submit 은 각 다이얼로그에 유지 | `DONE`\* |
 | 2026-07-22 | 목록 표 셸 통합(`EntityTable`): 4개 엔티티 표(tasks/epics/projects/sprints)에 복붙돼 있던 표 셸(헤더·바디·EmptyRow·RowContextMenu 분기)을 공용 `tables/entity-table.tsx` 하나로 통합. 컬럼 정의는 `*-columns.tsx` 로 분리해 호출부(페이지)가 주입, 행 메뉴는 `deleteAction` prop 유무로 결정(삭제 액션·확인 문구도 호출부 주입). `sortable`(SortableHead) 분기가 projects 셸에만 있던 drift 해소 — 이제 셸 공통 동작은 한 곳 수정으로 4개 표에 동시 적용 | `DONE`\* |
 | 2026-07-22 | MCP v2 — API/도구 커버리지 확장: 에픽 CRUD(`create/get/update/delete_epic`, 이슈키 해석 `resolveEpicId`), 티켓 구조화 필터(`search_tickets` `epic`/`status`/`assignee`/`team`)+`delete_ticket`, 프로젝트·스프린트 읽기(`list/get_projects`,`list/get_sprints`), 다형 댓글(`add_comment`, 마크다운→Tiptap doc). actor 주입 Core 분리 확장(epics/tasks delete/comments), 권한 거부 `ForbiddenError`→403 매핑. 도구 `BACKLOG` 죽은 enum 값 제거 | `DONE`\* |
