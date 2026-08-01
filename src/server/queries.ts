@@ -280,6 +280,8 @@ export async function getProject(id: string) {
     include: {
       owner: miniUser,
       sprint: { select: { id: true, name: true, status: true } },
+      // 상세 메타 카드의 라벨 행용(목록 표에서 부여한 라벨을 상세에서도 보여준다).
+      labels: labelInclude,
       epics: {
         // 2차 키만 DB 정렬(상태는 아래 orderByDefaultStatus 로 재배치).
         orderBy: EPIC_LIST_ORDER,

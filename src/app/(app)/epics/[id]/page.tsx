@@ -13,7 +13,6 @@ import {
 import { deleteEpic } from "@/server/actions/epics";
 import { deleteTask } from "@/server/actions/tasks";
 import { EpicLabels } from "@/components/detail/epic-labels";
-import { EntityComments } from "@/components/comments/entity-comments";
 import { EntityLinkedPages } from "@/components/wiki/entity-linked-pages";
 import { formatIssueKey } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
@@ -23,7 +22,7 @@ import { TASK_COLUMNS } from "@/components/tables/task-columns";
 import { TaskDialog } from "@/components/forms/task-dialog";
 import { SheetDeleteButton } from "@/components/detail/sheet-delete-button";
 import { BackButton } from "@/components/detail/back-button";
-import { HistoryPanel } from "@/components/detail/history-panel";
+import { CommentsHistoryTabs } from "@/components/detail/comments-history-tabs";
 import { MdRollupText } from "@/components/detail/md-rollup";
 import {
   MetaRow,
@@ -131,22 +130,14 @@ export default async function EpicDetail({
           />
         </Card>
 
-        <Card className="mb-6 p-5">
-          <h3 className="mb-3 text-sm font-medium">댓글 {comments.length}</h3>
-          <EntityComments
-            entityType="epic"
-            entityId={epic.id}
-            comments={comments}
-          />
-        </Card>
-
-        <Card className="p-5">
-          <HistoryPanel
-            activities={activities}
-            members={members}
-            projects={projects.map((p) => ({ id: p.id, title: p.title }))}
-          />
-        </Card>
+        <CommentsHistoryTabs
+          entityType="epic"
+          entityId={epic.id}
+          comments={comments}
+          activities={activities}
+          members={members}
+          projects={projects.map((p) => ({ id: p.id, title: p.title }))}
+        />
       </div>
 
       <div className="flex min-w-0 flex-col gap-4 @3xl/detail:col-span-1">
