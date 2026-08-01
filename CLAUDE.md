@@ -44,7 +44,8 @@
 
 ## 테스트
 
-- **Vitest 유닛 테스트 존재**: `npm run test`(= `vitest run`). 대상은 순수 로직 모듈(`src/lib/*.test.ts` — validators·rich-content·constants·activity-format). `keys.ts`의 DB 바운드 함수(`nextTeamNumber`)는 미커버(순수 `formatIssueKey`만). **코드 수정 시 관련 테스트 실행·추가**. (Playwright 스모크는 아직 없음 — 후속.)
+- **Vitest 유닛 테스트 존재**: `npm run test`(= `vitest run`). 대상은 순수 로직 모듈(validators·rich-content·constants·activity-format 등). `keys.ts`의 DB 바운드 함수(`nextTeamNumber`)는 미커버(순수 `formatIssueKey`만). **코드 수정 시 관련 테스트 실행·추가**. (Playwright 스모크는 아직 없음 — 후속.)
+- **테스트는 루트 `tests/` 에 두고 `src/` 구조를 미러링한다**(2026-08-01 분리, BACKEND-52). 예: `src/lib/order.ts` → `tests/lib/order.test.ts`. 대상 모듈은 `@/` alias 로 import(상대경로 금지 — 깊이가 달라진다). 소스 옆에 `*.test.ts` 를 새로 만들지 말 것: `vitest.config.ts` 의 `include` 가 `tests/**/*.test.ts` 라 **조용히 실행되지 않는다**. 소스와 떨어져 있으므로 모듈을 옮기거나 지울 땐 `tests/` 의 짝도 함께 처리한다.
 
 ### 반응형·CSS 변경 검증법 (로그인 게이트 우회)
 

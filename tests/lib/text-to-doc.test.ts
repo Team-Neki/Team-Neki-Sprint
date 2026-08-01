@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { markdownToDoc } from "./text-to-doc";
+import { markdownToDoc } from "@/lib/text-to-doc";
 
 describe("markdownToDoc", () => {
   it("wraps a plain paragraph", () => {
