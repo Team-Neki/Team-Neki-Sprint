@@ -176,7 +176,7 @@ export const getSprints = async (filter: SprintFilter = {}) => {
       ? (listSortOrderBy(
           filter.sort.field,
           filter.sort.dir,
-        ) as Prisma.SprintOrderByWithRelationInput)
+        ) as Prisma.SprintOrderByWithRelationInput[])
       : SPRINT_LIST_ORDER,
   });
   // 스프린트별 예상 MD 합: Task → Epic → Project → Sprint 로 이어지는 관계를
@@ -274,7 +274,7 @@ function projectOrderBy(
   return listSortOrderBy(
     sort.field,
     sort.dir,
-  ) as Prisma.ProjectOrderByWithRelationInput;
+  ) as Prisma.ProjectOrderByWithRelationInput[];
 }
 
 export const getProjects = async (filter: ProjectFilter = {}) => {
@@ -410,7 +410,7 @@ export const getEpics = async (filter: EpicFilter = {}) => {
       ? (listSortOrderBy(
           filter.sort.field,
           filter.sort.dir,
-        ) as Prisma.EpicOrderByWithRelationInput)
+        ) as Prisma.EpicOrderByWithRelationInput[])
       : EPIC_LIST_ORDER,
     include: {
       owner: miniUser,
@@ -572,7 +572,7 @@ export const getTasks = async (filter: TaskFilter = {}) => {
       ? (listSortOrderBy(
           filter.sort.field,
           filter.sort.dir,
-        ) as Prisma.TaskOrderByWithRelationInput)
+        ) as Prisma.TaskOrderByWithRelationInput[])
       : TASK_LIST_ORDER,
     include: {
       assignee: miniUser,

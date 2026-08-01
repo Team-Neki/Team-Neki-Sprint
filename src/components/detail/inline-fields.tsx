@@ -42,6 +42,24 @@ import { updateSprintFields } from "@/server/actions/sprints";
 
 export type DetailEntity = "task" | "epic" | "project" | "sprint";
 
+/**
+ * 엔티티마다 컬럼 이름이 달라, `type` 과 `field` 의 조합을 타입으로 묶어둔다.
+ * 안 그러면 `type="task"` + `field="endDate"` 같은 조합이 컴파일을 통과하고,
+ * 서버 zod 가 모르는 키를 조용히 버려 **에러 없이 저장이 안 되는** 상태가 된다
+ * (`diffFields` 가 빈 patch 를 받아 그대로 반환 → 토스트도 안 뜬다).
+ */
+type NonSprint = Exclude<DetailEntity, "sprint">;
+/** 제목: 스프린트만 `name`, 나머지는 `title`. */
+type TitleTarget =
+  | { type: "sprint"; field: "name" }
+  | { type: NonSprint; field?: "title" };
+/** 날짜: 스프린트만 기한이 `endDate`. */
+type DateTarget =
+  | { type: "sprint"; field: "startDate" | "endDate" }
+  | { type: NonSprint; field: "startDate" | "dueDate" };
+/** 숫자(MD): 스키마상 태스크에만 있다(에픽·프로젝트는 하위 롤업, 스프린트는 필드 자체가 없음). */
+type NumberTarget = { type: "task"; field: "estimatedMd" | "actualMd" };
+
 const UNASSIGNED = "__none__";
 const NONE = "__none__";
 
@@ -177,12 +195,9 @@ export function InlineTitle({
   field = "title",
   className,
   href,
-}: {
-  type: DetailEntity;
+}: TitleTarget & {
   id: string;
   value: string;
-  /** 저장할 필드명. 스프린트만 제목 컬럼이 `name` 이다(모델 차이). */
-  field?: "title" | "name";
   /** 셀 등 좁은 곳에서 쓰기 위한 스타일 override(기본은 상세용 큰 제목). */
   className?: string;
   /**
@@ -511,11 +526,8 @@ export function InlineDate({
   id,
   field,
   value,
-}: {
-  type: DetailEntity;
+}: DateTarget & {
   id: string;
-  /** 스프린트만 기한 컬럼이 `endDate` 다(모델 차이). */
-  field: "startDate" | "dueDate" | "endDate";
   value: Date | string | null;
 }) {
   const { pending, save } = useFieldSave(type, id);
@@ -552,10 +564,8 @@ export function InlineNumber({
   value,
   placeholder = "—",
   suffix,
-}: {
-  type: DetailEntity;
+}: NumberTarget & {
   id: string;
-  field: "estimatedMd" | "actualMd";
   value: number | null;
   placeholder?: string;
   suffix?: string;
