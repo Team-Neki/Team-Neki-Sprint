@@ -57,8 +57,22 @@ describe("formatFieldValue", () => {
     expect(formatFieldValue("status", "WEIRD", lookups)).toBe("WEIRD");
   });
 
+  it("스프린트 상태 enum 도 한국어 라벨", () => {
+    // 스프린트는 Status 가 아니라 SprintStatus(PLANNED/ACTIVE/DONE)를 쓴다.
+    expect(formatFieldValue("status", "PLANNED", lookups)).toBe("예정");
+    expect(formatFieldValue("status", "ACTIVE", lookups)).toBe("진행 중");
+    expect(formatFieldValue("status", "DONE", lookups)).toBe("완료");
+  });
+
   it("날짜 필드는 yyyy.M.d 로 포맷", () => {
     expect(formatFieldValue("dueDate", "2026-07-08", lookups)).toBe("2026.7.8");
+    // 스프린트는 dueDate 가 아니라 endDate 를 쓴다.
+    expect(formatFieldValue("endDate", "2026-07-08", lookups)).toBe("2026.7.8");
+  });
+
+  it("스프린트 이름(name)도 title 처럼 truncate", () => {
+    const long = "가".repeat(50);
+    expect(formatFieldValue("name", long, lookups)).toBe(`${"가".repeat(40)}…`);
   });
 
   it("잘못된 날짜는 원문 유지", () => {
@@ -115,6 +129,15 @@ describe("activityDescription", () => {
     expect(
       activityDescription("status_changed", { status: "IN_PROGRESS" }, lookups),
     ).toBe("상태를 진행 중 로 변경");
+    // setSprintStatus 가 남기는 SprintStatus 값도 해석된다.
+    expect(
+      activityDescription("status_changed", { status: "PLANNED" }, lookups),
+    ).toBe("상태를 예정 로 변경");
+  });
+
+  it("스프린트 이름·종료일 필드 라벨", () => {
+    expect(FIELD_LABEL.name).toBe("이름");
+    expect(FIELD_LABEL.endDate).toBe("종료일");
   });
 
   it("정형 액션 → 한국어", () => {

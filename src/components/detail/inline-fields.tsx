@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { Editor } from "@tiptap/react";
-import type { Status, Priority } from "@prisma/client";
+import type { Status, Priority, SprintStatus } from "@prisma/client";
 import { Input } from "@/components/ui/input";
 import {
   RichEditor,
@@ -18,8 +18,13 @@ import {
   renderMemberOption,
   renderPriorityOption,
   renderStatusOption,
+  renderSprintStatusOption,
 } from "@/components/selects/option-select";
-import { STATUS_ORDER, PRIORITY_ORDER } from "@/lib/constants";
+import {
+  STATUS_ORDER,
+  PRIORITY_ORDER,
+  SPRINT_STATUS_ORDER,
+} from "@/lib/constants";
 import { UserBadge, type MiniUser } from "@/components/user-badge";
 import {
   Tooltip,
@@ -33,8 +38,9 @@ import { toDateInput } from "@/components/forms/fields";
 import { updateTaskFields } from "@/server/actions/tasks";
 import { updateEpicFields } from "@/server/actions/epics";
 import { updateProjectFields } from "@/server/actions/projects";
+import { updateSprintFields } from "@/server/actions/sprints";
 
-export type DetailEntity = "task" | "epic" | "project";
+export type DetailEntity = "task" | "epic" | "project" | "sprint";
 
 const UNASSIGNED = "__none__";
 const NONE = "__none__";
@@ -47,6 +53,7 @@ const UPDATE: Record<
   task: updateTaskFields,
   epic: updateEpicFields,
   project: updateProjectFields,
+  sprint: updateSprintFields,
 };
 
 // 칩처럼 보이는 인라인 select 트리거: 보더 투명 + hover 시 인셋 면 노출(우측 정렬).
@@ -137,12 +144,15 @@ export function InlineTitle({
   type,
   id,
   value,
+  field = "title",
   className,
   href,
 }: {
   type: DetailEntity;
   id: string;
   value: string;
+  /** 저장할 필드명. 스프린트만 제목 컬럼이 `name` 이다(모델 차이). */
+  field?: "title" | "name";
   /** 셀 등 좁은 곳에서 쓰기 위한 스타일 override(기본은 상세용 큰 제목). */
   className?: string;
   /**
@@ -168,7 +178,7 @@ export function InlineTitle({
       setText(value); // 빈 제목 불가 — 복원
       return;
     }
-    if (next !== value) save({ title: next });
+    if (next !== value) save({ [field]: next });
   }
 
   const input = (
@@ -307,6 +317,32 @@ export function InlineStatus({
   );
 }
 
+/**
+ * 스프린트 상태(SprintStatus). task/epic/project 의 Status 와 enum 이 달라
+ * (PLANNED/ACTIVE/DONE) 별도 컴포넌트로 둔다 — 나머지 동작·모양은 InlineStatus 와 같다.
+ */
+export function InlineSprintStatus({
+  id,
+  value,
+}: {
+  id: string;
+  value: SprintStatus;
+}) {
+  const { pending, save } = useFieldSave("sprint", id);
+  return (
+    <OptionSelect<SprintStatus>
+      value={value}
+      onValueChange={(v) => save({ status: v as SprintStatus })}
+      options={SPRINT_STATUS_ORDER}
+      getValue={(s) => s}
+      renderOption={renderSprintStatusOption}
+      disabled={pending}
+      size="sm"
+      triggerClassName={chipTrigger}
+    />
+  );
+}
+
 export function InlinePriority({
   type,
   id,
@@ -413,6 +449,12 @@ export function InlineLink({
 
 /* ---------- 날짜 ---------- */
 
+const DATE_FIELD_LABEL = {
+  startDate: "시작일",
+  dueDate: "기한",
+  endDate: "종료일",
+} as const;
+
 export function InlineDate({
   type,
   id,
@@ -421,7 +463,8 @@ export function InlineDate({
 }: {
   type: DetailEntity;
   id: string;
-  field: "startDate" | "dueDate";
+  /** 스프린트만 기한 컬럼이 `endDate` 다(모델 차이). */
+  field: "startDate" | "dueDate" | "endDate";
   value: Date | string | null;
 }) {
   const { pending, save } = useFieldSave(type, id);
@@ -444,7 +487,7 @@ export function InlineDate({
         if (e.target.value !== initial) save({ [field]: e.target.value });
       }}
       className="h-7 w-[8.5rem] border-transparent bg-transparent px-1.5 text-xs hover:border-input focus-visible:border-ring"
-      aria-label={field === "startDate" ? "시작일" : "기한"}
+      aria-label={DATE_FIELD_LABEL[field]}
     />
   );
 }

@@ -194,8 +194,18 @@ export async function getSprint(id: string) {
     },
   });
   if (!sprint) return null;
+  // 상세 메타 카드용 MD 롤업(스프린트 → 프로젝트 → 에픽 → 태스크). 에픽·프로젝트 상세와
+  // 같은 표기를 쓰기 위해 예상·실제를 함께 집계한다.
+  const sum = await prisma.task.aggregate({
+    _sum: { estimatedMd: true, actualMd: true },
+    where: { epic: { project: { sprintId: id } } },
+  });
+  const md = roundRollup({
+    estimated: sum._sum.estimatedMd ?? 0,
+    actual: sum._sum.actualMd ?? 0,
+  });
   // 기본 정렬: 진행중 → 할 일 → 완료(각 그룹 내 우선순위 desc → 생성일 desc).
-  return { ...sprint, projects: orderByDefaultStatus(sprint.projects) };
+  return { ...sprint, projects: orderByDefaultStatus(sprint.projects), md };
 }
 
 export const getSprintOptions = () =>
