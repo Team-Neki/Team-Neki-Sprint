@@ -9,6 +9,12 @@ const nextConfig: NextConfig = {
   // Emit a minimal standalone server bundle for small container images.
   output: "standalone",
   outputFileTracingRoot: projectRoot,
+  // The OG route reads its subset fonts through process.cwd(), which the file
+  // tracer cannot follow, so name them explicitly or the standalone bundle
+  // ships without them and image generation throws ENOENT.
+  outputFileTracingIncludes: {
+    "/opengraph-image": ["./assets/fonts/**"],
+  },
   turbopack: {
     root: projectRoot,
   },
