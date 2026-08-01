@@ -42,6 +42,24 @@ import { updateSprintFields } from "@/server/actions/sprints";
 
 export type DetailEntity = "task" | "epic" | "project" | "sprint";
 
+/**
+ * 엔티티마다 컬럼 이름이 달라, `type` 과 `field` 의 조합을 타입으로 묶어둔다.
+ * 안 그러면 `type="task"` + `field="endDate"` 같은 조합이 컴파일을 통과하고,
+ * 서버 zod 가 모르는 키를 조용히 버려 **에러 없이 저장이 안 되는** 상태가 된다
+ * (`diffFields` 가 빈 patch 를 받아 그대로 반환 → 토스트도 안 뜬다).
+ */
+type NonSprint = Exclude<DetailEntity, "sprint">;
+/** 제목: 스프린트만 `name`, 나머지는 `title`. */
+type TitleTarget =
+  | { type: "sprint"; field: "name" }
+  | { type: NonSprint; field?: "title" };
+/** 날짜: 스프린트만 기한이 `endDate`. */
+type DateTarget =
+  | { type: "sprint"; field: "startDate" | "endDate" }
+  | { type: NonSprint; field: "startDate" | "dueDate" };
+/** 숫자(MD): 스키마상 태스크에만 있다(에픽·프로젝트는 하위 롤업, 스프린트는 필드 자체가 없음). */
+type NumberTarget = { type: "task"; field: "estimatedMd" | "actualMd" };
+
 const UNASSIGNED = "__none__";
 const NONE = "__none__";
 
@@ -60,22 +78,52 @@ const UPDATE: Record<
 const chipTrigger =
   "h-7 gap-1 border-transparent bg-transparent px-1.5 shadow-none hover:bg-accent";
 
-/** 상세 인라인 편집 공용 훅: patch 저장 → 서버 확정 후 router.refresh. */
+/**
+ * 상세 인라인 편집 공용 훅: patch 저장 → 서버 확정 후 router.refresh.
+ * `onError` 는 실패 시 호출된다 — 낙관적으로 먼저 보여준 값을 되돌리는 용도.
+ */
 function useFieldSave(type: DetailEntity, id: string) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  function save(patch: Record<string, unknown>) {
+  function save(patch: Record<string, unknown>, onError?: () => void) {
     start(async () => {
       try {
         await UPDATE[type](id, patch);
         router.refresh();
       } catch {
+        onError?.();
         toast.error("변경에 실패했습니다");
         router.refresh();
       }
     });
   }
   return { pending, save };
+}
+
+/**
+ * 방금 고른 값을 서버 확정 전에 먼저 보여준다(낙관적 표시, BACKEND-53).
+ *
+ * 셀렉트류는 서버가 내려준 값을 그대로 렌더하는데, 저장 후 `router.refresh()` 가
+ * route 전체를 다시 가져오기까지 수 초가 걸려 그 동안 트리거가 **옛 값 + 비활성**으로
+ * 멈춰 있었다("안 눌렸나?" 하고 다시 눌러 중복 쓰기를 유발).
+ *
+ * React 19 `useOptimistic` 을 쓰지 않는 이유: 그쪽은 transition 이 끝나는 시점에 값을
+ * 되돌리는데, refresh 가 느리면 서버 값이 도착하기 전에 되돌아가 한 번 깜빡인다.
+ * 여기서는 **서버 값이 실제로 바뀐 것을 확인한 뒤** override 를 푼다(InlineTitle·
+ * InlineDate·InlineNumber 가 이미 쓰던 prop 동기화 패턴을 훅으로 뽑은 것).
+ *
+ * null 도 유효한 값(미지정 등)이라 로컬 값은 박스에 담아 "override 없음"과 구분한다.
+ */
+function useOptimisticValue<T>(serverValue: T) {
+  const [local, setLocal] = useState<{ v: T } | null>(null);
+  const [prev, setPrev] = useState(serverValue);
+  if (!Object.is(serverValue, prev)) {
+    setPrev(serverValue);
+    setLocal(null);
+  }
+  const show = (v: T) => setLocal({ v });
+  const reset = () => setLocal(null);
+  return [local ? local.v : serverValue, show, reset] as const;
 }
 
 /**
@@ -147,12 +195,9 @@ export function InlineTitle({
   field = "title",
   className,
   href,
-}: {
-  type: DetailEntity;
+}: TitleTarget & {
   id: string;
   value: string;
-  /** 저장할 필드명. 스프린트만 제목 컬럼이 `name` 이다(모델 차이). */
-  field?: "title" | "name";
   /** 셀 등 좁은 곳에서 쓰기 위한 스타일 override(기본은 상세용 큰 제목). */
   className?: string;
   /**
@@ -303,10 +348,14 @@ export function InlineStatus({
   value: Status;
 }) {
   const { pending, save } = useFieldSave(type, id);
+  const [shown, show, reset] = useOptimisticValue<string>(value);
   return (
     <OptionSelect<Status>
-      value={value}
-      onValueChange={(v) => save({ status: v as Status })}
+      value={shown}
+      onValueChange={(v) => {
+        show(v);
+        save({ status: v as Status }, reset);
+      }}
       options={STATUS_ORDER}
       getValue={(s) => s}
       renderOption={renderStatusOption}
@@ -329,10 +378,14 @@ export function InlineSprintStatus({
   value: SprintStatus;
 }) {
   const { pending, save } = useFieldSave("sprint", id);
+  const [shown, show, reset] = useOptimisticValue<string>(value);
   return (
     <OptionSelect<SprintStatus>
-      value={value}
-      onValueChange={(v) => save({ status: v as SprintStatus })}
+      value={shown}
+      onValueChange={(v) => {
+        show(v);
+        save({ status: v as SprintStatus }, reset);
+      }}
       options={SPRINT_STATUS_ORDER}
       getValue={(s) => s}
       renderOption={renderSprintStatusOption}
@@ -353,10 +406,14 @@ export function InlinePriority({
   value: Priority;
 }) {
   const { pending, save } = useFieldSave(type, id);
+  const [shown, show, reset] = useOptimisticValue<string>(value);
   return (
     <OptionSelect<Priority>
-      value={value}
-      onValueChange={(v) => save({ priority: v as Priority })}
+      value={shown}
+      onValueChange={(v) => {
+        show(v);
+        save({ priority: v as Priority }, reset);
+      }}
       options={PRIORITY_ORDER}
       getValue={(p) => p}
       renderOption={renderPriorityOption}
@@ -388,10 +445,15 @@ export function InlineMember({
   avatarOnly?: boolean;
 }) {
   const { pending, save } = useFieldSave(type, id);
+  // 트리거는 options 에서 찾아 렌더하므로 낙관적 값도 id 문자열로 다룬다.
+  const [shown, show, reset] = useOptimisticValue<string>(value?.id ?? UNASSIGNED);
   return (
     <OptionSelect<MiniUser>
-      value={value?.id ?? UNASSIGNED}
-      onValueChange={(v) => save({ [field]: v === UNASSIGNED ? null : v })}
+      value={shown}
+      onValueChange={(v) => {
+        show(v);
+        save({ [field]: v === UNASSIGNED ? null : v }, reset);
+      }}
       options={members}
       getValue={(m) => m.id}
       getSearchText={(m) => `${m.name ?? ""} ${m.email}`}
@@ -429,10 +491,14 @@ export function InlineLink({
   placeholder?: string;
 }) {
   const { pending, save } = useFieldSave(type, id);
+  const [shown, show, reset] = useOptimisticValue<string>(value ?? NONE);
   return (
     <OptionSelect<{ id: string; label: string }>
-      value={value ?? NONE}
-      onValueChange={(v) => save({ [field]: v === NONE ? null : v })}
+      value={shown}
+      onValueChange={(v) => {
+        show(v);
+        save({ [field]: v === NONE ? null : v }, reset);
+      }}
       options={options}
       getValue={(o) => o.id}
       getSearchText={(o) => o.label}
@@ -460,11 +526,8 @@ export function InlineDate({
   id,
   field,
   value,
-}: {
-  type: DetailEntity;
+}: DateTarget & {
   id: string;
-  /** 스프린트만 기한 컬럼이 `endDate` 다(모델 차이). */
-  field: "startDate" | "dueDate" | "endDate";
   value: Date | string | null;
 }) {
   const { pending, save } = useFieldSave(type, id);
@@ -501,10 +564,8 @@ export function InlineNumber({
   value,
   placeholder = "—",
   suffix,
-}: {
-  type: DetailEntity;
+}: NumberTarget & {
   id: string;
-  field: "estimatedMd" | "actualMd";
   value: number | null;
   placeholder?: string;
   suffix?: string;

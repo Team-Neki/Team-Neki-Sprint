@@ -276,3 +276,33 @@ tiptap v3 패키지들은 peer 로 `@tiptap/core@정확버전`(캐럿 아님)을
 - **함정 D — 오프셋 배치 팝업은 높이 상한도 오프셋을 빼야 한다**: 중앙 정렬이 아니라 `top-[15vh]` 처럼 위에서 띄워 놓는 팝업(⌘K 커맨드 팔레트)에 `max-h-[calc(100dvh-2rem)]`(중앙 정렬 전제)을 그대로 물려주면, **오프셋만큼 하단이 화면 밖으로 나간다.** 짧은 뷰포트에서만 발현해서 놓치기 쉽다(높이 386px 가로모드 폰에서 25px, 300px 에서 12px 잘림 실측). 상한은 "그 아래 남은 공간" 기준으로 — `top-[15dvh] max-h-[calc(85dvh-1rem)]`. 또한 이런 팝업의 `overflow` 는 **y 를 hidden 으로 막지 말 것** — 아주 짧은 뷰포트에서 내용에 닿을 수 없어진다. x 만 hidden 하고 y 는 auto 로 degrade.
 - **참고 — 이미 안전한 곳(재조사 불필요)**: 넓은 콘텐츠는 전부 가로 스크롤 래퍼가 있다 — 표 `ui/table.tsx:11`(`overflow-x-auto`), 칸반 `board/kanban.tsx:217`(`flex overflow-x-auto` + 컬럼 `w-72 shrink-0`), 타임라인 `timeline/epic-timeline.tsx:253`. 위키 이미지 라이트박스는 `max-h-full max-w-full object-contain`, 버전기록 다이얼로그는 `h-[70vh]`(항상 뷰포트 내). Base UI/floating-ui Positioner 를 쓰는 select·dropdown·tooltip 은 자동으로 뷰포트에 맞춰지므로 이 부류 버그가 없다.
 - **검증 방법은 [CLAUDE.md "반응형·CSS 변경 검증법"](../CLAUDE.md#반응형css-변경-검증법-로그인-게이트-우회) 참조**(중복 방지 — 절차 정본은 그쪽 한 곳). 이 §35 를 만들면서 **거기 적힌 3가지 함정에 전부 직접 걸렸다**: Tailwind JIT 미생성 클래스(→ "sticky 가 안 먹는다"는 오진), twMerge 미적용 문자열(→ base `max-h` 가 이겨 "수정안이 더 나쁘다"는 오진), 창 리사이즈 미반영(→ 모바일 폭 테스트가 실은 데스크톱 폭이었음). **측정값이 뷰포트를 바꿔도 동일하면 클래스가 안 먹은 것**이라고 의심할 것.
+
+## 36. `NEXT_PUBLIC_*` 는 빌드 타임 인라인 — k8s 런타임 env 로 못 바꾼다 (2026-08-01)
+
+- **증상**: prod 에 배포된 앱의 `og:image` 가 `http://localhost:3000/opengraph-image?...` 였다. 카카오톡·슬랙에 링크를 붙여도 미리보기 이미지가 안 뜬다. OG 메타(`app/layout.tsx`)와 `app/opengraph-image.tsx` 는 멀쩡히 있었는데도.
+- **원인**: `metadataBase` 가 `new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000")` 인데 `NEXT_PUBLIC_APP_URL` 이 아무 데도 설정돼 있지 않았다. 그리고 **`NEXT_PUBLIC_*` 는 `next build` 시점에 값이 코드로 치환된다 — 서버 사이드 참조까지 포함해서**(next docs "Bundling Environment Variables for the Browser": *"replace all references ... in the Node.js environment with the value from the environment in which you run `next build`"*). 즉 **k8s ConfigMap/Secret 에 넣어도 무시된다.** 단일 이미지를 여러 환경에 배포하면 값이 빌드 시점에 얼어붙는다는 경고가 문서에 명시돼 있다.
+- **해결**: `Dockerfile` builder 스테이지에 `ARG NEXT_PUBLIC_APP_URL=https://sprint.suitestudy.com:4641` + `ENV`, `deploy-prod.yml` 의 `docker/build-push-action` 에 `build-args` 로 전달. 런타임 env 로 주는 다른 값들(`AUTH_SECRET`·`DATABASE_URL` 등)과 **취급이 다르다**는 점이 함정.
+- **빈 문자열 주의**: `${{ vars.APP_URL }}` 처럼 미설정 시 빈 문자열이 넘어오면 `?? ` 는 이를 통과시켜 `new URL("")` 로 **빌드가 죽는다**. 워크플로에서 `|| '기본값'` 으로 접고, 코드에서도 `lib/app-url.ts` 의 `resolveAppUrl()` 이 공백-only 까지 폴백 처리한다.
+- **검증법**: 센티널 값으로 빌드해 실제로 인라인됐는지 본다.
+  ```
+  rm -rf .next && NEXT_PUBLIC_APP_URL="https://og-sentinel.example.test" ... npx next build
+  grep -rl "og-sentinel.example.test" .next/standalone/.next/server/chunks/
+  cd .next/standalone && cp -r ../static .next/static && PORT=3111 ... node server.js
+  curl -s localhost:3111/login | grep -o '<meta property="og:image"[^>]*>'
+  ```
+  `tsc`/`eslint`/`vitest` 로는 절대 안 잡힌다. **prod 실물 확인은 `curl <도메인>/login | grep og:` 한 줄**이면 된다.
+- **일반화**: 런타임에 바꿔야 하는 값이라면 `NEXT_PUBLIC_` 접두어를 **쓰면 안 된다**. 서버에서만 읽는 값은 접두어 없는 이름으로 두면 동적 렌더 시 런타임에 읽힌다.
+
+## 37. OG 이미지의 한글은 폰트를 직접 먹여야 한다 (satori, 2026-08-01)
+
+- **증상/배경**: `next/og`(satori) 기본 폰트에는 **한글 글리프가 없다.** 그냥 한국어를 넣으면 두부(tofu)로 렌더된다. 그래서 예전 `opengraph-image.tsx` 는 이미지 안 문구를 영문으로만 유지했다.
+- **해결**: Pretendard(OFL 1.1)를 **문구에 실제로 쓰인 글자만** 남겨 서브셋하고(`assets/fonts/*.subset.ttf`, 웨이트당 ~6KB) `ImageResponse` 의 `fonts` 로 넘긴다. 원본은 웨이트당 2.7MB 라 레포에 넣지 않고, `npm run og:font`(`scripts/build-og-font.ts`)가 릴리스 zip 을 받아 `uvx --from fonttools pyftsubset` 로 만든다. `uv` 필요(`brew install uv`).
+- **함정 A — 문구를 고치면 폰트도 다시 만들어야 한다.** 서브셋에 없는 글자는 조용히 두부가 된다. 문구는 `lib/og.ts` 한 곳에 있고, `og.test.ts` 가 문구 글자 ⊆ `OG_FONT_GLYPHS` 를 검사해 재생성 누락을 **테스트 실패로** 잡는다. `OG_FONT_GLYPHS` 는 스크립트가 써넣으므로 손으로 고치지 말 것.
+- **함정 B — `output: standalone` 은 `process.cwd()` 경로를 추적하지 못한다.** 폰트를 `readFile(join(process.cwd(), "assets/fonts/..."))` 로 읽으면 파일 트레이서가 못 따라가서 standalone 번들에 폰트가 빠지고 런타임 ENOENT 가 난다. `next.config.ts` 의 `outputFileTracingIncludes: { "/opengraph-image": ["./assets/fonts/**"] }` 로 명시해야 한다. 빌드 후 `ls .next/standalone/assets/fonts/` 로 확인.
+- **확인법**: `/opengraph-image` 는 정적 프리렌더라 빌드 산출물에 PNG 가 그대로 있다 — `.next/server/app/opengraph-image.body` 를 열어보면 된다(서버 안 띄워도 됨).
+
+## 38. 사내 전용 앱의 색인 차단은 `Disallow` 가 아니라 `noindex` 로 (2026-08-01)
+
+- 링크 미리보기 봇(**카카오톡 `kakaotalk-scrap`**, 슬랙 `Slackbot-LinkExpanding`, `facebookexternalhit`, `Twitterbot` 등)도 **robots.txt 를 따른다.** `User-agent: *` 에 `Disallow: /` 를 걸면 검색엔진과 함께 **OG 미리보기가 통째로 죽는다** — §36·§37 로 고친 게 도로 무의미해진다.
+- 게다가 `Disallow` 는 색인 차단 수단으로도 부정확하다. 크롤러가 페이지를 **못 읽으니 `noindex` 메타도 못 본다** → URL 만 알맹이 없이 검색결과에 남을 수 있다.
+- **정답**: 색인 차단은 `layout.tsx` 의 `robots: { index: false, follow: false }`(=`<meta name="robots" content="noindex, nofollow">`)로. `app/robots.ts` 는 미리보기 봇만 `allow: "/"` 로 열고 나머지에 `disallow: "/"`. robots.txt 는 **가장 구체적으로 매칭되는 그룹 하나만** 적용되므로 이 조합이 의도대로 동작한다.

@@ -15,6 +15,14 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
+
+# The public origin used as `metadataBase` for OG/Twitter image URLs.
+# This one CANNOT be a runtime env: NEXT_PUBLIC_* is inlined into the bundle by
+# `next build` (including server-side references), so a k8s ConfigMap value would
+# be ignored and og:image would keep pointing at localhost. It must be a build arg.
+ARG NEXT_PUBLIC_APP_URL=https://sprint.suitestudy.com:4641
+ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
+
 # Placeholder envs so `next build` can import modules that read process.env.
 # Real values are injected at runtime from the k8s Secret/ConfigMap.
 ENV AUTH_SECRET=build-placeholder
