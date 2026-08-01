@@ -13,6 +13,7 @@ import {
   SPRINT_DELETE_DESCRIPTION,
 } from "@/components/tables/sprint-columns";
 import { ColumnSettings } from "@/components/tables/column-settings";
+import { FilterBar } from "@/components/filters/filter-bar";
 import { StatusFilter } from "@/components/filters/status-filter";
 import { deleteSprint } from "@/server/actions/sprints";
 import { SprintDialog } from "@/components/forms/sprint-dialog";
@@ -51,7 +52,9 @@ export default async function SprintsPage({
       </PageHeader>
 
       <div className="flex items-start justify-between gap-2">
-        <StatusFilter kind="sprint" />
+        <FilterBar>
+          <StatusFilter kind="sprint" />
+        </FilterBar>
         <div className="mb-4 shrink-0">
           <ColumnSettings
             table="sprints"

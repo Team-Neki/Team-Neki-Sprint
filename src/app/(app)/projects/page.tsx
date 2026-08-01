@@ -21,6 +21,7 @@ import {
 } from "@/components/tables/project-columns";
 import { ColumnSettings } from "@/components/tables/column-settings";
 import { deleteProject } from "@/server/actions/projects";
+import { FilterBar } from "@/components/filters/filter-bar";
 import { OwnerFilter } from "@/components/filters/owner-filter";
 import { StatusFilter } from "@/components/filters/status-filter";
 import { ProjectDialog } from "@/components/forms/project-dialog";
@@ -75,9 +76,10 @@ export default async function ProjectsPage({
       </PageHeader>
 
       <div className="flex items-start justify-between gap-2">
-        <StatusFilter>
+        <FilterBar>
+          <StatusFilter />
           <OwnerFilter members={members} />
-        </StatusFilter>
+        </FilterBar>
         <div className="mb-4 shrink-0">
           <ColumnSettings
             table="projects"

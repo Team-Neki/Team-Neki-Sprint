@@ -73,14 +73,15 @@ export function TaskFilters({
   }));
 
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-2">
+    <>
       <div className="relative w-full sm:w-52">
         <Search className="text-muted-foreground absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
+        {/* 높이는 같은 바의 필터 칩(h-7)과 맞춘다 — 섞이면 items-center 가 칩을 밀어 어긋난다. */}
         <Input
           defaultValue={params.get("q") ?? ""}
           onChange={(e) => setQ(e.target.value)}
           placeholder="제목 검색"
-          className="w-full pl-8"
+          className="h-7 w-full pl-8"
         />
       </div>
 
@@ -102,6 +103,6 @@ export function TaskFilters({
           <X className="size-4" /> 초기화
         </Button>
       )}
-    </div>
+    </>
   );
 }

@@ -8,6 +8,7 @@ import {
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { KanbanBoard } from "@/components/board/kanban";
+import { FilterBar } from "@/components/filters/filter-bar";
 import { OwnerFilter } from "@/components/filters/owner-filter";
 import { TeamFilter } from "@/components/filters/team-filter";
 import { TaskDialog } from "@/components/forms/task-dialog";
@@ -57,14 +58,15 @@ export default async function BoardPage({
         />
       </PageHeader>
 
-      <OwnerFilter
-        members={members}
-        paramKey="assignee"
-        placeholder="담당자"
-        allLabel="모든 담당자"
-      >
+      <FilterBar>
+        <OwnerFilter
+          members={members}
+          paramKey="assignee"
+          placeholder="담당자"
+          allLabel="모든 담당자"
+        />
         <TeamFilter teams={teams} />
-      </OwnerFilter>
+      </FilterBar>
 
       <KanbanBoard
         tasks={tasks}

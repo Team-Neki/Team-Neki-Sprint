@@ -23,6 +23,7 @@ import {
 } from "@/components/tables/epic-columns";
 import { ColumnSettings } from "@/components/tables/column-settings";
 import { deleteEpic } from "@/server/actions/epics";
+import { FilterBar } from "@/components/filters/filter-bar";
 import { OwnerFilter } from "@/components/filters/owner-filter";
 import { TeamFilter } from "@/components/filters/team-filter";
 import { StatusFilter } from "@/components/filters/status-filter";
@@ -82,11 +83,11 @@ export default async function EpicsPage({
       </PageHeader>
 
       <div className="flex items-start justify-between gap-2">
-        <StatusFilter>
-          <OwnerFilter members={members}>
-            <TeamFilter teams={teams} />
-          </OwnerFilter>
-        </StatusFilter>
+        <FilterBar>
+          <StatusFilter />
+          <OwnerFilter members={members} />
+          <TeamFilter teams={teams} />
+        </FilterBar>
         <div className="mb-4 shrink-0">
           <ColumnSettings
             table="epics"

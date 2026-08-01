@@ -19,6 +19,7 @@ import { TASK_COLUMNS, TASKS_COLUMNS_META } from "@/components/tables/task-colum
 import { ColumnSettings } from "@/components/tables/column-settings";
 import { deleteTask } from "@/server/actions/tasks";
 import { TaskDialog } from "@/components/forms/task-dialog";
+import { FilterBar } from "@/components/filters/filter-bar";
 import { TaskFilters } from "@/components/tasks/task-filters";
 
 export const dynamic = "force-dynamic";
@@ -87,7 +88,9 @@ export default async function TasksPage({
       </PageHeader>
 
       <div className="flex items-start justify-between gap-2">
-        <TaskFilters members={members} teams={teams} labels={labels} />
+        <FilterBar>
+          <TaskFilters members={members} teams={teams} labels={labels} />
+        </FilterBar>
         <div className="mb-4 shrink-0">
           <ColumnSettings
             table="tasks"

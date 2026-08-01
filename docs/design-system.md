@@ -90,11 +90,13 @@ flowchart TD
 
 ```text
 PageHeader(제목 · 설명 · 생성 CTA)
-  -> 필터 행 [필터들]                    [ColumnSettings]
+  -> 필터 행 [FilterBar > 필터 칩들]      [ColumnSettings]
   -> Card(overflow-hidden py-0) > EntityTable
 ```
 
 - 표 셸은 `tables/entity-table.tsx` 하나를 공유하고, 컬럼 정의만 `tables/*-columns.tsx`에서 주입함
+- 필터 칩은 `filters/filter-bar.tsx`(`FilterBar`) 안에 **형제로 나열**함. 각 필터 컴포넌트는 자기 칩(+초기화)만 렌더하고 줄바꿈·간격·아래 여백은 셸이 소유함 — 필터가 서로를 `children`으로 감싸면 안쪽 래퍼의 `mb-4`가 flex 아이템 높이를 부풀려 바깥 `items-center`가 첫 칩을 밀어낸다(BACKEND-50에서 실제로 8px 어긋남)
+- 바 안 컨트롤 높이는 칩과 같은 `h-7`로 맞춤. 높이가 섞이면 `items-center`가 낮은 쪽을 내려 어긋남
 - 항목이 0건이어도 **표를 걷어내지 않음**. 컬럼 헤더를 남기고 표 안 `EmptyRow`로 안내(필터를 조정할 수 있어야 하므로). 별도 `EmptyState` 전환은 쓰지 않음
 - 정렬은 URL(`?sort=&dir=`) 기반. 페이지가 `parseListSort(sp, *_SORT_FIELDS)`로 검증해 쿼리에 넘기고, 표에 `sortable`을 주면 `sortField` 있는 헤더가 `SortableHead`로 렌더됨
 - 정렬 가능 필드는 DB 컬럼만입니다. 담당자·레이블(관계)과 MD(하위 롤업 계산값)는 제외합니다
