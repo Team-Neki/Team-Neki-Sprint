@@ -4,7 +4,7 @@ Sprint(Jira + Wiki 통합 워크스페이스) 프로젝트의 문서 인덱스. 
 
 | 문서 | 내용 | 언제 참고 |
 |---|---|---|
-| [`design-system.md`](./design-system.md) | 구현된 디자인 시스템 — 토큰 매핑, near-white 라이트 테마, elevation, 공용 컴포넌트(`ItemRow`) | UI·스타일·색 작업 시(루트 [`DESIGN.md`](../DESIGN.md) 토큰과 함께) |
+| [`design-system.md`](./design-system.md) | 구현된 디자인 시스템 — 토큰 매핑, near-white 라이트 테마, elevation, 공용 컴포넌트(`ItemRow`), [엔티티 목록/상세 화면 규격](./design-system.md#엔티티-목록상세-화면-규격) | UI·스타일·색 작업 시(루트 [`DESIGN.md`](../DESIGN.md) 토큰과 함께). 스프린트·프로젝트·에픽·태스크 화면을 만지기 전 규격 절 먼저 |
 | [`gotchas.md`](./gotchas.md) | 실제로 물렸던 함정 — Prisma/dev서버, worktree+Turbopack, zod nullish, Base UI Select, Card 여백, 인터셉트 슬라이드·컨테이너 쿼리·캐시 무효화 | 새 작업/디버깅 착수 전 훑기 |
 | [`work-log.md`](./work-log.md) | 세션별 변경 이력(무엇을·왜) | 최근 무엇이 바뀌었는지 확인 |
 | [`roadmap.md`](./roadmap.md) | Phase 1~4 백로그 스코핑·이력(전부 `DONE`) | 과거 결정·스코핑 맥락 참고 |

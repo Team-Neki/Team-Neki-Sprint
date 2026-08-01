@@ -35,12 +35,14 @@ export const SPRINT_COLUMNS: ColumnDef<SprintTableRow, never>[] = [
   {
     key: "name",
     label: "이름",
+    sortField: "name",
     cell: (s) => <TableCell className="font-medium">{s.name}</TableCell>,
   },
   {
     key: "startDate",
     label: "시작일",
     headClassName: "w-28",
+    sortField: "startDate",
     cell: (s) => (
       <TableCell className="text-muted-foreground text-xs">
         {fmt(s.startDate)}
@@ -51,6 +53,7 @@ export const SPRINT_COLUMNS: ColumnDef<SprintTableRow, never>[] = [
     key: "endDate",
     label: "종료일",
     headClassName: "w-28",
+    sortField: "endDate",
     cell: (s) => (
       <TableCell className="text-muted-foreground text-xs">
         {fmt(s.endDate)}
@@ -60,9 +63,9 @@ export const SPRINT_COLUMNS: ColumnDef<SprintTableRow, never>[] = [
   {
     key: "md",
     label: "MD",
-    headClassName: "w-24 text-right",
+    headClassName: "w-20",
     cell: (s) => (
-      <TableCell className="text-muted-foreground text-right text-xs tabular-nums">
+      <TableCell className="text-muted-foreground text-sm tabular-nums">
         {s.estimatedMd || "—"}
       </TableCell>
     ),
@@ -71,6 +74,7 @@ export const SPRINT_COLUMNS: ColumnDef<SprintTableRow, never>[] = [
     key: "status",
     label: "상태",
     headClassName: "w-24",
+    sortField: "status",
     cell: (s) => (
       <TableCell>
         <SprintStatusBadge status={s.status} />

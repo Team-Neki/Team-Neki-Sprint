@@ -7,7 +7,9 @@ import {
   getMembers,
   getLabelOptions,
   getColumnPref,
+  TASK_SORT_FIELDS,
 } from "@/server/queries";
+import { parseListSort } from "@/lib/list-sort";
 import { requireUser } from "@/lib/session";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -30,9 +32,12 @@ export default async function TasksPage({
     team?: string;
     label?: string;
     q?: string;
+    sort?: string;
+    dir?: string;
   }>;
 }) {
   const sp = await searchParams;
+  const sort = parseListSort(sp, TASK_SORT_FIELDS);
   // 필터가 하나라도 걸렸으면 "필터 결과 0"으로 안내(생성 CTA 대신 필터 조정 유도).
   const hasFilter = !!(
     sp.status ||
@@ -51,6 +56,7 @@ export default async function TasksPage({
       teamId: toArray(sp.team),
       labelId: toArray(sp.label),
       q: sp.q || undefined,
+      sort,
     }),
     getEpicOptions(),
     getTeamOptions(),
@@ -103,6 +109,7 @@ export default async function TasksPage({
               : "아직 태스크가 없습니다. 상단 ‘새 태스크’로 만들어보세요."
           }
           edit={{ members, teams, epics: epicOptions, labels }}
+          sortable
           columnPref={pref}
           deleteAction={deleteTask}
         />

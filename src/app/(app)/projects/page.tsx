@@ -6,8 +6,9 @@ import {
   getSprintOptions,
   getLabelOptions,
   getColumnPref,
-  type ProjectSortField,
+  PROJECT_SORT_FIELDS,
 } from "@/server/queries";
+import { parseListSort } from "@/lib/list-sort";
 import { requireUser } from "@/lib/session";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -38,18 +39,7 @@ export default async function ProjectsPage({
   }>;
 }) {
   const sp = await searchParams;
-  const SORT_FIELDS: ProjectSortField[] = [
-    "title",
-    "status",
-    "priority",
-    "dueDate",
-    "createdAt",
-    "updatedAt",
-  ];
-  const sortField = SORT_FIELDS.find((f) => f === sp.sort);
-  const sort = sortField
-    ? { field: sortField, dir: sp.dir === "asc" ? ("asc" as const) : ("desc" as const) }
-    : undefined;
+  const sort = parseListSort(sp, PROJECT_SORT_FIELDS);
   const user = await requireUser();
   // 다중선택 필터는 콤마구분 값(예: `?owner=a,b`) → 배열로 파싱한다(F6).
   const toArray = (v?: string) => (v ?? "").split(",").filter(Boolean);

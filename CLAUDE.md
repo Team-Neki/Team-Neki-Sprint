@@ -19,6 +19,7 @@
 작업 맥락이 필요하면 코드를 뒤지기 전에 [`docs/`](./docs/) 를 먼저 참고한다. 인덱스: [`docs/README.md`](./docs/README.md).
 
 - **디자인 시스템 구현**(토큰 매핑·테마·`ItemRow` 등 공용 패턴): [`docs/design-system.md`](./docs/design-system.md)
+  - **스프린트·프로젝트·에픽·태스크 목록/상세를 만질 땐 같은 문서의 [엔티티 목록/상세 화면 규격](./docs/design-system.md#엔티티-목록상세-화면-규격) 절을 먼저 본다.** 네 화면은 같은 조작 규격을 공유하며(표 셸·정렬·빈 상태·인라인 편집·댓글/히스토리 탭·슬라이드 상세·뒤로가기 목적지), 예외는 데이터 모델에 근거가 있을 때만 둔다. 한 화면만 고치면 그 자리에서 UX 가 갈린다.
 - **엔지니어링 함정/주의사항**(아래 필독 섹션의 상세): [`docs/gotchas.md`](./docs/gotchas.md)
 - **변경 이력**(무엇을·왜 바꿨나): [`docs/work-log.md`](./docs/work-log.md)
 - **예정/백로그 작업**(스코핑·열린 질문): [`docs/roadmap-v2.md`](./docs/roadmap-v2.md) — 현행 백로그. Phase 1~4 이력은 [`docs/roadmap.md`](./docs/roadmap.md)
@@ -91,6 +92,7 @@ flowchart LR
   - **코드블록**(`code-block.tsx` NodeView + `code-block-pairs.ts`): 우측 상단 복사 버튼·언어 select(Plain/Kotlin/Java/JSON/YAML/iOS-Swift, lowlight `common`), 괄호·따옴표 자동 닫기, Enter 자동 들여쓰기(`{`·`[` +1단, 그 외 유지). 코드블록 안 `#`/`@`/`/` 는 트리거 안 됨(Suggestion `allow`). `extend` 시 `this.parent` 로 lowlight·베이스 단축키 보존 필수. 강조 색은 `globals.css` `.hljs-*`. [gotchas §27]
   - **표 편집**: 삽입 버튼은 hover 크기 그리드 픽커(최대 8×8). 표 안이면 우측/하단 hover 스트립 `+` — 클릭/드래그 추가는 **항상 마지막 행/열 뒤**(`table-edit.ts` `appendRowEnd`/`appendColumnEnd`), **반대 방향 드래그로 삭제**(빈 행/열까지만). 셀 **우클릭 컨텍스트 메뉴**(`table-context-menu.tsx`: 셀=좌/우 열·위/아래 행 추가+삭제, 행/열 전체 선택 시 전용 메뉴). 단축키(`table-controls.ts`): `Ctrl+Opt+←/→/↑/↓` 커서 기준 열/행 추가, 행/열 전체 선택 후 `Ctrl+Backspace` 삭제(표 전체면 표 삭제). `ArrowLeft`→표 선택→`Backspace` 삭제, 리사이즈는 표 폭 고정(경계선만 이동, CSS `!important`). [gotchas §29]
   - **휴지통**(`trash-list.tsx`): 행 `Checkbox` 다중 선택 → `purgeWikiPages(ids)` 다중 삭제, `emptyWikiTrash()` 비우기. 둘 다 `canManage`(작성자/ADMIN) 통과분만 삭제(권한 없는 항목 건너뜀).
+- **댓글·업무 히스토리 탭**: `detail/comments-history-tabs.tsx` 하나를 4종 상세가 공유(2026-08-01 통합). 배치를 바꾸려면 여기만 고친다. 히스토리 문장의 id→이름 해석에 쓰는 목록(`members`/`projects`/`sprints` 등)은 호출부가 자기 화면에서 실제 바뀌는 참조 필드만 넘긴다.
 - **목록 표 공용 셸 `EntityTable`**(`tables/entity-table.tsx`): tasks/epics/projects/sprints 표 4종이 하나의 제네릭 셸을 공유한다(2026-07-22 통합 — 표 공통 동작은 이 한 곳만 수정). 컬럼 정의·행 타입·삭제 확인 문구는 엔티티별 `tables/*-columns.tsx`(`*_COLUMNS`/`*_COLUMNS_META`/`*_DELETE_DESCRIPTION`)에 있고 호출부(페이지)가 주입한다. 행 우클릭 메뉴(`tables/row-context-menu.tsx`의 `RowContextMenu`: 좌클릭=상세, 우클릭=열기·새 창·삭제, controlled `ConfirmDelete` 확인)는 **`deleteAction` prop을 주면** 활성 — 삭제 서버 액션은 호출부(서버 컴포넌트 페이지)에서 주입. `edit`(셀 인라인 편집)과 행 메뉴는 직교 prop. `sortable`은 `sortField` 있는 컬럼 헤더를 `SortableHead`(URL `?sort=&dir=`)로 렌더.
 - **엔티티 폼 다이얼로그**: 4종(`forms/*-dialog.tsx`)은 공용 셸·필드 블록 `forms/form-dialog.tsx`(`FormDialog`·`FormField`·`FormRow`·`TitleField`·`DescriptionField`·`StatusPriorityFields`·`DateRangeFields`·`FormFooter`)로 조립한다(2026-07-22 통합). 다이얼로그 공통 수정(레이아웃·푸터·mount-reset 규약)은 이 한 곳에. 엔티티 고유 필드·검증·submit 만 각 다이얼로그에 있다. 셀렉트류 공용 필드는 `forms/fields.tsx`(`TeamKeyReadonly` 포함).
 - **위키 연결 카드**: `wiki/entity-linked-pages.tsx` 하나가 task/sprint/project/epic 4종 공용(`entityType: LinkEntityType | "task"` — 태스크만 전용 링크 액션으로 내부 분기). 구 `wiki/linked-pages.tsx` 는 흡수·삭제됨(2026-07-22).

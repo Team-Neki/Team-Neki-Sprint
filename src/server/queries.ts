@@ -6,11 +6,13 @@ import type { ColumnPref } from "@/components/tables/column-registry";
 import {
   orderByDefaultStatus,
   orderBySprintStatus,
+  listSortOrderBy,
   TASK_LIST_ORDER,
   EPIC_LIST_ORDER,
   PROJECT_LIST_ORDER,
   SPRINT_LIST_ORDER,
 } from "@/lib/order";
+import type { ListSort } from "@/lib/list-sort";
 
 /**
  * 유저별 PLP 표 컬럼 순서·노출 설정(F4). 저장된 행이 없으면 null → 표는 기본 컬럼으로 폴백.
@@ -145,8 +147,20 @@ export const getTeamOptions = () =>
 
 // ---------- Sprint ----------
 
+// 스프린트는 제목 컬럼이 name, 종료일이 endDate 다(우선순위 필드 없음).
+export const SPRINT_SORT_FIELDS = [
+  "name",
+  "status",
+  "startDate",
+  "endDate",
+  "createdAt",
+  "updatedAt",
+] as const;
+export type SprintSortField = (typeof SPRINT_SORT_FIELDS)[number];
+
 export type SprintFilter = {
   status?: SprintStatus[];
+  sort?: ListSort<SprintSortField>;
 };
 
 export const getSprints = async (filter: SprintFilter = {}) => {
@@ -157,8 +171,13 @@ export const getSprints = async (filter: SprintFilter = {}) => {
           ? { in: filter.status }
           : undefined,
     },
-    // 2차 키만 DB 정렬(상태는 아래 orderBySprintStatus 로 진행→예정→완료 재배치).
-    orderBy: SPRINT_LIST_ORDER,
+    // 정렬 미지정이면 2차 키만 DB 정렬(상태는 아래 orderBySprintStatus 로 재배치).
+    orderBy: filter.sort
+      ? (listSortOrderBy(
+          filter.sort.field,
+          filter.sort.dir,
+        ) as Prisma.SprintOrderByWithRelationInput)
+      : SPRINT_LIST_ORDER,
   });
   // 스프린트별 예상 MD 합: Task → Epic → Project → Sprint 로 이어지는 관계를
   // groupBy 로는 못 타므로 raw 집계(태스크 estimatedMd 합)로 계산한다.
@@ -172,9 +191,12 @@ export const getSprints = async (filter: SprintFilter = {}) => {
       GROUP BY p."sprintId"
     `;
   const mdBySprint = new Map(mdRows.map((r) => [r.sprintId, roundMd(r.md)]));
-  return orderBySprintStatus(
-    sprints.map((s) => ({ ...s, estimatedMd: mdBySprint.get(s.id) ?? 0 })),
-  );
+  const rows = sprints.map((s) => ({
+    ...s,
+    estimatedMd: mdBySprint.get(s.id) ?? 0,
+  }));
+  // 명시적 정렬(URL ?sort=)이 없을 때만 상태(진행→예정→완료)로 재배치.
+  return filter.sort ? rows : orderBySprintStatus(rows);
 };
 
 export async function getSprint(id: string) {
@@ -216,14 +238,27 @@ export const getSprintOptions = () =>
 
 // ---------- Project (구 Initiative) ----------
 
-export type ProjectSortField =
-  "title" | "status" | "priority" | "dueDate" | "createdAt" | "updatedAt";
+/**
+ * 목록 표 헤더에서 정렬 가능한 필드(URL `?sort=`). 표 컬럼의 `sortField` 와 짝이며,
+ * 페이지는 `parseListSort(sp, *_SORT_FIELDS)` 로 검증해 넘긴다.
+ * 담당자·레이블(관계)과 MD(하위 롤업 계산값)는 DB 정렬이 안 돼 제외한다.
+ */
+export const PROJECT_SORT_FIELDS = [
+  "title",
+  "status",
+  "priority",
+  "startDate",
+  "dueDate",
+  "createdAt",
+  "updatedAt",
+] as const;
+export type ProjectSortField = (typeof PROJECT_SORT_FIELDS)[number];
 
 export type ProjectFilter = {
   ownerId?: string[];
   sprintId?: string[];
   status?: Status[];
-  sort?: { field: ProjectSortField; dir: "asc" | "desc" };
+  sort?: ListSort<ProjectSortField>;
 };
 
 // 기본 정렬(정렬 지정 없을 때)의 2차 키는 lib/order.ts 의 공용 상수를 쓴다.
@@ -236,24 +271,10 @@ function projectOrderBy(
   | Prisma.ProjectOrderByWithRelationInput
   | Prisma.ProjectOrderByWithRelationInput[] {
   if (!sort) return PROJECT_DEFAULT_ORDER;
-  const dir = sort.dir;
-  switch (sort.field) {
-    case "title":
-      return { title: dir };
-    case "status":
-      return { status: dir };
-    case "priority":
-      return { priority: dir };
-    case "dueDate":
-      // nullable — 방향과 무관하게 미설정은 항상 뒤로.
-      return { dueDate: { sort: dir, nulls: "last" } };
-    case "createdAt":
-      return { createdAt: dir };
-    case "updatedAt":
-      return { updatedAt: dir };
-    default:
-      return PROJECT_DEFAULT_ORDER;
-  }
+  return listSortOrderBy(
+    sort.field,
+    sort.dir,
+  ) as Prisma.ProjectOrderByWithRelationInput;
 }
 
 export const getProjects = async (filter: ProjectFilter = {}) => {
@@ -280,8 +301,23 @@ export const getProjects = async (filter: ProjectFilter = {}) => {
       _count: { select: { epics: true } },
     },
   });
+  // 프로젝트별 예상 MD 합(하위 에픽 → 태스크). 에픽 표는 groupBy 로 되지만 프로젝트는
+  // 한 단계 더 내려가야 해 raw 집계로 계산한다(스프린트 목록과 같은 방식).
+  const mdRows = await prisma.$queryRaw<{ projectId: string; md: number }[]>`
+      SELECT e."projectId" AS "projectId",
+             COALESCE(SUM(t."estimatedMd"), 0)::float8 AS md
+      FROM "Task" t
+      JOIN "Epic" e ON e.id = t."epicId"
+      WHERE e."projectId" IS NOT NULL
+      GROUP BY e."projectId"
+    `;
+  const mdByProject = new Map(mdRows.map((r) => [r.projectId, roundMd(r.md)]));
+  const rows = projects.map((p) => ({
+    ...p,
+    estimatedMd: mdByProject.get(p.id) ?? 0,
+  }));
   // 명시적 정렬(URL ?sort=)이 없을 때만 상태(진행중→할일→완료)로 재배치.
-  return filter.sort ? projects : orderByDefaultStatus(projects);
+  return filter.sort ? rows : orderByDefaultStatus(rows);
 };
 
 export async function getProject(id: string) {
@@ -335,10 +371,22 @@ export const getProjectOptions = () =>
 
 // ---------- Epic ----------
 
+export const EPIC_SORT_FIELDS = [
+  "title",
+  "status",
+  "priority",
+  "startDate",
+  "dueDate",
+  "createdAt",
+  "updatedAt",
+] as const;
+export type EpicSortField = (typeof EPIC_SORT_FIELDS)[number];
+
 export type EpicFilter = {
   ownerId?: string[];
   teamId?: string[];
   status?: Status[];
+  sort?: ListSort<EpicSortField>;
 };
 
 export const getEpics = async (filter: EpicFilter = {}) => {
@@ -357,8 +405,13 @@ export const getEpics = async (filter: EpicFilter = {}) => {
           ? { in: filter.status }
           : undefined,
     },
-    // 2차 키만 DB 정렬(상태는 아래 orderByDefaultStatus 로 재배치).
-    orderBy: EPIC_LIST_ORDER,
+    // 정렬 미지정이면 2차 키만 DB 정렬(상태는 아래 orderByDefaultStatus 로 재배치).
+    orderBy: filter.sort
+      ? (listSortOrderBy(
+          filter.sort.field,
+          filter.sort.dir,
+        ) as Prisma.EpicOrderByWithRelationInput)
+      : EPIC_LIST_ORDER,
     include: {
       owner: miniUser,
       team: miniTeam,
@@ -378,13 +431,12 @@ export const getEpics = async (filter: EpicFilter = {}) => {
   const mdByEpicId = new Map(
     mdGroups.map((g) => [g.epicId, roundMd(g._sum.estimatedMd ?? 0)]),
   );
-  // 기본 정렬: 진행중 → 할 일 → 완료(각 그룹 내 종료일 가까운 순 → 생성일 desc).
-  return orderByDefaultStatus(
-    epics.map((e) => ({
-      ...e,
-      estimatedMd: mdByEpicId.get(e.id) ?? 0,
-    })),
-  );
+  const rows = epics.map((e) => ({
+    ...e,
+    estimatedMd: mdByEpicId.get(e.id) ?? 0,
+  }));
+  // 명시적 정렬(URL ?sort=)이 없을 때만 상태(진행중→할일→완료)로 재배치.
+  return filter.sort ? rows : orderByDefaultStatus(rows);
 };
 
 export async function getEpic(id: string) {
@@ -471,6 +523,17 @@ export const getBoardTasks = async (filter: BoardFilter = {}) => {
   }));
 };
 
+export const TASK_SORT_FIELDS = [
+  "title",
+  "status",
+  "priority",
+  "startDate",
+  "dueDate",
+  "createdAt",
+  "updatedAt",
+] as const;
+export type TaskSortField = (typeof TASK_SORT_FIELDS)[number];
+
 export type TaskFilter = {
   status?: Status[];
   assigneeId?: string[];
@@ -478,6 +541,7 @@ export type TaskFilter = {
   teamId?: string[];
   labelId?: string[];
   q?: string;
+  sort?: ListSort<TaskSortField>;
 };
 
 export const getTasks = async (filter: TaskFilter = {}) => {
@@ -503,8 +567,13 @@ export const getTasks = async (filter: TaskFilter = {}) => {
           : undefined,
       title: filter.q ? { contains: filter.q, mode: "insensitive" } : undefined,
     },
-    // 2차 키만 DB 정렬(상태는 아래 orderByDefaultStatus 로 재배치).
-    orderBy: TASK_LIST_ORDER,
+    // 정렬 미지정이면 2차 키만 DB 정렬(상태는 아래 orderByDefaultStatus 로 재배치).
+    orderBy: filter.sort
+      ? (listSortOrderBy(
+          filter.sort.field,
+          filter.sort.dir,
+        ) as Prisma.TaskOrderByWithRelationInput)
+      : TASK_LIST_ORDER,
     include: {
       assignee: miniUser,
       assigneeTeam: miniTeam,
@@ -515,13 +584,12 @@ export const getTasks = async (filter: TaskFilter = {}) => {
       blockedBy: { select: { blocker: { select: { status: true } } } },
     },
   });
-  // 기본 정렬: 진행중 → 할 일 → 완료(각 그룹 내 우선순위 desc → 생성일 desc).
-  return orderByDefaultStatus(
-    rows.map(({ blockedBy, ...t }) => ({
-      ...t,
-      blocked: blockedBy.some((d) => d.blocker.status !== "DONE"),
-    })),
-  );
+  const tasks = rows.map(({ blockedBy, ...t }) => ({
+    ...t,
+    blocked: blockedBy.some((d) => d.blocker.status !== "DONE"),
+  }));
+  // 명시적 정렬(URL ?sort=)이 없을 때만 상태(진행중→할일→완료)로 재배치.
+  return filter.sort ? tasks : orderByDefaultStatus(tasks);
 };
 
 export function getTask(id: string) {

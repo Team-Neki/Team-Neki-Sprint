@@ -30,6 +30,8 @@ export type ProjectTableRow = {
   startDate?: Date | null;
   dueDate?: Date | null;
   labels?: { label: { id: string; name: string; color: string } }[];
+  /** 하위 에픽→태스크 예상 MD 합. 목록(getProjects)에서만 계산 — 하위목록에선 생략(→ "—"). */
+  estimatedMd?: number;
   ownerId?: string | null;
 };
 
@@ -103,6 +105,7 @@ export const PROJECT_COLUMNS: ColumnDef<ProjectTableRow, ProjectEditContext>[] =
       key: "startDate",
       label: "시작일",
       headClassName: "w-28",
+      sortField: "startDate",
       cell: (p, edit) => (
         <TableCell className="text-muted-foreground text-xs">
           {edit ? (
@@ -199,6 +202,18 @@ export const PROJECT_COLUMNS: ColumnDef<ProjectTableRow, ProjectEditContext>[] =
                 : "—"}
             </span>
           )}
+        </TableCell>
+      ),
+    },
+    {
+      key: "md",
+      label: "MD",
+      headClassName: "w-20",
+      // 하위 에픽→태스크 예상 MD 합(읽기전용 롤업). 목록(getProjects)에서만 계산 —
+      // 하위목록(스프린트 상세)에선 생략(→ "—").
+      cell: (p) => (
+        <TableCell className="text-muted-foreground text-sm tabular-nums">
+          {p.estimatedMd || "—"}
         </TableCell>
       ),
     },

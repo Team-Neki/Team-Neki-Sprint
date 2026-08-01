@@ -8,7 +8,9 @@ import {
   getLabelOptions,
   getColumnPref,
   getMe,
+  EPIC_SORT_FIELDS,
 } from "@/server/queries";
+import { parseListSort } from "@/lib/list-sort";
 import { requireUser } from "@/lib/session";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -31,9 +33,16 @@ export const dynamic = "force-dynamic";
 export default async function EpicsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ owner?: string; team?: string; status?: string }>;
+  searchParams: Promise<{
+    owner?: string;
+    team?: string;
+    status?: string;
+    sort?: string;
+    dir?: string;
+  }>;
 }) {
   const sp = await searchParams;
+  const sort = parseListSort(sp, EPIC_SORT_FIELDS);
   const user = await requireUser();
   // 다중선택 필터는 콤마구분 값(예: `?owner=a,b`) → 배열로 파싱한다(F6).
   const toArray = (v?: string) => (v ?? "").split(",").filter(Boolean);
@@ -43,6 +52,7 @@ export default async function EpicsPage({
       ownerId: toArray(sp.owner),
       teamId: toArray(sp.team),
       status: toArray(sp.status) as Status[],
+      sort,
     }),
     getProjectOptions(),
     getTeamOptions(),
@@ -98,6 +108,7 @@ export default async function EpicsPage({
               : "아직 에픽이 없습니다. 상단 ‘새 에픽’으로 만들어보세요."
           }
           edit={{ members, teams, projects, labels }}
+          sortable
           columnPref={pref}
           deleteAction={deleteEpic}
           deleteDescription={EPIC_DELETE_DESCRIPTION}
