@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import { ko } from "date-fns/locale";
-import { Check, RotateCcw, Trash2, CornerDownLeft } from "lucide-react";
+import { Check, RotateCcw, Trash2, CornerDownLeft, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { UserBadge, type MiniUser } from "@/components/user-badge";
@@ -34,6 +34,9 @@ export type ThreadItem = {
 /**
  * 인라인 댓글 스레드 카드(우측 패널의 항목). 앵커 인용문 + 댓글 목록 + 답글 입력 +
  * 해결/재오픈·삭제. 스레드 전체 삭제는 앵커 마크 제거가 필요해 뷰에서 처리(onDeleteThread).
+ *
+ * onClose 를 주면 우상단에 닫기(X) 버튼이 생긴다 — 모바일에서 앵커 아래 팝오버로 띄울 때만
+ * 사용(데스크톱 거터·페이지 하단 목록은 상시 표시라 닫을 대상이 없다).
  */
 export function CommentThreadCard({
   thread,
@@ -41,12 +44,14 @@ export function CommentThreadCard({
   active,
   onActivate,
   onDeleteThread,
+  onClose,
 }: {
   thread: ThreadItem;
   currentUserId: string;
   active: boolean;
   onActivate: () => void;
   onDeleteThread: (threadId: string) => void;
+  onClose?: () => void;
 }) {
   const router = useRouter();
   const [reply, setReply] = useState("");
@@ -93,14 +98,34 @@ export function CommentThreadCard({
       id={`thread-card-${thread.id}`}
       onClick={onActivate}
       className={cn(
-        "bg-card cursor-pointer rounded-lg border p-3 text-sm transition-shadow",
+        "bg-card relative cursor-pointer rounded-lg border p-3 text-sm transition-shadow",
         active ? "ring-primary/40 ring-2" : "hover:border-foreground/20",
         thread.resolved && "opacity-70",
       )}
     >
+      {onClose && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
+          className="text-muted-foreground hover:text-foreground absolute top-2 right-2 rounded p-0.5"
+          aria-label="댓글 닫기"
+        >
+          <X className="size-4" />
+        </button>
+      )}
+
       {/* 앵커 인용문. 페이지 전체 댓글(quote 빈 스레드)은 인용할 대상이 없어 생략. */}
       {thread.quote && (
-        <div className="text-muted-foreground mb-2 border-l-2 border-amber-400 pl-2 text-xs italic">
+        <div
+          className={cn(
+            "text-muted-foreground mb-2 border-l-2 border-amber-400 pl-2 text-xs italic",
+            // 닫기 버튼과 겹치지 않게 첫 줄만 우측 여백 확보.
+            onClose && "pr-6",
+          )}
+        >
           “{thread.quote}”
         </div>
       )}

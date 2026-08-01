@@ -8,6 +8,7 @@
 
 | 날짜 | 세션 | 상태 |
 |---|---|---|
+| 2026-08-01 | 모바일 위키 인라인 댓글 위치 버그(BACKEND-54): 앵커를 탭해도 카드가 **페이지 최하단** 스택 목록에 떠서 확인 불가(+ `WikiPageComments` 와 "댓글 N" 섹션 중복). 하단 스택 제거 후 **앵커 bottom 바로 아래 팝오버**(`absolute inset-x-0`, `max-h-[55dvh] overflow-y-auto`)로 전환. 닫기=바깥탭/Esc/X(`CommentThreadCard` 선택적 `onClose`)/재탭 토글. 곁다리로 컴포저 `left` 클램프가 모바일에서도 데스크톱 거터(296px)를 빼 ~320px 폭에서 화면 밖으로 나가던 것 수정 | `DONE` |
 | 2026-08-01 | OG 링크 미리보기 prod 적용(BACKEND-51): prod 의 `og:image` 가 `http://localhost:3000/...` 이라 카카오톡·슬랙 미리보기가 깨져 있던 것을 수정. 근본원인=`NEXT_PUBLIC_APP_URL` 미설정 + `NEXT_PUBLIC_*` 는 **빌드 타임 인라인**이라 k8s 런타임 env 로는 못 넣는다 → Dockerfile `ARG`+워크플로 `build-args`. 더불어 OG 이미지에 Pretendard 서브셋(웨이트당 ~6KB)을 먹여 **한국어 카피** 렌더, 사내 전용이므로 `noindex` 메타 + 미리보기 봇만 여는 `robots.ts` 추가 | `DONE`\*\* |
 | 2026-07-22 | 중복 컴포넌트 통합 2건(BACKEND-26/27): (1) 위키 연결 카드 — 태스크 전용 `wiki/linked-pages.tsx` 를 `entity-linked-pages.tsx` 로 흡수(렌더 동일, 태스크만 링크 액션 분기. `entityType: LinkEntityType \| "task"`), (2) 생성/수정 다이얼로그 4종 — 공용 셸·필드 블록 `forms/form-dialog.tsx`(FormDialog·FormField·FormRow·Title/Description/StatusPriority/DateRange/FormFooter) 추출, 중복 `TeamKeyReadonly` 는 `fields.tsx` 로 단일화. 엔티티 고유 필드·검증·submit 은 각 다이얼로그에 유지 | `DONE`\* |
 | 2026-07-22 | 목록 표 셸 통합(`EntityTable`): 4개 엔티티 표(tasks/epics/projects/sprints)에 복붙돼 있던 표 셸(헤더·바디·EmptyRow·RowContextMenu 분기)을 공용 `tables/entity-table.tsx` 하나로 통합. 컬럼 정의는 `*-columns.tsx` 로 분리해 호출부(페이지)가 주입, 행 메뉴는 `deleteAction` prop 유무로 결정(삭제 액션·확인 문구도 호출부 주입). `sortable`(SortableHead) 분기가 projects 셸에만 있던 drift 해소 — 이제 셸 공통 동작은 한 곳 수정으로 4개 표에 동시 적용 | `DONE`\* |
@@ -460,7 +461,7 @@ Phase 1~4 종료 후 새로 도출한 [roadmap-v2](./roadmap-v2.md) 8건을 git 
 - **파2(A1·C7, 2 worktree 병렬)**: A1 알림 벨 클라 폴링(45s `setInterval` + 팝오버 열 때 재조회, `getBellNotifications` 액션). C7 전역 검색/⌘K — `queries.globalSearch`(5개 엔티티 그룹, 위키 `deletedAt:null` 필수) + Base UI Dialog 커맨드 팔레트(전역 키다운·디바운스·키보드 내비), 토픽바 마운트.
 - **파3(C8 worktree + B5 main 병렬)**: C8 Label 기능화(접근안 a, 비파괴) — 데드 스키마였던 Label을 태스크 CRUD·부여 팝오버·`?label=` 필터·색 뱃지·`/labels` 관리 페이지로 표면화(에픽/프로젝트 부여는 후속). B5 Vitest 도입 + 순수 로직 유닛 **73건**(validators `.nullish`·rich-content·constants·activity-format) green. **B5는 deps 추가라 worktree symlink 함정(gotchas §2) 회피 위해 main에서 직접** 설치·작성.
 
-검증: 파별 병합 후 `tsc`·`eslint` clean, `next build` Compiled successfully(라벨 라우트 포함), `vitest run` 73/73 pass. 함정: A2 서브에이전트가 센티넬로 NUL 문자(`" "`)를 써서 git이 파일을 바이너리로 인식 → 병합 전 발견·안전 문자열로 교체([gotchas §9](./gotchas.md)).
+검증: 파별 병합 후 `tsc`·`eslint` clean, `next build` Compiled successfully(라벨 라우트 포함), `vitest run` 73/73 pass. 함정: A2 서브에이전트가 센티넬로 NUL 문자(`"\0"`)를 써서 git이 파일을 바이너리로 인식 → 병합 전 발견·안전 문자열로 교체([gotchas §9](./gotchas.md)).
 
 ---
 
