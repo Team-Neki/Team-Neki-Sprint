@@ -6,6 +6,7 @@
     "dev": "next dev --webpack",
     "build": "next build",
     "start": "next start",
+    "og:font": "tsx scripts/build-og-font.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint",

@@ -35,11 +35,18 @@ jobs:
 
       # :latest 와 함께 불변(immutable) :<short-sha> 태그도 push 한다.
       # GitOps 매니페스트는 :<short-sha> 로 bump 되어 ArgoCD 가 변경을 감지한다.
+      #
+      # build-args: NEXT_PUBLIC_APP_URL 은 next build 시점에 번들로 인라인되므로
+      # k8s 런타임 env 로 줄 수 없다(주면 무시되고 og:image 가 localhost 로 남는다).
+      # 레포 변수 vars.APP_URL 로 도메인을 바꿀 수 있고, 없으면 prod 기본값을 쓴다.
+      # (빈 문자열을 넘기지 않도록 `||` 로 접는다 — Dockerfile ARG 기본값이 덮여버린다.)
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
+          build-args: |
+            NEXT_PUBLIC_APP_URL=${{ vars.APP_URL || 'https://sprint.suitestudy.com:4641' }}
           tags: |
             ${{ env.DOCKER_IMAGE }}:${{ steps.version.outputs.short_sha }}
             ${{ env.DOCKER_IMAGE }}:latest

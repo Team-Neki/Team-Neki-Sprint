@@ -8,6 +8,7 @@
 
 | 날짜 | 세션 | 상태 |
 |---|---|---|
+| 2026-08-01 | OG 링크 미리보기 prod 적용(BACKEND-51): prod 의 `og:image` 가 `http://localhost:3000/...` 이라 카카오톡·슬랙 미리보기가 깨져 있던 것을 수정. 근본원인=`NEXT_PUBLIC_APP_URL` 미설정 + `NEXT_PUBLIC_*` 는 **빌드 타임 인라인**이라 k8s 런타임 env 로는 못 넣는다 → Dockerfile `ARG`+워크플로 `build-args`. 더불어 OG 이미지에 Pretendard 서브셋(웨이트당 ~6KB)을 먹여 **한국어 카피** 렌더, 사내 전용이므로 `noindex` 메타 + 미리보기 봇만 여는 `robots.ts` 추가 | `DONE`\*\* |
 | 2026-07-22 | 중복 컴포넌트 통합 2건(BACKEND-26/27): (1) 위키 연결 카드 — 태스크 전용 `wiki/linked-pages.tsx` 를 `entity-linked-pages.tsx` 로 흡수(렌더 동일, 태스크만 링크 액션 분기. `entityType: LinkEntityType \| "task"`), (2) 생성/수정 다이얼로그 4종 — 공용 셸·필드 블록 `forms/form-dialog.tsx`(FormDialog·FormField·FormRow·Title/Description/StatusPriority/DateRange/FormFooter) 추출, 중복 `TeamKeyReadonly` 는 `fields.tsx` 로 단일화. 엔티티 고유 필드·검증·submit 은 각 다이얼로그에 유지 | `DONE`\* |
 | 2026-07-22 | 목록 표 셸 통합(`EntityTable`): 4개 엔티티 표(tasks/epics/projects/sprints)에 복붙돼 있던 표 셸(헤더·바디·EmptyRow·RowContextMenu 분기)을 공용 `tables/entity-table.tsx` 하나로 통합. 컬럼 정의는 `*-columns.tsx` 로 분리해 호출부(페이지)가 주입, 행 메뉴는 `deleteAction` prop 유무로 결정(삭제 액션·확인 문구도 호출부 주입). `sortable`(SortableHead) 분기가 projects 셸에만 있던 drift 해소 — 이제 셸 공통 동작은 한 곳 수정으로 4개 표에 동시 적용 | `DONE`\* |
 | 2026-07-22 | MCP v2 — API/도구 커버리지 확장: 에픽 CRUD(`create/get/update/delete_epic`, 이슈키 해석 `resolveEpicId`), 티켓 구조화 필터(`search_tickets` `epic`/`status`/`assignee`/`team`)+`delete_ticket`, 프로젝트·스프린트 읽기(`list/get_projects`,`list/get_sprints`), 다형 댓글(`add_comment`, 마크다운→Tiptap doc). actor 주입 Core 분리 확장(epics/tasks delete/comments), 권한 거부 `ForbiddenError`→403 매핑. 도구 `BACKLOG` 죽은 enum 값 제거 | `DONE`\* |
@@ -38,7 +39,20 @@
 
 \* 코드·빌드·테스트 검증 완료. 실렌더(mermaid/표/강조)는 로그인 게이트라 브라우저 확인 필요.
 
+\*\* 빌드된 standalone 서버를 실제로 띄워 `og:image`·`robots.txt`·PNG 응답까지 실증. prod 반영은 배포 후 재확인 필요.
+
 ---
+
+## 2026-08-01 — OG 링크 미리보기 prod 적용 (브랜치 `koosco/og`, BACKEND-51)
+
+카카오톡·슬랙에 Sprint 링크를 붙여도 미리보기 카드가 안 뜨던 문제. OG 코드는 이미 있었고 **배포 쪽이 빠져 있었다.**
+
+- **근본원인**: `layout.tsx` 의 `metadataBase` 가 `NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"` 인데 그 변수가 `.env.example`·`Dockerfile`·워크플로 어디에도 없었다. prod 실물 확인: `curl .../login | grep og:image` → `http://localhost:3000/opengraph-image?...`.
+- **왜 런타임 env 로 못 고치나**: `NEXT_PUBLIC_*` 는 `next build` 시점에 **서버 사이드 참조까지** 값으로 치환된다(next docs). k8s ConfigMap 에 넣어도 무시된다. → `Dockerfile` builder 에 `ARG NEXT_PUBLIC_APP_URL=https://sprint.suitestudy.com:4641`+`ENV`, `deploy-prod.yml` 에 `build-args`(`vars.APP_URL || 기본값` — 빈 문자열이 가면 `new URL("")` 로 빌드가 죽는다). 폴백 로직은 `lib/app-url.ts` 의 `resolveAppUrl()`(+테스트 4). [gotchas §36]
+- **OG 이미지 한국어화**: satori 기본 폰트에 한글 글리프가 없어 종전엔 영문 카피만 썼다. Pretendard(OFL 1.1)를 문구에 쓰인 30자만 남겨 서브셋(`assets/fonts/`, 웨이트당 ~6KB)해 `ImageResponse.fonts` 로 주입. 문구는 `lib/og.ts` 단일 출처, 재생성은 `npm run og:font`(`scripts/build-og-font.ts`, `uvx --from fonttools pyftsubset`). 원본 TTF(2.7MB×2)는 커밋하지 않는다. `og.test.ts` 가 "문구 글자 ⊆ 서브셋" 을 검사해 재생성 누락을 테스트 실패로 잡는다. standalone 트레이싱은 `next.config.ts` `outputFileTracingIncludes` 로 명시. [gotchas §37]
+- **색인 정책**: 사내 SSO 전용이라 검색 노출 대상이 아니다. 다만 `Disallow: /` 를 통째로 걸면 **카카오톡·슬랙 미리보기 봇도 robots.txt 를 따르므로** 방금 고친 미리보기가 같이 죽는다. → 색인 차단은 `robots: { index: false, follow: false }`(noindex 메타), `app/robots.ts` 는 미리보기 봇 6종만 `allow`. [gotchas §38]
+- **검증**: `tsc` 0 · `eslint` clean · `vitest` 223 pass · `next build` green. 추가로 **빌드 산출물을 실제로 실행**해 확인 — 센티널 URL 빌드 시 서버 청크에 인라인됨, `node server.js` 로 `/login` 의 `og:image` 가 주입 도메인으로 나옴, `/robots.txt` 출력 일치, `/opengraph-image` 200 image/png(폰트 트레이싱 정상), 프리렌더 PNG 육안 확인(한글 두부 없음).
+- **남은 일**: 머지 후 Actions 탭에서 "Deploy to Prod" 수동 실행 → 배포 후 `curl` 로 `og:image` 재확인 → 카카오 디벨로퍼스 OG 캐시 초기화(<https://developers.kakao.com/tool/clear/og>). 캐시 초기화는 배포 전에 하면 의미 없다.
 
 ## 2026-07-22 — 중복 컴포넌트 통합 2건: 위키 연결 카드 · 폼 다이얼로그 셸 (브랜치 `koosco/butterflyfish`, BACKEND-26/27)
 
