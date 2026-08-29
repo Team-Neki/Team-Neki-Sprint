@@ -8,6 +8,7 @@
 
 | 날짜 | 세션 | 상태 |
 |---|---|---|
+| 2026-08-02 | README 현행화(BACKEND-69): 초기 커밋(2026-07-08) 이후 321커밋 동안 방치돼 계층·상태·추정 단위·배포 절차가 전부 옛 사실이던 루트 `README.md` 정리. 존재하지 않는 `k8s/` 를 apply 하라던 배포 절 → GitOps+ArgoCD+수동 트리거로 교체, 누락 기능(MCP·GitHub·공지/알림/멘션·라벨·위키 리치·OG·테스트) 반영, `docs/README.md` MCP 패키지명 오기 수정 | `DONE` |
 | 2026-08-01 | 엔티티 4화면 UX 정합성(BACKEND-47/48/49/50/53): 같은 계층·같은 역할인데 화면마다 조작이 갈리던 부채 정리. (1) **스프린트 상세 규격 이관** — 2단 grid·인라인 편집(`name`/`endDate`/`SprintStatus` 필드 차이는 prop 으로 흡수)·`updateSprintFields`(diff+`field_changed` 로깅)·업무 히스토리 노출(로그는 쌓이는데 화면이 없었음)·`@detail` 슬라이드 상세·설명 카드 상시 렌더, (2) **상세 정합성** — 댓글/히스토리를 공용 `CommentsHistoryTabs` 탭으로 통일(태스크 탭 vs 에픽·프로젝트 카드나열 vs 스프린트 누락), 프로젝트 상세 라벨 행 추가(`getProject` 가 자기 labels 미포함이라 목록에서 단 라벨이 상세에서 사라져 보였음), 태스크 상세 grid `min-w-0` 누락 보정, 뒤로가기·삭제 후 이동 `/board`→`/tasks`, (3) **목록/표 정합성** — 정렬 헤더를 에픽·태스크·스프린트로 확대(`parseListSort`+`listSortOrderBy` 공용화, +vitest 4), 스프린트만 쓰던 `EmptyState` 분기 제거(표 유지 규칙으로), MD 컬럼 표기 통일 + 프로젝트 표 MD 롤업 추가, 스프린트 표 열기 아이콘, (4) **필터 바 y축 정렬**(필터 중첩 래퍼의 `mb-4` 가 flex 높이를 부풀려 상태 칩만 8px 처졌음 → 공용 `FilterBar`), (5) **인라인 셀렉트 낙관적 표시**. 규격은 [design-system.md](./design-system.md#엔티티-목록상세-화면-규격)에 명문화 | `DONE`\* |
 | 2026-08-01 | 모바일 위키 인라인 댓글 위치 버그(BACKEND-54): 앵커를 탭해도 카드가 **페이지 최하단** 스택 목록에 떠서 확인 불가(+ `WikiPageComments` 와 "댓글 N" 섹션 중복). 하단 스택 제거 후 **앵커 bottom 바로 아래 팝오버**(`absolute inset-x-0`, `max-h-[55dvh] overflow-y-auto`)로 전환. 닫기=바깥탭/Esc/X(`CommentThreadCard` 선택적 `onClose`)/재탭 토글. 곁다리로 컴포저 `left` 클램프가 모바일에서도 데스크톱 거터(296px)를 빼 ~320px 폭에서 화면 밖으로 나가던 것 수정 | `DONE` |
 | 2026-08-01 | OG 링크 미리보기 prod 적용(BACKEND-51): prod 의 `og:image` 가 `http://localhost:3000/...` 이라 카카오톡·슬랙 미리보기가 깨져 있던 것을 수정. 근본원인=`NEXT_PUBLIC_APP_URL` 미설정 + `NEXT_PUBLIC_*` 는 **빌드 타임 인라인**이라 k8s 런타임 env 로는 못 넣는다 → Dockerfile `ARG`+워크플로 `build-args`. 더불어 OG 이미지에 Pretendard 서브셋(웨이트당 ~6KB)을 먹여 **한국어 카피** 렌더, 사내 전용이므로 `noindex` 메타 + 미리보기 봇만 여는 `robots.ts` 추가 | `DONE`\*\* |
@@ -44,6 +45,18 @@
 \*\* 빌드된 standalone 서버를 실제로 띄워 `og:image`·`robots.txt`·PNG 응답까지 실증. prod 반영은 배포 후 재확인 필요.
 
 ---
+
+## 2026-08-02 — README 현행화 (BACKEND-69)
+
+루트 `README.md` 가 초기 커밋(2026-07-08) 이후 **321커밋 동안 한 번도 갱신되지 않아**, 신규 합류자가 가장 먼저 읽는 문서가 실제 제품과 어긋나 있었다. 코드에 대조해 drift 를 걷어냈다.
+
+- **틀린 서술 교정**: 계층(이니셔티브 → 에픽 → 태스크 ⇒ 스프린트 → 프로젝트 → 에픽 → 태스크, ADR 0002), 상태(`백로그`·`리뷰` 포함 5단계 ⇒ `TODO/IN_PROGRESS/DONE` + 별도 `SprintStatus`), 추정 단위(스토리 포인트 ⇒ MD), 인증(도메인 제한만 ⇒ 승인 게이트 포함), ER 다이어그램(Initiative 기준 ⇒ 현행 모델)
+- **배포 절 전면 교체**: `kubectl apply -f k8s/` + `k8s/secret.example.yaml` 복사 절차였으나 **레포에 `k8s/` 디렉터리가 없다** — 따라 할 수 없는 지시였다. 실제 경로(GitOps `Team-Neki-GitOps` + ArgoCD + `deploy-prod.yml` 수동 트리거 + initContainer 마이그레이션 + `NEXT_PUBLIC_APP_URL` build arg)로 교체. 베이스라인 마이그레이션도 `0_init` 이 아니라 `20260707170339_sprint_project_team`
+- **누락 기능 반영**: MCP 서버·개인 API 토큰, GitHub App, 공지·알림·멘션, 라벨, `⌘K` 전역 검색, 태스크 의존성, 위키(폴더·즐겨찾기·초안·휴지통·인라인 댓글·전문검색·이미지 S3·파일 첨부), 목록 인라인 편집/슬라이드 상세/컬럼 설정, OG 링크 미리보기, Vitest + CI
+- **구조·스크립트**: 라우트와 디렉터리 트리 현행화(`tests/`·`mcp/`·`docs/`·`pending/` 추가, `k8s/` 제거), 스크립트 표에 `test`/`test:watch`/`lint`/`db:generate`/`db:push`/`og:font` 추가, 문서 라우팅 표 신설
+- **`docs/README.md`**: MCP 패키지명 오기 수정(`@team-neki/sprint-mcp` → 실제 `@neki-team/sprint-mcp`)
+- **손대지 않은 것**: `mcp/README.md` 는 도구 표 21개가 실제 등록 도구와 정확히 일치하고 게시·보안 절도 현행이라 그대로 뒀다. 다만 작업 트리에 미커밋 상태로 남아 있는 `.mcp.json` 변경(로컬 `mcp/dist` 실행 → `npx @neki-team/sprint-mcp`)을 커밋한다면 3-A 절도 함께 고쳐야 한다
+- **검증**: 문서 변경만이라 빌드 영향 없음. README 내부 링크 6개 존재 확인, 이모지 없음 확인. mermaid 블록은 렌더 검증 대신 기존 문서와 동일한 문법만 사용(양방향 화살표 `<-->` 는 렌더러 호환을 위해 단방향 2개로 분리)
 
 ## 2026-08-01 — OG 링크 미리보기 prod 적용 (브랜치 `koosco/og`, BACKEND-51)
 
