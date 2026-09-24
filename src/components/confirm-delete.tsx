@@ -23,6 +23,8 @@ export function ConfirmDelete({
   redirectTo,
   open: openProp,
   onOpenChange,
+  confirmLabel = "삭제",
+  successMessage = "삭제했습니다",
 }: {
   onConfirm: () => Promise<void>;
   /** 제공되면 삭제 성공 토스트에 '실행취소' 버튼을 붙인다(soft-delete 등 복원 가능한 경우만). */
@@ -34,6 +36,10 @@ export function ConfirmDelete({
   redirectTo?: string;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /** 확인 버튼 문구(삭제가 아닌 '버리기' 등 파괴적 확인에 재사용). */
+  confirmLabel?: string;
+  /** 성공 토스트 문구. null 이면 토스트를 띄우지 않는다. */
+  successMessage?: string | null;
 }) {
   const router = useRouter();
   const [internalOpen, setInternalOpen] = useState(false);
@@ -63,11 +69,11 @@ export function ConfirmDelete({
         if (redirectTo) router.push(redirectTo);
         else router.refresh();
         if (undo) {
-          toast.success("삭제했습니다", {
+          toast.success(successMessage ?? "삭제했습니다", {
             action: { label: "실행취소", onClick: runUndo },
           });
-        } else {
-          toast.success("삭제했습니다");
+        } else if (successMessage !== null) {
+          toast.success(successMessage);
         }
       } catch {
         toast.error("삭제에 실패했습니다");
@@ -97,7 +103,7 @@ export function ConfirmDelete({
             취소
           </Button>
           <Button variant="destructive" onClick={confirm} disabled={pending}>
-            {pending ? "삭제 중…" : "삭제"}
+            {pending ? `${confirmLabel} 중…` : confirmLabel}
           </Button>
         </DialogFooter>
       </DialogContent>
