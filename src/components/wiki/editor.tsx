@@ -409,7 +409,8 @@ export const WikiEditor = forwardRef<WikiEditorHandle, WikiEditorProps>(
     }, [status, saving, onStateChange]);
 
     return (
-      <div className="mx-auto max-w-3xl">
+      // 읽기 뷰·헤더·하단 댓글과 같은 폭(5xl). 편집 진입 시 본문 리플로우 방지.
+      <div className="mx-auto max-w-5xl">
         {usingDraft && (
           <div className="mb-2 flex items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-800">
             <span>
