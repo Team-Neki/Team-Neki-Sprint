@@ -113,7 +113,9 @@ export default async function WikiPageView({
     // 스크롤 높이에 포함되는 자식 블록에 준다. (연결된 티켓이 바닥에 딱 붙던 문제)
     <div className="pb-16">
       <WikiBreadcrumb items={breadcrumb} />
+      {/* 페이지 간 이동 시 mode 등 클라이언트 state 가 남지 않도록 페이지별로 리마운트. */}
       <WikiDetail
+        key={page.id}
         pageId={page.id}
         title={page.title}
         content={asDoc(page.content)}
