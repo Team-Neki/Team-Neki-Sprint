@@ -22,6 +22,7 @@ import {
   deleteWikiCommentThread,
   saveWikiCommentAnchors,
 } from "@/server/actions/wiki-comments";
+import { selectWikiLine } from "@/components/wiki/line-selection";
 
 type Composer = {
   from: number;
@@ -108,7 +109,10 @@ export function WikiCommentsView({
     editable: false,
     extensions: wikiExtensions(),
     content,
-    editorProps: { attributes: { class: "tiptap focus:outline-none" } },
+    editorProps: {
+      attributes: { class: "tiptap focus:outline-none" },
+      handleTripleClick: selectWikiLine,
+    },
   });
 
   // Tiptap useEditor 는 최초 content 만 반영하고 이후 content prop 변경엔 반응하지 않는다.

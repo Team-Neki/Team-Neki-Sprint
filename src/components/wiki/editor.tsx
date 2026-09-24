@@ -84,6 +84,7 @@ import {
 // 노션식 줄(블록) 핸들 — 선택/드래그 이동/블록 메뉴. 편집 모드 전용.
 import { BlockHandle } from "@/components/wiki/block-handle";
 import { normalizeHref } from "@/components/wiki/link-href";
+import { selectWikiLine } from "@/components/wiki/line-selection";
 import { ConfirmDelete } from "@/components/confirm-delete";
 
 /** 저장/취소 버튼을 헤더(WikiDetail)에서 호출할 수 있도록 노출하는 핸들. */
@@ -163,6 +164,7 @@ export const WikiEditor = forwardRef<WikiEditorHandle, WikiEditorProps>(
       content: draft?.content ?? initialContent,
       editorProps: {
         attributes: { class: "tiptap focus:outline-none" },
+        handleTripleClick: selectWikiLine,
         // 파일 붙여넣기. ProseMirror 기본 paste 보다 먼저 실행되는 handlePaste 로
         // 가로챈다 — DOM paste 리스너는 PM 기본 처리 이후에 실행돼 HTML+파일 혼합
         // 클립보드(브라우저 '이미지 복사' 등)에서 핫링크+업로드본이 이중 삽입된다.
