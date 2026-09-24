@@ -89,8 +89,22 @@ export async function updateWikiContent(
   id: string,
   title: string,
   content: unknown,
-) {
+  /** 클라이언트가 마지막으로 관측한 updatedAt(ISO). 주면 낙관적 충돌 검사(saveWikiCommentAnchors 와 동일). */
+  expectedUpdatedAt?: string,
+): Promise<{ id: string } | { conflict: true }> {
   const user = await requireUser();
+  if (expectedUpdatedAt) {
+    const current = await prisma.wikiPage.findUnique({
+      where: { id },
+      select: { updatedAt: true },
+    });
+    if (
+      current &&
+      current.updatedAt.getTime() !== new Date(expectedUpdatedAt).getTime()
+    ) {
+      return { conflict: true };
+    }
+  }
   return updateWikiContentCore(user, id, title, content);
 }
 

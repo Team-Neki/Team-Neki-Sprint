@@ -92,7 +92,7 @@ export function WikiDetail({
             ) : (
               <>
                 {editState.status && (
-                  <span className="text-muted-foreground hidden text-xs sm:inline">
+                  <span className="text-muted-foreground max-w-24 truncate text-xs">
                     {editState.status}
                   </span>
                 )}
@@ -131,6 +131,7 @@ export function WikiDetail({
           initialTitle={title}
           initialContent={content}
           draft={draft}
+          updatedAt={updatedAt}
           autoFocusTitle={startInEdit}
           onExit={() => {
             setMode("view");
