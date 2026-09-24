@@ -32,7 +32,8 @@
 |---|---|---|
 | O-B-1 | auto | `editor.tsx` 의 `WikiEditor` 루트 div 클래스가 `mx-auto max-w-5xl`. `grep -c 'className="mx-auto max-w-3xl"' src/components/wiki/editor.tsx` = 0 |
 | O-B-2 | manual | "수정" 클릭 전후로 본문 줄바꿈 위치가 바뀌지 않는다(데스크톱 1280px 이상) |
-| O-B-3 | manual | 편집 중 긴 본문을 스크롤해도 툴바 상단과 헤더 하단 사이로 본문 글자가 비치지 않는다. 비치면 `Toolbar` 의 `top-14` 를 헤더 실측 높이로 보정(후속) |
+| O-B-3 | auto | 툴바 sticky 오프셋이 헤더 실측 높이를 따른다: `grep -c 'top-\[var(--wiki-header-h' src/components/wiki/editor.tsx` = 1 이고 `grep -c '"--wiki-header-h"' src/components/wiki/wiki-detail.tsx` = 1 (후속 PR, 2026-09-25) |
+| O-B-4 | manual | 편집 중 긴 본문을 스크롤해도 툴바 상단과 헤더 하단 사이로 본문 글자가 비치지 않는다(데스크톱·모바일 폭 모두) |
 
 ## O-C. 저장·임시저장 흐름 안전장치 (BACKEND-146)
 

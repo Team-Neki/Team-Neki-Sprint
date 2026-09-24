@@ -904,7 +904,9 @@ export function Toolbar({ editor }: { editor: Editor }) {
   // 목록은 '-'/'1.'/'[ ]' 또는 슬래시 커맨드(/)로 만든다. (공지 에디터도 재사용 — export)
   return (
     <TooltipProvider delay={150}>
-      <div className="bg-background/80 sticky top-14 z-10 flex flex-wrap items-center gap-0.5 rounded-md border p-1 backdrop-blur">
+      {/* sticky 오프셋은 WikiDetail 헤더가 게시하는 --wiki-header-h(실측 높이). 변수가 없는
+          곳(공지 에디터)은 종전 값 3.5rem 으로 폴백. */}
+      <div className="bg-background/80 sticky top-[var(--wiki-header-h,3.5rem)] z-10 flex flex-wrap items-center gap-0.5 rounded-md border p-1 backdrop-blur">
         <Btn
           label="굵게"
           active={editor.isActive("bold")}
