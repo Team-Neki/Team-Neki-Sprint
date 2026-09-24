@@ -31,7 +31,7 @@ function humanizeSize(bytes: number | null): string {
 
 // ---------- 다운로드 칩 노드뷰 ----------
 
-function FileChip({ node }: NodeViewProps) {
+function FileChip({ node, editor }: NodeViewProps) {
   const id = node.attrs.id as string | null;
   const name = (node.attrs.name as string | null) ?? "첨부파일";
   const size = node.attrs.size as number | null;
@@ -46,6 +46,10 @@ function FileChip({ node }: NodeViewProps) {
         data-wiki-file={id ?? ""}
         contentEditable={false}
         onMouseDown={(e) => e.preventDefault()}
+        // 편집 모드 클릭은 다운로드가 아니라 노드 선택(외곽선 표시 후 Backspace 삭제).
+        onClick={(e) => {
+          if (editor.isEditable) e.preventDefault();
+        }}
         className="border-border bg-muted text-foreground hover:bg-accent hover:text-accent-foreground inline-flex max-w-full cursor-pointer items-center gap-2 rounded-md border px-2.5 py-1.5 align-baseline text-sm no-underline transition-colors"
       >
         <Paperclip className="size-4 shrink-0" />

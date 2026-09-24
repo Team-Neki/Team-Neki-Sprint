@@ -28,6 +28,8 @@ import {
   Table as TableIcon,
   Workflow,
   Minus,
+  Image as ImageIcon,
+  Paperclip,
   type LucideIcon,
 } from "lucide-react";
 import type {
@@ -40,6 +42,11 @@ import {
   filterByQuery,
   type SlashCommandMeta,
 } from "@/components/wiki/slash-commands";
+import {
+  pickFiles,
+  uploadAndInsertAny,
+  uploadAndInsertImages,
+} from "@/components/wiki/upload";
 
 export type SlashItem = SlashCommandMeta & {
   icon: ComponentType<{ className?: string }>;
@@ -62,6 +69,8 @@ const ICONS: Record<string, LucideIcon> = {
   table: TableIcon,
   mermaid: Workflow,
   divider: Minus,
+  image: ImageIcon,
+  file: Paperclip,
 };
 
 // key → 실행. deleteRange(range) 로 '/query' 를 지운 뒤 해당 블록 커맨드를 실행한다.
@@ -97,6 +106,21 @@ function runFor(key: string) {
         case "divider":
           chain.setHorizontalRule();
           break;
+        // 파일 선택은 비동기 — '/query' 를 먼저 지우고(chain.run) 선택 창을 연다.
+        // 삽입 위치 추적은 upload.ts 의 placeholder 가 담당한다.
+        case "image":
+          chain.run();
+          void pickFiles({
+            accept: "image/png,image/jpeg,image/gif,image/webp",
+            multiple: true,
+          }).then((fs) => uploadAndInsertImages(editor, fs));
+          return;
+        case "file":
+          chain.run();
+          void pickFiles({ multiple: true }).then((fs) =>
+            uploadAndInsertAny(editor, fs),
+          );
+          return;
       }
     }
     chain.run();

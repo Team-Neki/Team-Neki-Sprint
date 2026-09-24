@@ -692,6 +692,12 @@
   border-radius: 0.25rem;
   outline: none;
 }
+/* 파일 첨부 칩(file-attachment.tsx)은 편집 모드 클릭 시 다운로드 대신 선택되므로
+   선택 상태를 칩 외곽선으로 표시한다. */
+.tiptap .wiki-file-block.ProseMirror-selectednode > a {
+  outline: 2px solid color-mix(in oklch, var(--link) 40%, transparent);
+  outline-offset: 2px;
+}
 
 .tiptap ul[data-type="taskList"] {
   list-style: none;
