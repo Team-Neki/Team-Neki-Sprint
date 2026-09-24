@@ -81,6 +81,7 @@ import {
 } from "@/components/wiki/colors";
 // 노션식 줄(블록) 핸들 — 선택/드래그 이동/블록 메뉴. 편집 모드 전용.
 import { BlockHandle } from "@/components/wiki/block-handle";
+import { normalizeHref } from "@/components/wiki/link-href";
 
 /** 이미지 파일을 업로드하고 서빙 URL 을 반환. 실패 시 토스트 + null(본문 이미지 첨부). */
 async function uploadImage(file: File): Promise<string | null> {
@@ -761,8 +762,8 @@ function BubbleToolbar({ editor }: { editor: Editor }) {
   }
 
   function applyLink() {
-    const href = url.trim();
-    if (href === "") {
+    const href = normalizeHref(url);
+    if (href === null) {
       editor.chain().focus().extendMarkRange("link").unsetLink().run();
     } else {
       editor.chain().focus().extendMarkRange("link").setLink({ href }).run();
@@ -785,9 +786,18 @@ function BubbleToolbar({ editor }: { editor: Editor }) {
         >
           <Input
             autoFocus
-            type="url"
+            type="text"
+            inputMode="url"
+            autoCapitalize="off"
+            spellCheck={false}
             value={url}
             onChange={(e) => setUrl(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                e.preventDefault();
+                setMode("menu");
+              }
+            }}
             placeholder="https://example.com"
             className="h-7 w-52"
           />
@@ -1446,8 +1456,8 @@ function LinkButton({ editor }: { editor: Editor }) {
   }
 
   function apply() {
-    const href = url.trim();
-    if (href === "") {
+    const href = normalizeHref(url);
+    if (href === null) {
       editor.chain().focus().extendMarkRange("link").unsetLink().run();
     } else {
       editor.chain().focus().extendMarkRange("link").setLink({ href }).run();
@@ -1481,7 +1491,10 @@ function LinkButton({ editor }: { editor: Editor }) {
         >
           <Input
             autoFocus
-            type="url"
+            type="text"
+            inputMode="url"
+            autoCapitalize="off"
+            spellCheck={false}
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder="https://example.com"
