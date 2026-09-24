@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { JSONContent } from "@tiptap/react";
 import { Pencil } from "lucide-react";
 import { UserBadge, type MiniUser } from "@/components/user-badge";
@@ -66,18 +66,38 @@ export function WikiDetail({
     [],
   );
 
+  // 헤더 실제 높이를 CSS 변수(--wiki-header-h)로 루트에 게시한다. 에디터 툴바의 sticky
+  // 오프셋이 이 값을 읽어 헤더 바로 아래에 붙는다 — 고정값(top-14=56px)은 헤더 실측
+  // (py-2 + 버튼 + border ≈ 45~49px)과 어긋나 그 틈으로 본문이 비쳤다. 상태를 두지 않고
+  // 스타일만 갱신하므로 리렌더가 없다(react-hooks/set-state-in-effect 회피).
+  const rootRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const root = rootRef.current;
+    const header = headerRef.current;
+    if (!root || !header) return;
+    const apply = () =>
+      root.style.setProperty("--wiki-header-h", `${header.offsetHeight}px`);
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(header);
+    return () => ro.disconnect();
+  }, []);
+
   // 스레드 분리: quote 가 있으면 본문 구간에 앵커된 인라인 댓글(우측 거터),
   // 비어 있으면 문서 전체에 대한 페이지 댓글(본문 하단 섹션).
   const anchoredThreads = threads.filter((t) => t.quote);
   const pageThreads = threads.filter((t) => !t.quote);
 
   return (
-    <div>
+    <div ref={rootRef}>
       {/* 상단 툴바: 스크롤을 내려도 '수정' 버튼이 보이도록 sticky 고정(main 스크롤 기준).
           main(overflow-auto)의 top 패딩 영역엔 스크롤된 본문이 비쳐 보이는데, sticky 헤더는
           그 아래(top:0)에 고정돼 헤더 위 패딩 band 으로 본문이 노출된다. 헤더와 함께 움직이는
           ::before 로 그 band(=main top 패딩 높이 pt-4/pt-6)을 불투명 배경으로 덮어 가린다. */}
-      <div className="bg-background sticky top-0 z-20 mb-4 border-b before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-4 before:bg-background before:content-[''] sm:before:h-6">
+      <div
+        ref={headerRef}
+        className="bg-background sticky top-0 z-20 mb-4 border-b before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-4 before:bg-background before:content-[''] sm:before:h-6">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-2 py-2">
           <div className="text-muted-foreground flex min-w-0 items-center gap-2 text-xs">
             {editor && <UserBadge user={editor} size="xs" />}
