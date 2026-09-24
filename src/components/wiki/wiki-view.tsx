@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useEditor, EditorContent, type JSONContent } from "@tiptap/react";
 import { wikiExtensions } from "@/components/wiki/extensions";
+import { selectWikiLine } from "@/components/wiki/line-selection";
 import { cn } from "@/lib/utils";
 
 /**
@@ -28,6 +29,7 @@ export function WikiView({
     content,
     editorProps: {
       attributes: { class: "tiptap focus:outline-none" },
+      handleTripleClick: selectWikiLine,
     },
   });
 
