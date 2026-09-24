@@ -232,6 +232,9 @@ export const WikiEditor = forwardRef<WikiEditorHandle, WikiEditorProps>(
 
     const editor = useEditor({
       immediatelyRender: false,
+      // Tiptap 3.x 기본값은 트랜잭션에 리렌더하지 않는다(useEditor 셀렉터가 null 반환).
+      // 툴바·버블이 render 중 editor.isActive() 를 읽으므로 선택 변경마다 리렌더가 필요하다.
+      shouldRerenderOnTransaction: true,
       extensions: [
         ...wikiExtensions({ placeholder: "내용을 입력하세요…" }),
         // 이미지 업로드 중 삽입 위치를 표시·추적하는 위젯(편집 모드 전용 —

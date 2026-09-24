@@ -60,6 +60,8 @@ export const AnnouncementEditor = forwardRef<
 
   const editor = useEditor({
     immediatelyRender: false,
+    // 위키 에디터와 동일 — 툴바 isActive 표시가 선택 변경에 갱신되도록 트랜잭션마다 리렌더.
+    shouldRerenderOnTransaction: true,
     extensions: wikiExtensions({ placeholder: "공지 내용을 입력하세요…" }),
     content: initialContent,
     editorProps: {
