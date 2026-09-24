@@ -83,7 +83,12 @@ export function htmlHasText(html: string): boolean {
   return (doc.body.textContent ?? "").trim().length > 0;
 }
 
-/** 파일 선택 다이얼로그를 열고 선택 결과를 돌려준다(취소 시 빈 배열). 툴바·슬래시가 공유. */
+/**
+ * 파일 선택 다이얼로그를 열고 선택 결과를 돌려준다(취소 시 빈 배열). 툴바·슬래시가 공유.
+ * 취소는 input 의 cancel 이벤트로 감지한다(Chrome 113+/Safari 16.4+/Firefox 91+).
+ * 그보다 오래된 브라우저에선 취소 시 promise 가 미해결로 남지만 문서엔 아무 영향이 없다.
+ * input 은 document 에 붙였다 뗀다 — 일부 Safari 는 분리된 input 의 click() 을 무시한다.
+ */
 export function pickFiles(
   opts: { accept?: string; multiple?: boolean } = {},
 ): Promise<File[]> {
@@ -92,15 +97,16 @@ export function pickFiles(
     input.type = "file";
     if (opts.accept) input.accept = opts.accept;
     input.multiple = !!opts.multiple;
-    input.onchange = () => resolve(Array.from(input.files ?? []));
-    // ponytail: 취소 감지는 휴리스틱 — 취소는 change 가 안 오므로 창 포커스 복귀 후
-    // 300ms 안에 change 가 없으면 취소로 간주(resolve 는 첫 호출만 유효). 파일 창은
-    // OS 모달이라 보통 change 가 focus 보다 먼저 오지만 보장은 없어, 그보다 늦게 오는
-    // 선택은 유실된다. 지원 브라우저가 확정되면 input.oncancel(Chrome 113+/Safari
-    // 16.4+) 로 교체.
-    window.addEventListener("focus", () => setTimeout(() => resolve([]), 300), {
-      once: true,
-    });
+    input.style.display = "none";
+    const done = (files: File[]) => {
+      input.remove();
+      resolve(files);
+    };
+    input.addEventListener("change", () =>
+      done(Array.from(input.files ?? [])),
+    );
+    input.addEventListener("cancel", () => done([]));
+    document.body.appendChild(input);
     input.click();
   });
 }
