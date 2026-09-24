@@ -22,6 +22,7 @@
   - **스프린트·프로젝트·에픽·태스크 목록/상세를 만질 땐 같은 문서의 [엔티티 목록/상세 화면 규격](./docs/design-system.md#엔티티-목록상세-화면-규격) 절을 먼저 본다.** 네 화면은 같은 조작 규격을 공유하며(표 셸·정렬·빈 상태·인라인 편집·댓글/히스토리 탭·슬라이드 상세·뒤로가기 목적지), 예외는 데이터 모델에 근거가 있을 때만 둔다. 한 화면만 고치면 그 자리에서 UX 가 갈린다.
 - **엔지니어링 함정/주의사항**(아래 필독 섹션의 상세): [`docs/gotchas.md`](./docs/gotchas.md)
 - **변경 이력**(무엇을·왜 바꿨나): [`docs/work-log.md`](./docs/work-log.md)
+- **완료 판정 오라클**(auto/manual 판정 항목·명령): [`docs/oracle/`](./docs/oracle/) — 작업 착수 시 오라클을 먼저 쓰고, 완료 주장 전에 auto 항목을 전부 돌린다. 예: [위키 편집 화면 사용성](./docs/oracle/wiki-editor-usability.md)
 - **예정/백로그 작업**(스코핑·열린 질문): [`docs/roadmap-v2.md`](./docs/roadmap-v2.md) — 현행 백로그. Phase 1~4 이력은 [`docs/roadmap.md`](./docs/roadmap.md)
 
 새 문서를 추가하면 `docs/README.md` 인덱스와 이 라우팅 목록도 함께 갱신한다.

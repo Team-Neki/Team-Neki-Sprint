@@ -8,6 +8,7 @@
 
 | 날짜 | 세션 | 상태 |
 |---|---|---|
+| 2026-09-25 | 위키 편집 화면 사용성 개선(BACKEND-144~149, worktree 5-스트림 병렬): (1) **툴바 활성 상태 미갱신** — Tiptap 3.x `useEditor` 기본값이 트랜잭션에 리렌더하지 않아 굵게/표/색상 표시가 커서와 어긋나던 것 `shouldRerenderOnTransaction: true` 로 해결(공지 에디터 동일) + `WikiDetail` `key={page.id}` 로 페이지 전환 시 편집 모드 잔존 차단, (2) 편집 진입 시 본문 폭 3xl→5xl 리플로우 제거, (3) **저장/임시저장 안전장치** — 첫 자동 임시저장 뒤 '불러왔습니다' 배너 오표시, 커밋과 임시저장 경합으로 생기던 유령 draft(세대 카운터), 취소/원본으로 확인 다이얼로그, `updateWikiContent` `expectedUpdatedAt` 낙관적 충돌 감지, 저장 후 `useTransition` 으로 이전 본문 깜빡임 제거, 모바일 상태 텍스트 노출, (4) 링크 인풋 `type=url`→`text`+`normalizeHref`(+vitest 4), (5) **파일 첨부 확장** — 비이미지 파일 드롭 시 브라우저가 파일을 열며 페이지 이탈하던 버그(`handleDrop` false 반환) 해결, 드롭/붙여넣기/슬래시(`/이미지`·`/파일`)/다중 선택, 헬퍼를 `wiki/upload.ts` 로 분리, 칩 편집 모드 클릭 차단+선택 외곽선, (6) prod 인그레스는 Traefik IngressRoute(본문 상한 없음) 확인. 완료 판정은 신설 `docs/oracle/` 오라클(auto 통과, manual 은 배포 후 확인) | `DONE`\* |
 | 2026-08-02 | README 현행화(BACKEND-69): 초기 커밋(2026-07-08) 이후 321커밋 동안 방치돼 계층·상태·추정 단위·배포 절차가 전부 옛 사실이던 루트 `README.md` 정리. 존재하지 않는 `k8s/` 를 apply 하라던 배포 절 → GitOps+ArgoCD+수동 트리거로 교체, 누락 기능(MCP·GitHub·공지/알림/멘션·라벨·위키 리치·OG·테스트) 반영, `docs/README.md` MCP 패키지명 오기 수정 | `DONE` |
 | 2026-08-01 | 엔티티 4화면 UX 정합성(BACKEND-47/48/49/50/53): 같은 계층·같은 역할인데 화면마다 조작이 갈리던 부채 정리. (1) **스프린트 상세 규격 이관** — 2단 grid·인라인 편집(`name`/`endDate`/`SprintStatus` 필드 차이는 prop 으로 흡수)·`updateSprintFields`(diff+`field_changed` 로깅)·업무 히스토리 노출(로그는 쌓이는데 화면이 없었음)·`@detail` 슬라이드 상세·설명 카드 상시 렌더, (2) **상세 정합성** — 댓글/히스토리를 공용 `CommentsHistoryTabs` 탭으로 통일(태스크 탭 vs 에픽·프로젝트 카드나열 vs 스프린트 누락), 프로젝트 상세 라벨 행 추가(`getProject` 가 자기 labels 미포함이라 목록에서 단 라벨이 상세에서 사라져 보였음), 태스크 상세 grid `min-w-0` 누락 보정, 뒤로가기·삭제 후 이동 `/board`→`/tasks`, (3) **목록/표 정합성** — 정렬 헤더를 에픽·태스크·스프린트로 확대(`parseListSort`+`listSortOrderBy` 공용화, +vitest 4), 스프린트만 쓰던 `EmptyState` 분기 제거(표 유지 규칙으로), MD 컬럼 표기 통일 + 프로젝트 표 MD 롤업 추가, 스프린트 표 열기 아이콘, (4) **필터 바 y축 정렬**(필터 중첩 래퍼의 `mb-4` 가 flex 높이를 부풀려 상태 칩만 8px 처졌음 → 공용 `FilterBar`), (5) **인라인 셀렉트 낙관적 표시**. 규격은 [design-system.md](./design-system.md#엔티티-목록상세-화면-규격)에 명문화 | `DONE`\* |
 | 2026-08-01 | 모바일 위키 인라인 댓글 위치 버그(BACKEND-54): 앵커를 탭해도 카드가 **페이지 최하단** 스택 목록에 떠서 확인 불가(+ `WikiPageComments` 와 "댓글 N" 섹션 중복). 하단 스택 제거 후 **앵커 bottom 바로 아래 팝오버**(`absolute inset-x-0`, `max-h-[55dvh] overflow-y-auto`)로 전환. 닫기=바깥탭/Esc/X(`CommentThreadCard` 선택적 `onClose`)/재탭 토글. 곁다리로 컴포저 `left` 클램프가 모바일에서도 데스크톱 거터(296px)를 빼 ~320px 폭에서 화면 밖으로 나가던 것 수정 | `DONE` |
@@ -45,6 +46,19 @@
 \*\* 빌드된 standalone 서버를 실제로 띄워 `og:image`·`robots.txt`·PNG 응답까지 실증. prod 반영은 배포 후 재확인 필요.
 
 ---
+
+## 2026-09-25 — 위키 편집 화면 사용성 개선 (브랜치 `koosco/wiki-editor-usability`, BACKEND-144~149)
+
+진단(툴바·저장 흐름·파일 첨부)에서 확정한 버그 5건과 파일 첨부 경로 확장을 한 번에 처리했습니다. 작업 DAG·영역 배정은 [계획](./superpowers/plans/2026-09-25-wiki-editor-usability.md), 완료 판정은 [오라클](./oracle/wiki-editor-usability.md)에 있습니다. 다섯 스트림(A/B/C/D/F)이 모두 `editor.tsx` 를 만지므로 줄 영역을 배정해 worktree 병렬로 진행하고 A→B→D→C→F 순으로 병합했습니다. 충돌은 C 병합 시 import 1줄과 루트 div 1곳뿐이었습니다.
+
+- **툴바 활성 상태(BACKEND-144)**: Tiptap 3.28 `useEditor` 는 `shouldRerenderOnTransaction` 미지정 시 셀렉터가 `null` 을 돌려 리렌더하지 않는다(`@tiptap/react/dist/index.js` 512행). 툴바·버블이 render 중 `editor.isActive()` 를 읽으므로 선택만 바뀌면 갱신되지 않았고, 임시저장이 1.2초 뒤 리렌더를 우연히 일으켜 "가끔 맞는" 것처럼 보였다. 옵션 한 줄로 해결(공지 에디터 동일). `WikiDetail` 에 `key` 가 없어 `/wiki/a→/wiki/b` 이동 시 `mode` 가 남을 수 있어 `key={page.id}` 추가.
+- **본문 폭(BACKEND-145)**: 읽기 뷰·헤더·하단 댓글은 `max-w-5xl`, 에디터만 `3xl`. 댓글 거터(296px)가 5xl 컨테이너 기준이라 에디터를 5xl 로 맞췄다. 툴바 `sticky top-14` 와 헤더 실측 높이(약 49px) 불일치는 실측 전이라 미변경(오라클 O-B-3 수동).
+- **저장/임시저장(BACKEND-146)**: `usingDraft` 가 "서버에 draft 있음" 과 "진입 시 불러옴" 두 뜻으로 쓰여 첫 자동 임시저장 뒤 배너가 떴다 → `showDraftBanner` 분리. 커밋이 draft 를 지운 뒤 in-flight 임시저장 응답이 다시 만들던 경합 → `draftGenRef` 세대 카운터(커밋·취소·되돌리기 모두 증가, 늦은 응답은 `discardWikiDraft` 로 정리). 취소/원본으로는 `ConfirmDelete` 재사용(`confirmLabel`/`successMessage` prop 추가). `updateWikiContent(id, title, content, expectedUpdatedAt?)` 가 `saveWikiCommentAnchors` 와 같은 `updatedAt` 비교로 `{ conflict: true }` 를 돌려주고 클라이언트는 편집 모드·draft 를 유지한다(`updateWikiContentCore` 는 그대로 — MCP 경로 무영향). 저장 후 `router.refresh()` 를 `useTransition` 안에서 호출하고 완료까지 편집 모드를 유지해 이전 본문 깜빡임을 없앴다. 헤더 상태 텍스트 `hidden sm:inline` 제거.
+- **링크 입력(BACKEND-147)**: `type="url"` 이 `example.com` 을 네이티브 검증으로 막아 무반응이었다. `type="text"` + 순수 `normalizeHref`(스킴 없으면 `https://`, `#`/`/`/`//`/스킴 있는 값 유지, `javascript:`/`data:`/`vbscript:` 거부). 버블 링크 모드 Esc 복귀.
+- **파일 첨부(BACKEND-148)**: `handleDrop` 이 비이미지 파일에 `false` 를 돌려주면 ProseMirror 도 `preventDefault` 를 하지 않아 브라우저가 파일을 열며 페이지를 이탈했다(코드 추론, 브라우저 미재현). 업로드 헬퍼를 `wiki/upload.ts` 로 옮기고 `uploadAndInsertAny` 가 이미지/그 외를 나눠 각각 이미지 노드·`fileAttachment` 칩으로 삽입(placeholder 추적 공유, 문구 인자화). 파일이 하나라도 있으면 `true` 반환. 슬래시 `/이미지`·`/파일`, `pickFiles` 공용 선택기(취소는 `input` `cancel` 이벤트 — 포커스 휴리스틱은 선택 유실 가능성이 있어 교체, 일부 Safari 대응으로 input 을 document 에 붙였다 뗌), 다중 선택, 칩 편집 모드 클릭 시 다운로드 차단 + 선택 외곽선.
+- **인그레스(BACKEND-149)**: GitOps `sprint-ingressroute-https.yaml` 은 Traefik `IngressRoute` 에 미들웨어 없음 → 본문 크기 제한 없음. 변경 불필요.
+- **검증**: main 체크아웃에서 tsc 0 · eslint 0 · vitest 236(baseline 230, +6) · `next build` OK. NUL/바이너리 스캔 0. **브라우저 실검증은 로그인 게이트라 미수행** — 오라클 manual 항목(O-A-3~5, O-B-2~3, O-C-5~10, O-D-4~5, O-F-6~11, O-J-2)은 배포 후 확인. 특히 `pickFiles` 취소 동작과 드롭 이탈 재현은 실기기 확인 필요.
+- **절차 메모**: 이 체크아웃엔 `node_modules` 가 없었다(`npm install` 선행). 완료 판정 오라클 문서 위치를 `docs/oracle/` 로 신설하고 `docs/README.md`·`CLAUDE.md` 라우팅에 추가.
 
 ## 2026-08-02 — README 현행화 (BACKEND-69)
 
