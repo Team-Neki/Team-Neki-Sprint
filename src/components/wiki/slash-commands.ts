@@ -96,6 +96,18 @@ export const SLASH_COMMANDS: SlashCommandMeta[] = [
     subtitle: "가로 구분선",
     aliases: ["divider", "hr", "구분선", "선"],
   },
+  {
+    key: "image",
+    title: "이미지",
+    subtitle: "이미지 파일 첨부",
+    aliases: ["image", "img", "이미지", "사진"],
+  },
+  {
+    key: "file",
+    title: "파일",
+    subtitle: "파일 첨부(다운로드 칩)",
+    aliases: ["file", "attach", "파일", "첨부"],
+  },
 ];
 
 /**

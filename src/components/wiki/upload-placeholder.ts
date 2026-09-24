@@ -19,7 +19,7 @@ import { Decoration, DecorationSet } from "@tiptap/pm/view";
  */
 
 type PlaceholderAction =
-  | { add: { id: object; pos: number } }
+  | { add: { id: object; pos: number; label: string } }
   | { remove: { id: object } };
 
 const uploadPlaceholderKey = new PluginKey<DecorationSet>(
@@ -28,10 +28,11 @@ const uploadPlaceholderKey = new PluginKey<DecorationSet>(
 
 // 위젯 DOM 은 렌더 시점에 생성한다(함수형 위젯) — 플러그인 상태 로직이 DOM 에
 // 의존하지 않아 Node 환경 단위 테스트가 가능하다. 스타일은 globals.css 참고.
-function placeholderWidget(): HTMLElement {
+// 문구는 호출자가 정한다(이미지/파일 업로드가 같은 위젯을 공유).
+function placeholderWidget(label: string): HTMLElement {
   const el = document.createElement("span");
   el.className = "wiki-image-uploading";
-  el.textContent = "이미지 업로드 중…";
+  el.textContent = label;
   return el;
 }
 
@@ -49,9 +50,11 @@ export function uploadPlaceholderPlugin(): Plugin<DecorationSet> {
           | undefined;
         if (action && "add" in action) {
           next = next.add(tr.doc, [
-            Decoration.widget(action.add.pos, placeholderWidget, {
-              id: action.add.id,
-            }),
+            Decoration.widget(
+              action.add.pos,
+              () => placeholderWidget(action.add.label),
+              { id: action.add.id, label: action.add.label },
+            ),
           ]);
         } else if (action && "remove" in action) {
           next = next.remove(
@@ -88,8 +91,11 @@ export function addUploadPlaceholder(
   view: Dispatcher,
   id: object,
   pos: number,
+  label = "이미지 업로드 중…",
 ) {
-  view.dispatch(view.state.tr.setMeta(uploadPlaceholderKey, { add: { id, pos } }));
+  view.dispatch(
+    view.state.tr.setMeta(uploadPlaceholderKey, { add: { id, pos, label } }),
+  );
 }
 
 export function removeUploadPlaceholder(view: Dispatcher, id: object) {

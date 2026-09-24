@@ -67,12 +67,13 @@ import {
   saveWikiDraft,
   discardWikiDraft,
 } from "@/server/actions/wiki";
+import { UploadPlaceholder } from "@/components/wiki/upload-placeholder";
 import {
-  UploadPlaceholder,
-  addUploadPlaceholder,
-  findUploadPlaceholder,
-  removeUploadPlaceholder,
-} from "@/components/wiki/upload-placeholder";
+  htmlHasText,
+  pickFiles,
+  uploadAndInsertAny,
+  uploadAndInsertImages,
+} from "@/components/wiki/upload";
 import {
   TEXT_COLORS,
   BG_COLORS,
@@ -81,104 +82,6 @@ import {
 } from "@/components/wiki/colors";
 // 노션식 줄(블록) 핸들 — 선택/드래그 이동/블록 메뉴. 편집 모드 전용.
 import { BlockHandle } from "@/components/wiki/block-handle";
-
-/** 이미지 파일을 업로드하고 서빙 URL 을 반환. 실패 시 토스트 + null(본문 이미지 첨부). */
-async function uploadImage(file: File): Promise<string | null> {
-  const fd = new FormData();
-  fd.append("file", file);
-  try {
-    const res = await fetch("/api/wiki/upload", { method: "POST", body: fd });
-    if (!res.ok) {
-      const err = (await res.json().catch(() => null)) as {
-        error?: string;
-      } | null;
-      toast.error(err?.error ?? "이미지 업로드에 실패했습니다");
-      return null;
-    }
-    const { url } = (await res.json()) as { url: string };
-    return url;
-  } catch {
-    toast.error("이미지 업로드에 실패했습니다");
-    return null;
-  }
-}
-
-/** 첨부파일 업로드 결과(서버 응답 메타). fileAttachment 노드 attrs 로 그대로 매핑된다. */
-type UploadedFile = {
-  id: string;
-  url: string;
-  name: string;
-  size: number;
-  mimeType: string;
-};
-
-/** 임의 파일을 업로드하고 메타를 반환. 실패 시 토스트 + null(본문 파일 첨부). */
-async function uploadFile(file: File): Promise<UploadedFile | null> {
-  const fd = new FormData();
-  fd.append("file", file);
-  try {
-    const res = await fetch("/api/wiki/file", { method: "POST", body: fd });
-    if (!res.ok) {
-      const err = (await res.json().catch(() => null)) as {
-        error?: string;
-      } | null;
-      toast.error(err?.error ?? "파일 업로드에 실패했습니다");
-      return null;
-    }
-    return (await res.json()) as UploadedFile;
-  } catch {
-    toast.error("파일 업로드에 실패했습니다");
-    return null;
-  }
-}
-
-/** FileList 에서 이미지 파일만 추출. */
-function imageFilesFrom(files: FileList | null | undefined): File[] {
-  return Array.from(files ?? []).filter((f) => f.type.startsWith("image/"));
-}
-
-/** 클립보드 HTML 에 이미지 외 실질 텍스트 콘텐츠가 있는지. */
-function htmlHasText(html: string): boolean {
-  if (!html) return false;
-  const doc = new DOMParser().parseFromString(html, "text/html");
-  return (doc.body.textContent ?? "").trim().length > 0;
-}
-
-/**
- * 이미지 파일들을 병렬 업로드하고, 성공분만 원래 순서대로 본문에 삽입.
- * dropPos 가 있으면 그 위치(드롭 좌표)에, 없으면 현재 커서에 삽입한다.
- *
- * 업로드 동안 사용자가 계속 타이핑/편집할 수 있으므로 완료 시점의 selection/
- * 좌표를 쓰면 원래 붙여넣기·드롭한 위치를 벗어난다. 호출 시점에 placeholder
- * 위젯을 먼저 넣고 ProseMirror mapping 으로 추적한 뒤(upload-placeholder.ts),
- * 완료 시 그 위치에 삽입한다. 업로드 중 사용자가 placeholder 자리를 지우면
- * 삽입도 취소한다(위젯이 사라지는 것이 보이므로 의도된 취소로 간주).
- */
-async function uploadAndInsertImages(
-  editor: Editor | null,
-  files: File[],
-  dropPos?: number,
-) {
-  if (!editor || editor.isDestroyed || files.length === 0) return;
-  const id = {};
-  if (dropPos == null) {
-    // 붙여넣기·툴바 첨부: 기존 insertContent 동작과 같이 선택 영역을 대체한다.
-    editor.chain().focus().deleteSelection().run();
-  }
-  addUploadPlaceholder(editor.view, id, dropPos ?? editor.state.selection.from);
-  try {
-    const urls = (await Promise.all(files.map((f) => uploadImage(f)))).filter(
-      (u): u is string => u !== null,
-    );
-    if (editor.isDestroyed || urls.length === 0) return;
-    const pos = findUploadPlaceholder(editor.state, id);
-    if (pos == null) return;
-    const nodes = urls.map((src) => ({ type: "image", attrs: { src } }));
-    editor.chain().insertContentAt(pos, nodes).run();
-  } finally {
-    if (!editor.isDestroyed) removeUploadPlaceholder(editor.view, id);
-  }
-}
 
 /** 저장/취소 버튼을 헤더(WikiDetail)에서 호출할 수 있도록 노출하는 핸들. */
 export type WikiEditorHandle = {
@@ -241,34 +144,37 @@ export const WikiEditor = forwardRef<WikiEditorHandle, WikiEditorProps>(
       content: draft?.content ?? initialContent,
       editorProps: {
         attributes: { class: "tiptap focus:outline-none" },
-        // 이미지 붙여넣기. ProseMirror 기본 paste 보다 먼저 실행되는 handlePaste 로
+        // 파일 붙여넣기. ProseMirror 기본 paste 보다 먼저 실행되는 handlePaste 로
         // 가로챈다 — DOM paste 리스너는 PM 기본 처리 이후에 실행돼 HTML+파일 혼합
         // 클립보드(브라우저 '이미지 복사' 등)에서 핫링크+업로드본이 이중 삽입된다.
         // 업로드 성공 URL 만 삽입(base64 금지).
-        // - 이미지 파일만(스크린샷·Finder 파일 복사·'이미지 복사'): 업로드 후 삽입,
-        //   여러 장이면 순서 유지. Finder 가 넣는 파일명 text/plain 은 무시.
+        // - 파일만(스크린샷·Finder 파일 복사·'이미지 복사'): 업로드 후 삽입 —
+        //   이미지는 image 노드, 그 외는 fileAttachment 칩(upload.ts). 여러 개면
+        //   순서 유지. Finder 가 넣는 파일명 text/plain 은 무시.
         // - HTML 에 텍스트가 함께 있으면(웹페이지 선택 복사·엑셀 표 등): 기본
         //   붙여넣기로 텍스트를 보존하고, 파일로 중복 동봉된 이미지는 HTML 쪽이
         //   정본이므로 업로드하지 않는다.
         handlePaste: (_view, event) => {
-          const files = imageFilesFrom(event.clipboardData?.files);
+          const files = Array.from(event.clipboardData?.files ?? []);
           if (files.length === 0) return false;
           const html = event.clipboardData?.getData("text/html") ?? "";
           if (htmlHasText(html)) return false;
-          void uploadAndInsertImages(editorRef.current, files);
+          void uploadAndInsertAny(editorRef.current, files);
           return true;
         },
-        // 이미지 파일 드롭 → 드롭 좌표에 순서대로 삽입. moved(에디터 내 노드 이동)는
-        // 기본 처리에 맡긴다.
+        // 파일 드롭 → 드롭 좌표에 순서대로 삽입(이미지/그 외 분기는 upload.ts).
+        // moved(에디터 내 노드 이동)는 기본 처리에 맡긴다. 파일이 하나라도 있으면
+        // 종류와 무관하게 true 를 돌려 브라우저 기본 동작(드롭한 PDF 등을 열며
+        // 페이지 이탈)을 막는다.
         handleDrop: (view, event, _slice, moved) => {
           if (moved) return false;
-          const files = imageFilesFrom(event.dataTransfer?.files);
+          const files = Array.from(event.dataTransfer?.files ?? []);
           if (files.length === 0) return false;
           const pos = view.posAtCoords({
             left: event.clientX,
             top: event.clientY,
           })?.pos;
-          void uploadAndInsertImages(editorRef.current, files, pos);
+          void uploadAndInsertAny(editorRef.current, files, pos);
           return true;
         },
       },
@@ -1169,18 +1075,18 @@ function ColorButton({ editor }: { editor: Editor }) {
   );
 }
 
-/** 이미지 첨부 버튼: 파일 선택(여러 장 가능) → 업로드 → 순서대로 본문에 삽입.
- * 붙여넣기/드롭은 editorProps handlePaste/handleDrop 에서 처리. */
+/** 이미지 첨부 버튼: 파일 선택(여러 장 가능, pickFiles) → 업로드 → 순서대로 본문에
+ * 삽입. 붙여넣기/드롭은 editorProps handlePaste/handleDrop 에서 처리. */
 function ImageButton({ editor }: { editor: Editor }) {
-  const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
 
-  async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = imageFilesFrom(e.target.files);
-    e.target.value = ""; // 같은 파일 재선택 허용
-    if (files.length === 0) return;
+  async function onPick() {
     setBusy(true);
     try {
+      const files = await pickFiles({
+        accept: "image/png,image/jpeg,image/gif,image/webp",
+        multiple: true,
+      });
       await uploadAndInsertImages(editor, files);
     } finally {
       setBusy(false);
@@ -1188,74 +1094,31 @@ function ImageButton({ editor }: { editor: Editor }) {
   }
 
   return (
-    <>
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/png,image/jpeg,image/gif,image/webp"
-        multiple
-        className="hidden"
-        onChange={onPick}
-      />
-      <Btn
-        label="이미지 첨부"
-        onClick={() => inputRef.current?.click()}
-        active={busy}
-      >
-        <ImageIcon className="size-4" />
-      </Btn>
-    </>
+    <Btn label="이미지 첨부" onClick={onPick} active={busy}>
+      <ImageIcon className="size-4" />
+    </Btn>
   );
 }
 
-/** 파일 첨부 버튼: 파일 선택 → 업로드 → fileAttachment 노드(다운로드 칩)로 삽입.
- * 이미지 첨부(ImageButton)와 동형이지만 임의 파일을 다루고 인라인 렌더 없이 칩만 넣는다. */
+/** 파일 첨부 버튼: 파일 선택(여러 개 가능) → 업로드 → 이미지는 image 노드, 그 외는
+ * fileAttachment 노드(다운로드 칩)로 삽입(upload.ts uploadAndInsertAny). */
 function FileAttachButton({ editor }: { editor: Editor }) {
-  const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
 
-  async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = ""; // 같은 파일 재선택 허용
-    if (!file) return;
+  async function onPick() {
     setBusy(true);
     try {
-      const uploaded = await uploadFile(file);
-      if (!uploaded || editor.isDestroyed) return;
-      editor
-        .chain()
-        .focus()
-        .insertContent({
-          type: "fileAttachment",
-          attrs: {
-            id: uploaded.id,
-            name: uploaded.name,
-            size: uploaded.size,
-            mime: uploaded.mimeType,
-          },
-        })
-        .run();
+      const files = await pickFiles({ multiple: true });
+      await uploadAndInsertAny(editor, files);
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <>
-      <input
-        ref={inputRef}
-        type="file"
-        className="hidden"
-        onChange={onPick}
-      />
-      <Btn
-        label="파일 첨부"
-        onClick={() => inputRef.current?.click()}
-        active={busy}
-      >
-        <Paperclip className="size-4" />
-      </Btn>
-    </>
+    <Btn label="파일 첨부" onClick={onPick} active={busy}>
+      <Paperclip className="size-4" />
+    </Btn>
   );
 }
 
