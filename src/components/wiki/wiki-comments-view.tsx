@@ -445,12 +445,15 @@ export function WikiCommentsView({
       {/* 선택 시 플로팅 버튼/컴포저 */}
       {composer && (
         <div
-          className="absolute z-30"
+          // 래퍼 자체를 선택 위로 올린다. 자식만 translate 하면 래퍼의 히트박스가
+          // 선택한 단어 위에 남아 onMouseDown preventDefault 가 세 번째 클릭을
+          // 삼킨다(단어 트리플클릭 줄 선택이 안 되던 원인).
+          className="absolute z-30 -translate-y-full"
           style={{ top: composer.top, left: composer.left }}
           onMouseDown={(e) => e.preventDefault()}
         >
           {composing ? (
-            <div className="bg-popover w-64 -translate-y-full rounded-lg border p-2 shadow-md">
+            <div className="bg-popover w-64 rounded-lg border p-2 shadow-md">
               <div className="text-muted-foreground mb-1.5 line-clamp-2 border-l-2 border-amber-400 pl-2 text-xs italic">
                 “{composer.quote}”
               </div>
@@ -490,7 +493,7 @@ export function WikiCommentsView({
             <Button
               size="sm"
               variant="secondary"
-              className="h-7 -translate-y-full gap-1 px-2 text-xs shadow-md"
+              className="h-7 gap-1 px-2 text-xs shadow-md"
               onClick={() => setComposing(true)}
             >
               <MessageSquarePlus className="size-3.5" /> 댓글

@@ -312,3 +312,11 @@ tiptap v3 패키지들은 peer 로 `@tiptap/core@정확버전`(캐럿 아님)을
 - 링크 미리보기 봇(**카카오톡 `kakaotalk-scrap`**, 슬랙 `Slackbot-LinkExpanding`, `facebookexternalhit`, `Twitterbot` 등)도 **robots.txt 를 따른다.** `User-agent: *` 에 `Disallow: /` 를 걸면 검색엔진과 함께 **OG 미리보기가 통째로 죽는다** — §36·§37 로 고친 게 도로 무의미해진다.
 - 게다가 `Disallow` 는 색인 차단 수단으로도 부정확하다. 크롤러가 페이지를 **못 읽으니 `noindex` 메타도 못 본다** → URL 만 알맹이 없이 검색결과에 남을 수 있다.
 - **정답**: 색인 차단은 `layout.tsx` 의 `robots: { index: false, follow: false }`(=`<meta name="robots" content="noindex, nofollow">`)로. `app/robots.ts` 는 미리보기 봇만 `allow: "/"` 로 열고 나머지에 `disallow: "/"`. robots.txt 는 **가장 구체적으로 매칭되는 그룹 하나만** 적용되므로 이 조합이 의도대로 동작한다.
+
+## 39. 오버레이는 자식이 아니라 래퍼를 `translate` 해야 히트박스가 같이 움직인다 (2026-09-25)
+
+- **증상**: 위키 읽기 뷰에서 공백 트리플클릭은 줄이 선택되는데 단어 트리플클릭은 더블클릭의 단어 선택에 머물렀다. `handleTripleClick`(`line-selection.ts`) 자체는 정상 — 세 번째 `mousedown` 이 에디터에 도달하지 않은 것이 원인.
+- **원인**: 단어 더블클릭 → 선택이 생겨 `WikiCommentsView.onMouseUp` 이 '댓글' 플로팅 버튼을 선택 좌상단(`top: rect.top`)에 띄운다. 버튼만 `-translate-y-full` 로 위로 올렸고 **래퍼 `div`(`absolute z-30`)의 박스는 선택한 단어 위에 그대로** 남아, 래퍼의 `onMouseDown={preventDefault}` 가 세 번째 클릭을 삼켰다. 공백은 더블클릭해도 선택이 비어 버튼이 안 뜨니 멀쩡했다 — 그래서 단어/공백이 갈렸다.
+- **해결**: `translate` 를 래퍼로 옮긴다(자식 둘의 `-translate-y-full` 제거). 시각 위치와 히트박스가 일치.
+- **일반화**: 겹쳐 그리는 요소에서 위치 이동을 자식 `transform` 으로 하면 **부모의 히트박스는 원래 자리에 남는다.** 투명 래퍼라도 포인터 이벤트를 받는다. 이동은 실제로 이벤트를 막는 요소(래퍼)에 걸거나 래퍼에 `pointer-events-none` 을 준다.
+- **재현법(로그인 없이)**: 앱 화면은 Google OAuth 뒤라 못 열지만, esbuild 로 `WikiCommentsView` 를 서버 액션·`next/navigation` 스텁과 함께 번들하고 dev 서버의 컴파일된 `layout.css` 를 얹은 정적 페이지를 Playwright(`channel: "chrome"`)로 열어 `mouse.down/up({clickCount: n})` 3회 후 `document.elementFromPoint` 와 `getSelection()` 을 읽으면 그대로 재현된다. **CSS 없이 번들하면 재현되지 않으니**(래퍼가 `absolute` 가 아니게 됨) 실제 CSS 를 반드시 얹을 것.
