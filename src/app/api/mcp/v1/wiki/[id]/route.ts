@@ -22,6 +22,8 @@ export const GET = withMcpAuth(async (_actor, _req, ctx) => {
   return ok({
     id: page.id,
     title: page.title,
+    folderId: page.folderId,
+    parentId: page.parentId,
     text: docToPlainText(page.content as JSONContent),
     content: page.content,
     updatedAt: page.updatedAt,

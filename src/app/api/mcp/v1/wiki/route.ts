@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { withMcpAuth, ok, parseLimit } from "@/server/api/mcp-auth";
+import { withMcpAuth, ok, fail, parseLimit } from "@/server/api/mcp-auth";
 import { createWikiPageCore, updateWikiContentCore } from "@/server/actions/wiki";
-import { searchWikiPages } from "@/server/queries";
+import { getWikiFolders, searchWikiPages } from "@/server/queries";
 import { markdownToDoc } from "@/lib/text-to-doc";
 import { tiptapDocSchema } from "@/lib/tiptap-doc";
 
@@ -17,6 +17,12 @@ const createInput = z.object({
 
 export const POST = withMcpAuth(async (actor, req) => {
   const input = createInput.parse(await req.json());
+  if (input.folderId) {
+    const folders = await getWikiFolders();
+    if (!folders.some((folder) => folder.id === input.folderId)) {
+      return fail(`wiki folder not found: ${input.folderId}`, 404);
+    }
+  }
   const created = await createWikiPageCore(actor, {
     title: input.title,
     parentId: input.parentId ?? null,

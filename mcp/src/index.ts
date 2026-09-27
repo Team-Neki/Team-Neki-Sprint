@@ -14,7 +14,7 @@ import { registerLookupTools } from "./tools/lookups.js";
 async function main() {
   const cfg = loadConfig();
   const client = new SprintClient(cfg);
-  const server = new McpServer({ name: "sprint-mcp", version: "0.2.0" });
+  const server = new McpServer({ name: "sprint-mcp", version: "0.2.1" });
 
   registerTicketTools(server, client, cfg);
   registerEpicTools(server, client, cfg);
