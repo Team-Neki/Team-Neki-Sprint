@@ -10,13 +10,27 @@ export function registerWikiTools(
   cfg: Config,
 ) {
   server.registerTool(
+    "list_wiki_folders",
+    {
+      description:
+        "List all wiki folders (id, name, parentId, position). Resolve the requested path through parentId before passing folderId to create_wiki_page. Do not guess when a path is missing or ambiguous.",
+      inputSchema: {},
+    },
+    async () => {
+      const data = await client.get("/api/mcp/v1/wiki/folders");
+      return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+    },
+  );
+
+  server.registerTool(
     "create_wiki_page",
     {
       description:
-        "Create a wiki page. 'body' is markdown (headings, lists, code, bold/italic/links). Optional parentId/folderId to nest.",
+        "Create a wiki page. 'body' is markdown; use contentJson (Tiptap doc) to preserve tables and rich content (takes precedence over body). Resolve folderId with list_wiki_folders. Optional parentId/folderId to nest.",
       inputSchema: {
         title: z.string(),
         body: z.string().nullish(),
+        contentJson: z.object({ type: z.literal("doc"), content: z.array(z.unknown()).optional() }).passthrough().nullish(),
         parentId: z.string().nullish(),
         folderId: z.string().nullish(),
       },
@@ -38,11 +52,12 @@ export function registerWikiTools(
     "update_wiki_page",
     {
       description:
-        "Update a wiki page's title and/or body (markdown). Body replaces the page content.",
+        "Update a wiki page's title and/or body (markdown) or contentJson (Tiptap doc, takes precedence). Content replaces the page body.",
       inputSchema: {
         id: z.string(),
         title: z.string().nullish(),
         body: z.string().nullish(),
+        contentJson: z.object({ type: z.literal("doc"), content: z.array(z.unknown()).optional() }).passthrough().nullish(),
       },
     },
     async ({ id, ...patch }) => {
@@ -64,7 +79,7 @@ export function registerWikiTools(
   server.registerTool(
     "get_wiki_page",
     {
-      description: "Get a wiki page by id (returns plain text + Tiptap JSON).",
+      description: "Get a wiki page by id (returns plain text, Tiptap JSON, folderId and parentId).",
       inputSchema: { id: z.string() },
     },
     async ({ id }) => {

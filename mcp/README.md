@@ -20,9 +20,10 @@ Claude Code / Claude Desktop / Cursor 등 MCP 클라이언트에서 Sprint 트�
 | `list_projects` / `get_project` | 프로젝트 목록/상세(하위 에픽·MD 롤업 포함) |
 | `list_sprints` / `get_sprint` | 스프린트 목록/상세(하위 프로젝트 포함) |
 | `add_comment` | task/epic/project/sprint 에 댓글 추가(`body`=마크다운) |
-| `create_wiki_page` | 위키 페이지 생성. `body`=마크다운(제목·목록·코드·굵게/기울임/링크) |
-| `update_wiki_page` | 위키 제목/본문 수정(본문은 교체) |
-| `get_wiki_page` | 위키 조회(순수 텍스트 + Tiptap JSON) |
+| `list_wiki_folders` | 전체 위키 폴더의 id/name/parentId/position 조회. 부모 계층으로 지정 경로 확인 |
+| `create_wiki_page` | 위키 페이지 생성. `body`=마크다운. 표·서식 보존은 `contentJson`=Tiptap doc 사용 |
+| `update_wiki_page` | 위키 제목/본문 수정(본문은 교체). `contentJson`이 `body`보다 우선 |
+| `get_wiki_page` | 위키 조회(순수 텍스트 + Tiptap JSON + folderId/parentId) |
 | `search_wiki_pages` | 제목으로 위키 검색 |
 | `list_teams` / `list_members` / `list_epics` | id 해석용 조회 보조 |
 
@@ -103,3 +104,12 @@ npm run build   # dist/ 로 컴파일
 - 토큰은 앱 DB에 sha-256 해시로만 저장되고 원문은 저장되지 않는다.
 - 토큰은 발급 유저 스코프이며 언제든 폐기 가능하다.
 - 엔드포인트는 세션 쿠키가 아니라 Bearer 토큰으로만 인증한다.
+
+## 위키 폴더에 문서 저장 (0.2.1+)
+
+1. `list_wiki_folders`로 전체 폴더 목록을 조회한다.
+2. 이름과 `parentId`를 따라 `기획/사용자 행동 지표 싱크`처럼 요청받은 경로를 확인한다. 같은 이름이 다른 부모 아래 있을 수 있으므로 이름만 보고 첫 항목을 선택하지 않는다. 경로가 없거나 모호하면 사용자에게 확인한다.
+3. 확인한 ID를 `create_wiki_page.folderId`에 전달한다. 표가 있는 문서는 `contentJson`에 Tiptap doc을 전달한다. `body`와 함께 주면 `contentJson`이 우선한다.
+4. `get_wiki_page`의 `folderId`와 본문으로 저장 위치와 내용을 확인한다.
+
+서버의 `GET /api/mcp/v1/wiki/folders` 배포가 필요하다. 이전 서버에서 404가 반환되면 루트 폴더에 대신 저장하지 않는다. npm 최신 패키지는 `npx -y @neki-team/sprint-mcp@latest`로 실행하며, 실행 중인 MCP 프로세스는 업데이트 후 재연결한다.
