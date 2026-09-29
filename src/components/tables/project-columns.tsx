@@ -14,6 +14,8 @@ import {
 } from "@/components/detail/inline-fields";
 import { ProjectLabels } from "@/components/detail/project-labels";
 import type { LabelItem } from "@/components/detail/entity-labels";
+import { TaskProgressCell } from "@/components/detail/task-progress";
+import type { TaskProgress } from "@/lib/task-progress";
 import { OpenDetailIcon } from "./open-detail";
 import type { ColumnDef, ColumnMeta } from "./column-registry";
 
@@ -30,8 +32,10 @@ export type ProjectTableRow = {
   startDate?: Date | null;
   dueDate?: Date | null;
   labels?: { label: { id: string; name: string; color: string } }[];
-  /** 하위 에픽→태스크 예상 MD 합. 목록(getProjects)에서만 계산 — 하위목록에선 생략(→ "—"). */
+  /** 하위 에픽→태스크 예상 MD 합. 목록(getProjects)과 스프린트 상세의 하위 표(getSprint) 모두 계산. */
   estimatedMd?: number;
+  /** 하위 에픽→태스크 상태별 개수(읽기전용 롤업, BACKEND-160). */
+  progress: TaskProgress;
   ownerId?: string | null;
 };
 
@@ -52,7 +56,7 @@ const fmt = (d: Date | null | undefined) =>
 /**
  * 프로젝트 표 컬럼 정의(F4). `EntityTable` 에 주입한다. 각 `cell` 은
  * `edit ? <Inline/> : <읽기전용/>`.
- * 컬럼: [제목] [담당자] [시작일] [종료일] [우선순위] [상태] [레이블] [열기]
+ * 컬럼: [제목] [담당자] [시작일] [종료일] [우선순위] [상태] [진행률] [레이블] [MD] [열기]
  * - `sortField` + 표 `sortable` 이면 헤더를 SortableHead 로 렌더(title/dueDate/priority/status).
  * - 시작일=startDate, 종료일=dueDate. (생성/수정시간 컬럼은 노출하지 않는다.)
  */
@@ -172,6 +176,17 @@ export const PROJECT_COLUMNS: ColumnDef<ProjectTableRow, ProjectEditContext>[] =
       ),
     },
     {
+      key: "progress",
+      label: "진행률",
+      headClassName: "w-32",
+      // 하위 에픽→태스크 완료/전체(읽기전용 롤업). 계산값이라 정렬하지 않는다.
+      cell: (p) => (
+        <TableCell>
+          <TaskProgressCell progress={p.progress} />
+        </TableCell>
+      ),
+    },
+    {
       key: "labels",
       label: "레이블",
       headClassName: "w-40",
@@ -209,8 +224,8 @@ export const PROJECT_COLUMNS: ColumnDef<ProjectTableRow, ProjectEditContext>[] =
       key: "md",
       label: "MD",
       headClassName: "w-20",
-      // 하위 에픽→태스크 예상 MD 합(읽기전용 롤업). 목록(getProjects)에서만 계산 —
-      // 하위목록(스프린트 상세)에선 생략(→ "—").
+      // 하위 에픽→태스크 예상 MD 합(읽기전용 롤업). 목록(getProjects)과
+      // 하위목록(스프린트 상세, getSprint) 모두 계산.
       cell: (p) => (
         <TableCell className="text-muted-foreground text-sm tabular-nums">
           {p.estimatedMd || "—"}
