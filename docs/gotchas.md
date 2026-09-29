@@ -320,3 +320,11 @@ tiptap v3 패키지들은 peer 로 `@tiptap/core@정확버전`(캐럿 아님)을
 - **해결**: `translate` 를 래퍼로 옮긴다(자식 둘의 `-translate-y-full` 제거). 시각 위치와 히트박스가 일치.
 - **일반화**: 겹쳐 그리는 요소에서 위치 이동을 자식 `transform` 으로 하면 **부모의 히트박스는 원래 자리에 남는다.** 투명 래퍼라도 포인터 이벤트를 받는다. 이동은 실제로 이벤트를 막는 요소(래퍼)에 걸거나 래퍼에 `pointer-events-none` 을 준다.
 - **재현법(로그인 없이)**: 앱 화면은 Google OAuth 뒤라 못 열지만, esbuild 로 `WikiCommentsView` 를 서버 액션·`next/navigation` 스텁과 함께 번들하고 dev 서버의 컴파일된 `layout.css` 를 얹은 정적 페이지를 Playwright(`channel: "chrome"`)로 열어 `mouse.down/up({clickCount: n})` 3회 후 `document.elementFromPoint` 와 `getSelection()` 을 읽으면 그대로 재현된다. **CSS 없이 번들하면 재현되지 않으니**(래퍼가 `absolute` 가 아니게 됨) 실제 CSS 를 반드시 얹을 것.
+
+## 40. `shouldRerenderOnTransaction` 에디터에 tiptap 메뉴 콜백을 인라인으로 넘기면 무한 루프 (2026-09-29)
+
+- **증상**: 위키 '수정'으로 편집 모드 진입까지는 정상인데, 본문을 클릭하는 순간 `Minified React error #185`(Maximum update depth exceeded)로 화면이 깨졌다. 스택은 tiptap `EventEmitter.emit` → 구독자 `Set.forEach` → React 업데이트. (BACKEND-159)
+- **원인**: #64(BACKEND-144)에서 툴바 상태를 위해 `useEditor({ shouldRerenderOnTransaction: true })` 를 켰다. `@tiptap/react/menus` 의 `BubbleMenu` 는 `shouldShow`·`options`·`appendTo`·`getReferencedVirtualElement` 등의 **참조가 바뀔 때마다 effect 에서 `updateOptions` 메타 트랜잭션을 dispatch** 한다. `shouldShow` 를 인라인 화살표로 넘기면 클릭(선택 트랜잭션) → 리렌더 → 새 함수 → dispatch → 리렌더 … 가 끝없이 돈다. 진입 직후엔 트랜잭션이 없어 멀쩡하고 첫 클릭에서 터지는 이유.
+- **해결**: `shouldShow` 를 모듈 스코프 함수(`showBubble`)로 올려 참조를 고정.
+- **규칙**: 트랜잭션마다 리렌더하는 에디터 아래의 tiptap React 컴포넌트(BubbleMenu·FloatingMenu·DragHandle 등)에 넘기는 함수/객체 prop 은 모듈 스코프나 `useCallback`/`useMemo` 로 고정한다. (`DragHandle` 의 `onNodeChange` 는 인라인이라 렌더마다 플러그인을 재등록하지만, `registerPlugin` 은 트랜잭션을 내지 않아 루프는 아니다.)
+- **재현법(로그인 없이)**: jsdom 을 레포 밖(스크래치)에 설치하고, vitest 임시 테스트에서 전역에 jsdom `window` 를 깔고(`Range.getClientRects`·`elementFromPoint`·`ResizeObserver` 스텁) `next/navigation`·서버 액션을 `vi.mock` 한 채 실제 `WikiEditor` 를 `createRoot` 로 마운트한다. `.ProseMirror` 요소의 `.editor` 로 `commands.setTextSelection(n)` 을 `act` 안에서 호출하면 수정 전엔 #185 가 그대로 난다.

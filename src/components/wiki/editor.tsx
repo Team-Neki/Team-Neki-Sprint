@@ -112,6 +112,16 @@ type WikiEditorProps = {
   onStateChange?: (state: WikiEditorState) => void;
 };
 
+/**
+ * 버블 툴바 표시 조건. 반드시 모듈 스코프(참조 고정)로 둔다 — BubbleMenu 는 shouldShow
+ * 참조가 바뀔 때마다 updateOptions 트랜잭션을 dispatch 하는데, 에디터가
+ * shouldRerenderOnTransaction 이라 인라인 함수면 트랜잭션→리렌더→새 함수→dispatch 가
+ * 무한 반복된다(본문 클릭 시 React #185, BACKEND-159).
+ */
+function showBubble({ editor, state }: { editor: Editor; state: Editor["state"] }) {
+  return !state.selection.empty && editor.isEditable && !editor.isActive("codeBlock");
+}
+
 export const WikiEditor = forwardRef<WikiEditorHandle, WikiEditorProps>(
   function WikiEditor(
     {
@@ -436,14 +446,7 @@ export const WikiEditor = forwardRef<WikiEditorHandle, WikiEditorProps>(
             <>
               {/* 텍스트 선택 시 뜨는 버블 툴바(굵게·기울임·취소선·인라인코드·링크·색상).
                   코드블록/빈 선택에선 숨김. */}
-              <BubbleMenu
-                editor={editor}
-                shouldShow={({ editor: ed, state }) =>
-                  !state.selection.empty &&
-                  ed.isEditable &&
-                  !ed.isActive("codeBlock")
-                }
-              >
+              <BubbleMenu editor={editor} shouldShow={showBubble}>
                 <BubbleToolbar editor={editor} />
               </BubbleMenu>
               <TableHoverControls
