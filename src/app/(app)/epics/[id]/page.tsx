@@ -24,6 +24,7 @@ import { SheetDeleteButton } from "@/components/detail/sheet-delete-button";
 import { BackButton } from "@/components/detail/back-button";
 import { CommentsHistoryTabs } from "@/components/detail/comments-history-tabs";
 import { MdRollupText } from "@/components/detail/md-rollup";
+import { TaskProgressSummary } from "@/components/detail/task-progress";
 import {
   MetaRow,
   InlineTitle,
@@ -111,6 +112,8 @@ export default async function EpicDetail({
             }
           />
         </div>
+
+        <TaskProgressSummary progress={epic.progress} />
 
         <Card className="mb-6 overflow-hidden py-0">
           <EntityTable

@@ -15,6 +15,8 @@ import {
 } from "@/components/detail/inline-fields";
 import { EpicLabels } from "@/components/detail/epic-labels";
 import type { LabelItem } from "@/components/detail/entity-labels";
+import { TaskProgressCell } from "@/components/detail/task-progress";
+import type { TaskProgress } from "@/lib/task-progress";
 import { OpenDetailKey } from "./open-detail";
 import type { ColumnDef, ColumnMeta } from "./column-registry";
 
@@ -34,8 +36,10 @@ export type EpicTableRow = {
   startDate?: Date | null;
   dueDate?: Date | null;
   labels?: { label: { id: string; name: string; color: string } }[];
-  /** 하위 태스크 예상 MD 합. 목록(getEpics)에서만 계산 — 하위목록에선 생략(→ "—"). */
+  /** 하위 태스크 예상 MD 합. 목록(getEpics)과 프로젝트 상세의 하위 표(getProject) 모두 계산. */
   estimatedMd?: number;
+  /** 하위 태스크 상태별 개수(읽기전용 롤업, BACKEND-160). */
+  progress: TaskProgress;
   ownerId?: string | null;
 };
 
@@ -57,7 +61,7 @@ const fmt = (d: Date | null | undefined) =>
 /**
  * 에픽 표 컬럼 정의(F4). `EntityTable` 에 주입한다. 각 `cell` 은
  * `edit ? <Inline/> : <읽기전용/>`.
- * 컬럼: [키] [제목] [담당자] [시작일] [종료일] [우선순위] [상태] [레이블] [MD]
+ * 컬럼: [키] [제목] [담당자] [시작일] [종료일] [우선순위] [상태] [진행률] [레이블] [MD]
  * - 프로젝트/태스크 표와 동일한 공통 컬럼 순서. MD(하위 롤업)는 항상 읽기전용.
  */
 export const EPIC_COLUMNS: ColumnDef<EpicTableRow, EpicEditContext>[] = [
@@ -185,6 +189,17 @@ export const EPIC_COLUMNS: ColumnDef<EpicTableRow, EpicEditContext>[] = [
         ) : (
           <StatusBadge status={e.status} />
         )}
+      </TableCell>
+    ),
+  },
+  {
+    key: "progress",
+    label: "진행률",
+    headClassName: "w-32",
+    // 하위 태스크 완료/전체(읽기전용 롤업). 계산값이라 정렬하지 않는다.
+    cell: (e) => (
+      <TableCell>
+        <TaskProgressCell progress={e.progress} />
       </TableCell>
     ),
   },

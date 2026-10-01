@@ -99,20 +99,21 @@ PageHeader(제목 · 설명 · 생성 CTA)
 - 바 안 컨트롤 높이는 칩과 같은 `h-7`로 맞춤. 높이가 섞이면 `items-center`가 낮은 쪽을 내려 어긋남
 - 항목이 0건이어도 **표를 걷어내지 않음**. 컬럼 헤더를 남기고 표 안 `EmptyRow`로 안내(필터를 조정할 수 있어야 하므로). 별도 `EmptyState` 전환은 쓰지 않음
 - 정렬은 URL(`?sort=&dir=`) 기반. 페이지가 `parseListSort(sp, *_SORT_FIELDS)`로 검증해 쿼리에 넘기고, 표에 `sortable`을 주면 `sortField` 있는 헤더가 `SortableHead`로 렌더됨
-- 정렬 가능 필드는 DB 컬럼만입니다. 담당자·레이블(관계)과 MD(하위 롤업 계산값)는 제외합니다
+- 정렬 가능 필드는 DB 컬럼만입니다. 담당자·레이블(관계)과 MD·진행률(하위 롤업 계산값)은 제외합니다
 - 명시적 정렬이 걸리면 기본 정렬의 상태 재배치(진행중→할 일→완료)는 적용하지 않음
 
 ### 상세 화면
 
 ```text
 @container/detail (max-w-5xl) > grid @3xl:grid-cols-3
-  좌 2단: BackButton · InlineTitle · 설명 Card · [하위 목록] · CommentsHistoryTabs
+  좌 2단: BackButton · InlineTitle · 설명 Card · [하위 목록: 헤더 · 진행 요약 · 표] · CommentsHistoryTabs
   우 1단: 메타 Card(MetaRow 나열) · [엔티티별 카드] · 위키 연결 Card
 ```
 
 - 두 컬럼 모두 `min-w-0`을 줍니다. grid 아이템 기본값이 `min-width:auto`라 긴 코드블록이나 URL이 들어오면 컬럼이 밀립니다
 - 제목·설명·메타는 인라인 편집이 기본. 상세에는 수정 다이얼로그를 두지 않음(생성만 다이얼로그)
 - 설명 카드는 값이 비어도 항상 렌더. 카드째 숨기면 상세에서 설명을 새로 쓸 수 없음
+- 하위 목록 헤더와 표 사이에 `detail/task-progress.tsx` 의 `TaskProgressSummary` 를 둡니다. 에픽·프로젝트·스프린트 모두 최하위 태스크까지 롤업한 완료·진행 중·할 일 개수이고, 표에는 같은 값을 `progress` 컬럼(`TaskProgressCell`, 정렬 없음)으로 보입니다. 진행률은 완료/전체의 내림이라 모두 완료일 때만 100%. 집계는 `queries.ts` 의 `rollupBy{Epic,Project,Sprint}` 가 MD 롤업과 한 쿼리로 계산합니다(BACKEND-160)
 - 댓글·업무 히스토리는 `detail/comments-history-tabs.tsx` 탭으로 통일. 카드로 나열하지 않음
 - 뒤로가기(`BackButton`)와 삭제 후 이동은 **자기 목록**으로. 태스크 상세는 보드에서도 열리지만 `/tasks`로 돌아갑니다
 - 목록 → 상세는 우측 슬라이드(`@detail` 인터셉트 라우트). 네 엔티티 모두 세그먼트에 `layout.tsx` + `@detail/(.)[id]` + `@detail/default.tsx`를 둡니다

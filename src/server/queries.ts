@@ -13,6 +13,12 @@ import {
   SPRINT_LIST_ORDER,
 } from "@/lib/order";
 import type { ListSort } from "@/lib/list-sort";
+import {
+  EMPTY_PROGRESS,
+  countStatuses,
+  sumProgress,
+  type TaskProgress,
+} from "@/lib/task-progress";
 
 /**
  * 유저별 PLP 표 컬럼 순서·노출 설정(F4). 저장된 행이 없으면 null → 표는 기본 컬럼으로 폴백.
@@ -83,26 +89,97 @@ function sumMd(
   );
 }
 
-/** 에픽 id별 하위 태스크 MD 합(groupBy 집계). */
-async function mdByEpic(epicIds: string[]): Promise<Map<string, MdRollup>> {
-  const map = new Map<string, MdRollup>();
-  if (epicIds.length === 0) return map;
+/** 하위 태스크 롤업: MD 합 + 상태별 개수. */
+export type TaskRollup = { md: MdRollup; progress: TaskProgress };
+const ZERO_ROLLUP: TaskRollup = { md: ZERO_MD, progress: EMPTY_PROGRESS };
+
+type RollupRow = {
+  key: string | null;
+  status: Status;
+  n: number;
+  estimated: number;
+  actual: number;
+};
+
+/** (key, status) 단위 집계 행을 key 별 롤업으로 접는다. */
+function foldRollups(rows: RollupRow[]): Map<string, TaskRollup> {
+  const map = new Map<string, TaskRollup>();
+  for (const r of rows) {
+    if (!r.key) continue;
+    const cur = map.get(r.key) ?? {
+      md: { estimated: 0, actual: 0 },
+      progress: { ...EMPTY_PROGRESS },
+    };
+    cur.md = {
+      estimated: cur.md.estimated + r.estimated,
+      actual: cur.md.actual + r.actual,
+    };
+    cur.progress[r.status] += r.n;
+    map.set(r.key, cur);
+  }
+  for (const v of map.values()) v.md = roundRollup(v.md);
+  return map;
+}
+
+/** 에픽 id별 하위 태스크 롤업. */
+async function rollupByEpic(
+  epicIds: string[],
+): Promise<Map<string, TaskRollup>> {
+  if (epicIds.length === 0) return new Map();
   const rows = await prisma.task.groupBy({
-    by: ["epicId"],
+    by: ["epicId", "status"],
     where: { epicId: { in: epicIds } },
+    _count: { _all: true },
     _sum: { estimatedMd: true, actualMd: true },
   });
-  for (const r of rows) {
-    if (!r.epicId) continue;
-    map.set(
-      r.epicId,
-      roundRollup({
-        estimated: r._sum.estimatedMd ?? 0,
-        actual: r._sum.actualMd ?? 0,
-      }),
-    );
-  }
-  return map;
+  return foldRollups(
+    rows.map((r) => ({
+      key: r.epicId,
+      status: r.status,
+      n: r._count._all,
+      estimated: r._sum.estimatedMd ?? 0,
+      actual: r._sum.actualMd ?? 0,
+    })),
+  );
+}
+
+/** 프로젝트 id별 하위(에픽→태스크) 롤업. groupBy 로는 한 단계 더 못 내려가 raw 집계. */
+async function rollupByProject(
+  projectIds: string[],
+): Promise<Map<string, TaskRollup>> {
+  if (projectIds.length === 0) return new Map();
+  const rows = await prisma.$queryRaw<RollupRow[]>`
+      SELECT e."projectId" AS "key",
+             t.status AS "status",
+             COUNT(*)::int AS "n",
+             COALESCE(SUM(t."estimatedMd"), 0)::float8 AS "estimated",
+             COALESCE(SUM(t."actualMd"), 0)::float8 AS "actual"
+      FROM "Task" t
+      JOIN "Epic" e ON e.id = t."epicId"
+      WHERE e."projectId" = ANY(${projectIds})
+      GROUP BY e."projectId", t.status
+    `;
+  return foldRollups(rows);
+}
+
+/** 스프린트 id별 하위(프로젝트→에픽→태스크) 롤업. */
+async function rollupBySprint(
+  sprintIds: string[],
+): Promise<Map<string, TaskRollup>> {
+  if (sprintIds.length === 0) return new Map();
+  const rows = await prisma.$queryRaw<RollupRow[]>`
+      SELECT p."sprintId" AS "key",
+             t.status AS "status",
+             COUNT(*)::int AS "n",
+             COALESCE(SUM(t."estimatedMd"), 0)::float8 AS "estimated",
+             COALESCE(SUM(t."actualMd"), 0)::float8 AS "actual"
+      FROM "Task" t
+      JOIN "Epic" e ON e.id = t."epicId"
+      JOIN "Project" p ON p.id = e."projectId"
+      WHERE p."sprintId" = ANY(${sprintIds})
+      GROUP BY p."sprintId", t.status
+    `;
+  return foldRollups(rows);
 }
 
 export function getMembers() {
@@ -179,22 +256,12 @@ export const getSprints = async (filter: SprintFilter = {}) => {
         ) as Prisma.SprintOrderByWithRelationInput[])
       : SPRINT_LIST_ORDER,
   });
-  // 스프린트별 예상 MD 합: Task → Epic → Project → Sprint 로 이어지는 관계를
-  // groupBy 로는 못 타므로 raw 집계(태스크 estimatedMd 합)로 계산한다.
-  const mdRows = await prisma.$queryRaw<{ sprintId: string; md: number }[]>`
-      SELECT p."sprintId" AS "sprintId",
-             COALESCE(SUM(t."estimatedMd"), 0)::float8 AS md
-      FROM "Task" t
-      JOIN "Epic" e ON e.id = t."epicId"
-      JOIN "Project" p ON p.id = e."projectId"
-      WHERE p."sprintId" IS NOT NULL
-      GROUP BY p."sprintId"
-    `;
-  const mdBySprint = new Map(mdRows.map((r) => [r.sprintId, roundMd(r.md)]));
-  const rows = sprints.map((s) => ({
-    ...s,
-    estimatedMd: mdBySprint.get(s.id) ?? 0,
-  }));
+  // 스프린트별 하위 태스크 롤업(Task → Epic → Project → Sprint, raw 집계).
+  const rollups = await rollupBySprint(sprints.map((s) => s.id));
+  const rows = sprints.map((s) => {
+    const r = rollups.get(s.id) ?? ZERO_ROLLUP;
+    return { ...s, estimatedMd: r.md.estimated, progress: r.progress };
+  });
   // 명시적 정렬(URL ?sort=)이 없을 때만 상태(진행→예정→완료)로 재배치.
   return filter.sort ? rows : orderBySprintStatus(rows);
 };
@@ -216,6 +283,12 @@ export async function getSprint(id: string) {
     },
   });
   if (!sprint) return null;
+  // 하위 프로젝트별 롤업(표의 MD·진행률 셀) + 스프린트 진행률(행 합).
+  const perProject = await rollupByProject(sprint.projects.map((p) => p.id));
+  const projects = sprint.projects.map((p) => {
+    const r = perProject.get(p.id) ?? ZERO_ROLLUP;
+    return { ...p, estimatedMd: r.md.estimated, progress: r.progress };
+  });
   // 상세 메타 카드용 MD 롤업(스프린트 → 프로젝트 → 에픽 → 태스크). 에픽·프로젝트 상세와
   // 같은 표기를 쓰기 위해 예상·실제를 함께 집계한다.
   const sum = await prisma.task.aggregate({
@@ -227,7 +300,12 @@ export async function getSprint(id: string) {
     actual: sum._sum.actualMd ?? 0,
   });
   // 기본 정렬: 진행중 → 할 일 → 완료(각 그룹 내 우선순위 desc → 생성일 desc).
-  return { ...sprint, projects: orderByDefaultStatus(sprint.projects), md };
+  return {
+    ...sprint,
+    projects: orderByDefaultStatus(projects),
+    md,
+    progress: sumProgress(projects.map((p) => p.progress)),
+  };
 }
 
 export const getSprintOptions = () =>
@@ -301,21 +379,12 @@ export const getProjects = async (filter: ProjectFilter = {}) => {
       _count: { select: { epics: true } },
     },
   });
-  // 프로젝트별 예상 MD 합(하위 에픽 → 태스크). 에픽 표는 groupBy 로 되지만 프로젝트는
-  // 한 단계 더 내려가야 해 raw 집계로 계산한다(스프린트 목록과 같은 방식).
-  const mdRows = await prisma.$queryRaw<{ projectId: string; md: number }[]>`
-      SELECT e."projectId" AS "projectId",
-             COALESCE(SUM(t."estimatedMd"), 0)::float8 AS md
-      FROM "Task" t
-      JOIN "Epic" e ON e.id = t."epicId"
-      WHERE e."projectId" IS NOT NULL
-      GROUP BY e."projectId"
-    `;
-  const mdByProject = new Map(mdRows.map((r) => [r.projectId, roundMd(r.md)]));
-  const rows = projects.map((p) => ({
-    ...p,
-    estimatedMd: mdByProject.get(p.id) ?? 0,
-  }));
+  // 프로젝트별 하위(에픽 → 태스크) 롤업.
+  const rollups = await rollupByProject(projects.map((p) => p.id));
+  const rows = projects.map((p) => {
+    const r = rollups.get(p.id) ?? ZERO_ROLLUP;
+    return { ...p, estimatedMd: r.md.estimated, progress: r.progress };
+  });
   // 명시적 정렬(URL ?sort=)이 없을 때만 상태(진행중→할일→완료)로 재배치.
   return filter.sort ? rows : orderByDefaultStatus(rows);
 };
@@ -342,14 +411,19 @@ export async function getProject(id: string) {
     },
   });
   if (!project) return null;
-  // 하위 에픽별 MD + 프로젝트 총합(읽기전용 롤업).
-  const perEpic = await mdByEpic(project.epics.map((e) => e.id));
+  // 하위 에픽별 롤업(MD·진행률) + 프로젝트 총합(읽기전용).
+  const perEpic = await rollupByEpic(project.epics.map((e) => e.id));
   // 기본 정렬: 진행중 → 할 일 → 완료(각 그룹 내 우선순위 desc → 생성일 desc).
   const epics = orderByDefaultStatus(
-    project.epics.map((e) => ({
-      ...e,
-      md: perEpic.get(e.id) ?? ZERO_MD,
-    })),
+    project.epics.map((e) => {
+      const r = perEpic.get(e.id) ?? ZERO_ROLLUP;
+      return {
+        ...e,
+        md: r.md,
+        estimatedMd: r.md.estimated,
+        progress: r.progress,
+      };
+    }),
   );
   const md = roundRollup(
     epics.reduce<MdRollup>(
@@ -360,7 +434,12 @@ export async function getProject(id: string) {
       { estimated: 0, actual: 0 },
     ),
   );
-  return { ...project, epics, md };
+  return {
+    ...project,
+    epics,
+    md,
+    progress: sumProgress(epics.map((e) => e.progress)),
+  };
 }
 
 export const getProjectOptions = () =>
@@ -420,21 +499,13 @@ export const getEpics = async (filter: EpicFilter = {}) => {
       _count: { select: { tasks: true } },
     },
   });
-  const ids = epics.map((e) => e.id);
-  // MD 롤업(하위 태스크 estimatedMd 합). Epic 엔 자체 MD 필드가 없어
+  // 에픽별 하위 태스크 롤업(MD 합 + 진행률). Epic 엔 자체 MD 필드가 없어
   // 목록의 MD 컬럼은 하위 예상 MD 합(읽기전용)으로 표시한다.
-  const mdGroups = await prisma.task.groupBy({
-    by: ["epicId"],
-    where: { epicId: { in: ids } },
-    _sum: { estimatedMd: true },
+  const rollups = await rollupByEpic(epics.map((e) => e.id));
+  const rows = epics.map((e) => {
+    const r = rollups.get(e.id) ?? ZERO_ROLLUP;
+    return { ...e, estimatedMd: r.md.estimated, progress: r.progress };
   });
-  const mdByEpicId = new Map(
-    mdGroups.map((g) => [g.epicId, roundMd(g._sum.estimatedMd ?? 0)]),
-  );
-  const rows = epics.map((e) => ({
-    ...e,
-    estimatedMd: mdByEpicId.get(e.id) ?? 0,
-  }));
   // 명시적 정렬(URL ?sort=)이 없을 때만 상태(진행중→할일→완료)로 재배치.
   return filter.sort ? rows : orderByDefaultStatus(rows);
 };
@@ -466,6 +537,7 @@ export async function getEpic(id: string) {
     ...epic,
     tasks: orderByDefaultStatus(epic.tasks),
     md: sumMd(epic.tasks),
+    progress: countStatuses(epic.tasks),
   };
 }
 
