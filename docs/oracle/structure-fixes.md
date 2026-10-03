@@ -12,7 +12,7 @@
 | O-0-4 | auto | 프로덕션 빌드 성공(메인 체크아웃) | `npx next build` 종료코드 0 |
 | O-0-5 | auto | 바이너리 오인 파일 없음 | `git diff --stat origin/main...HEAD \| grep -c " Bin "` = 0 |
 | O-0-6 | auto | 스키마 변경 없음 | `git diff origin/main...HEAD --stat -- prisma/` 출력 없음 |
-| O-0-7 | auto | 추가 줄에 NUL·이모지 없음 | `git diff origin/main...HEAD \| python3 -c "import sys,re; print(sum(1 for l in sys.stdin if l.startswith('+') and re.search('[\x00\U0001F300-\U0001FAFF☀-➿]', l)))"` = 0 |
+| O-0-7 | auto | 추가 줄에 NUL·이모지 없음 | `git diff origin/main...HEAD \| python3 -c "import sys,re; r=re.compile('[%s%s-%s%s-%s]' % tuple(map(chr,(0,0x1F300,0x1FAFF,0x2600,0x27BF)))); print(sum(1 for l in sys.stdin if l.startswith('+') and r.search(l)))"` = 0 (범위는 코드포인트로 만든다 — 판정 줄 자체가 매칭되지 않게) |
 
 ## O-A. 위키 제안 팝업 즉시 닫힘 (BACKEND-179)
 
