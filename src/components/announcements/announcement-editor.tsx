@@ -16,7 +16,8 @@ import {
 import { useRouter } from "next/navigation";
 import { EditorContent, type JSONContent } from "@tiptap/react";
 import { toast } from "sonner";
-import { Toolbar, TableHoverControls } from "@/components/wiki/editor";
+import { Toolbar } from "@/components/wiki/editor-toolbar";
+import { TableHoverControls } from "@/components/wiki/table-hover-controls";
 import {
   useSaveShortcuts,
   useWikiEditor,

@@ -32,7 +32,7 @@
 |---|---|---|
 | O-B-1 | auto | `editor.tsx` 의 `WikiEditor` 루트 div 클래스가 `mx-auto max-w-5xl`. `grep -c 'className="mx-auto max-w-3xl"' src/components/wiki/editor.tsx` = 0 |
 | O-B-2 | manual | "수정" 클릭 전후로 본문 줄바꿈 위치가 바뀌지 않는다(데스크톱 1280px 이상) |
-| O-B-3 | auto | 툴바 sticky 오프셋이 헤더 실측 높이를 따른다: `grep -c 'top-\[var(--wiki-header-h' src/components/wiki/editor.tsx` = 1 이고 `grep -c '"--wiki-header-h"' src/components/wiki/wiki-detail.tsx` = 1 (후속 PR, 2026-09-25) |
+| O-B-3 | auto | 툴바 sticky 오프셋이 헤더 실측 높이를 따른다: `grep -c 'top-\[var(--wiki-header-h' src/components/wiki/editor-toolbar.tsx` = 1(BACKEND-188 에서 툴바가 `editor.tsx` 로부터 이동) 이고 `grep -c '"--wiki-header-h"' src/components/wiki/wiki-detail.tsx` = 1 (후속 PR, 2026-09-25) |
 | O-B-4 | manual | 편집 중 긴 본문을 스크롤해도 툴바 상단과 헤더 하단 사이로 본문 글자가 비치지 않는다(데스크톱·모바일 폭 모두) |
 
 ## O-C. 저장·임시저장 흐름 안전장치 (BACKEND-146)
@@ -55,8 +55,8 @@
 | id | 종류 | 판정 |
 |---|---|---|
 | O-D-1 | auto | `npx vitest run src/components/wiki/link-href.test.ts` 통과(최소 4개 describe 케이스) |
-| O-D-2 | auto | `editor.tsx` 에 `type="url"` 이 0회. `grep -c 'type="url"' src/components/wiki/editor.tsx` = 0 |
-| O-D-3 | auto | `editor.tsx` 가 `normalizeHref` 를 2회 이상 호출(툴바·버블) |
+| O-D-2 | auto | 링크 입력(툴바·버블, BACKEND-188 에서 `editor.tsx` 로부터 분리)에 `type="url"` 이 0회. `cat src/components/wiki/editor.tsx src/components/wiki/editor-toolbar.tsx src/components/wiki/bubble-toolbar.tsx \| grep -c 'type="url"'` = 0 |
+| O-D-3 | auto | 툴바·버블이 `normalizeHref` 를 거치는 공용 `applyLink`(`editor-toolbar.tsx`, BACKEND-188)를 쓴다. `grep -c "normalizeHref(" src/components/wiki/editor-toolbar.tsx` ≥ 1 이고 `grep -c "applyLink(editor" <file>` ≥ 1 (`src/components/wiki/editor-toolbar.tsx`·`src/components/wiki/bubble-toolbar.tsx` 각각) |
 | O-D-4 | manual | 텍스트 선택 → 버블 링크 → `example.com` 입력 → Enter: 링크가 `https://example.com` 으로 걸린다. 뷰 모드에서 클릭하면 새 탭으로 열린다 |
 | O-D-5 | manual | 버블 링크 입력 중 Esc 를 누르면 링크 입력이 닫히고 서식 메뉴로 돌아간다(선택 유지) |
 
