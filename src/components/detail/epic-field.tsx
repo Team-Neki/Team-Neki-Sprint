@@ -1,9 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import Link from "next/link";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -18,7 +16,10 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { formatIssueKey } from "@/lib/constants";
-import { updateTaskFields } from "@/server/actions/tasks";
+import {
+  useFieldSave,
+  useOptimisticValue,
+} from "@/components/detail/use-field-save";
 
 export type EpicPickOption = {
   id: string;
@@ -41,22 +42,16 @@ export function EpicField({
   epicId: string | null;
   epics: EpicPickOption[];
 }) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [pending, start] = useTransition();
-  const current = epics.find((e) => e.id === epicId) ?? null;
+  const { pending, save } = useFieldSave("task", taskId);
+  const [shown, show, reset] = useOptimisticValue(epicId);
+  const current = epics.find((e) => e.id === shown) ?? null;
 
   function choose(next: string | null) {
     setOpen(false);
-    if (next === epicId) return;
-    start(async () => {
-      try {
-        await updateTaskFields(taskId, { epicId: next });
-        router.refresh();
-      } catch {
-        toast.error("변경에 실패했습니다");
-      }
-    });
+    if (next === shown) return;
+    show(next);
+    save({ epicId: next }, reset);
   }
 
   return (

@@ -26,13 +26,13 @@ import {
   MetaRow,
   FieldHint,
   InlineTitle,
-  InlineDescription,
   InlineStatus,
   InlinePriority,
   InlineMember,
   InlineDate,
   InlineNumber,
 } from "@/components/detail/inline-fields";
+import { InlineDescription } from "@/components/detail/inline-description";
 
 export const dynamic = "force-dynamic";
 
