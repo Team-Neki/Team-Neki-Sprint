@@ -10,6 +10,7 @@ import {
   getEntityComments,
   getEntityWikiLinks,
 } from "@/server/queries";
+import { requireUser } from "@/lib/session";
 import { deleteEpic } from "@/server/actions/epics";
 import { deleteTask } from "@/server/actions/tasks";
 import { EpicLabels } from "@/components/detail/epic-labels";
@@ -43,6 +44,7 @@ export default async function EpicDetail({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireUser();
   const { id } = await params;
   const [
     epic,

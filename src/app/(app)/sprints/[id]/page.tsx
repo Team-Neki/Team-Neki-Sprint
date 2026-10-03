@@ -9,6 +9,7 @@ import {
   getEntityComments,
   getEntityWikiLinks,
 } from "@/server/queries";
+import { requireUser } from "@/lib/session";
 import { deleteSprint } from "@/server/actions/sprints";
 import { deleteProject } from "@/server/actions/projects";
 import { EntityLinkedPages } from "@/components/wiki/entity-linked-pages";
@@ -40,6 +41,7 @@ export default async function SprintDetail({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireUser();
   const { id } = await params;
   const [sprint, members, sprints, labelOptions, activities, comments, wikiLinks] =
     await Promise.all([

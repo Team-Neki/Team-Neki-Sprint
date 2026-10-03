@@ -8,6 +8,7 @@ import {
   getLabelOptions,
   getTaskGithubLinks,
 } from "@/server/queries";
+import { requireUser } from "@/lib/session";
 import { deleteTask } from "@/server/actions/tasks";
 import { formatIssueKey } from "@/lib/constants";
 import { Card } from "@/components/ui/card";
@@ -40,6 +41,7 @@ export default async function TaskDetail({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireUser();
   const { id } = await params;
   const [task, epics, members, teams, activities, labelOptions, githubLinks] =
     await Promise.all([

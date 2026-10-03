@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Plus, Pencil, Trash2, Tag } from "lucide-react";
 import { getLabels } from "@/server/queries";
+import { requireUser } from "@/lib/session";
 import { deleteLabel } from "@/server/actions/labels";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,7 @@ import { EmptyState } from "@/components/empty-state";
 export const dynamic = "force-dynamic";
 
 export default async function LabelsPage() {
+  await requireUser();
   const labels = await getLabels();
 
   return (

@@ -1,4 +1,5 @@
 import { getTimelineEpics } from "@/server/queries";
+import { requireUser } from "@/lib/session";
 import { PageHeader } from "@/components/page-header";
 import { Card } from "@/components/ui/card";
 import { EpicTimeline } from "@/components/timeline/epic-timeline";
@@ -6,6 +7,7 @@ import { EpicTimeline } from "@/components/timeline/epic-timeline";
 export const dynamic = "force-dynamic";
 
 export default async function TimelinePage() {
+  await requireUser();
   const epics = await getTimelineEpics();
 
   return (
