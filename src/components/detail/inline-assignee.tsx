@@ -1,9 +1,9 @@
 "use client";
 
-import { useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
-import { updateTaskFields } from "@/server/actions/tasks";
+import {
+  useFieldSave,
+  useOptimisticValue,
+} from "@/components/detail/use-field-save";
 import {
   AssigneePicker,
   type AssigneeValue,
@@ -31,14 +31,15 @@ export function InlineAssignee({
   teams: TeamOption[];
   avatarOnly?: boolean;
 }) {
-  const router = useRouter();
-  const [pending, start] = useTransition();
-
-  const value: AssigneeValue = user
-    ? { kind: "user", id: user.id }
-    : team
-      ? { kind: "team", id: team.id }
-      : null;
+  const { pending, save } = useFieldSave("task", taskId);
+  // 낙관적 값은 "user:<id>" | "team:<id>" | "" 문자열로 다룬다 — 객체는 렌더마다 새로
+  // 만들어져 useOptimisticValue 의 서버 값 비교(Object.is)가 매번 달라진다.
+  const [shown, show, reset] = useOptimisticValue(
+    user ? `user:${user.id}` : team ? `team:${team.id}` : "",
+  );
+  const [kind, id] = shown.split(":");
+  const value: AssigneeValue =
+    kind === "user" || kind === "team" ? { kind, id } : null;
 
   function onChange(next: AssigneeValue) {
     const patch =
@@ -47,15 +48,8 @@ export function InlineAssignee({
         : next?.kind === "team"
           ? { assigneeTeamId: next.id, assigneeId: null }
           : { assigneeId: null, assigneeTeamId: null };
-    start(async () => {
-      try {
-        await updateTaskFields(taskId, patch);
-        router.refresh();
-      } catch {
-        toast.error("변경에 실패했습니다");
-        router.refresh();
-      }
-    });
+    show(next ? `${next.kind}:${next.id}` : "");
+    save(patch, reset);
   }
 
   return (

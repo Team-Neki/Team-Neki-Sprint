@@ -20,9 +20,38 @@ import {
 } from "@/components/ui/command";
 import { LabelBadge } from "@/components/badges";
 import { cn } from "@/lib/utils";
-import { createLabel } from "@/server/actions/labels";
+import {
+  createLabel,
+  addLabelToTask,
+  removeLabelFromTask,
+  addLabelToEpic,
+  removeLabelFromEpic,
+  addLabelToProject,
+  removeLabelFromProject,
+} from "@/server/actions/labels";
 
 export type LabelItem = { id: string; name: string; color: string };
+
+// 엔티티별 라벨 부여/해제 액션.
+const ACTIONS = {
+  task: { attach: addLabelToTask, detach: removeLabelFromTask },
+  epic: { attach: addLabelToEpic, detach: removeLabelFromEpic },
+  project: { attach: addLabelToProject, detach: removeLabelFromProject },
+};
+
+/** 엔티티 래퍼(TaskLabels·EpicLabels·ProjectLabels)가 그대로 넘기는 공통 prop. */
+export type LabelsProps = {
+  labels: LabelItem[];
+  allLabels: LabelItem[];
+  /** 배지 정렬. 상세 시트 메타행은 우측("end"), 표 셀은 헤더와 맞춰 좌측("start"). */
+  align?: "start" | "end";
+  /**
+   * 배치 방식(F5). 기본 "wrap"(상세 시트: 배지가 여러 줄로 줄바꿈).
+   * "row"(표 셀): 한 줄 고정 — 배지는 넘치면 클리핑되고 추가 버튼은 항상 우측에 남아
+   * 라벨을 추가해도 행 높이가 두꺼워지지 않는다(전체 목록/편집은 팝오버에서).
+   */
+  layout?: "wrap" | "row";
+};
 
 // 새 라벨 색 팔레트(in-product 태그 예외). team-dialog 와 동일 계열.
 const COLORS = [
@@ -36,32 +65,21 @@ const COLORS = [
 ];
 
 /**
- * 엔티티(태스크/프로젝트 등)의 라벨 편집 공용 UI(C8). 붙은 라벨을 배지로 보여주고(X 제거),
- * 팝오버에서 기존 라벨 토글 추가/제거 + 즉석 새 라벨 생성. 부여/해제는 엔티티별 서버 액션을
- * `attach`/`detach` 로 주입받아 재사용한다(TaskLabels·ProjectLabels 래퍼). useTransition +
+ * 엔티티(태스크/에픽/프로젝트)의 라벨 편집 공용 UI(C8). 붙은 라벨을 배지로 보여주고(X 제거),
+ * 팝오버에서 기존 라벨 토글 추가/제거 + 즉석 새 라벨 생성. 부여/해제 액션은 `type` 으로
+ * `ACTIONS` 에서 고른다(TaskLabels·EpicLabels·ProjectLabels 래퍼). useTransition +
  * router.refresh 로 서버 확정 후 재조회.
  */
 export function EntityLabels({
+  type,
+  id,
   labels,
   allLabels,
-  attach,
-  detach,
   align = "end",
   layout = "wrap",
-}: {
-  labels: LabelItem[];
-  allLabels: LabelItem[];
-  attach: (labelId: string) => Promise<unknown>;
-  detach: (labelId: string) => Promise<unknown>;
-  /** 배지 정렬. 상세 시트 메타행은 우측("end"), 표 셀은 헤더와 맞춰 좌측("start"). */
-  align?: "start" | "end";
-  /**
-   * 배치 방식(F5). 기본 "wrap"(상세 시트: 배지가 여러 줄로 줄바꿈).
-   * "row"(표 셀): 한 줄 고정 — 배지는 넘치면 클리핑되고 추가 버튼은 항상 우측에 남아
-   * 라벨을 추가해도 행 높이가 두꺼워지지 않는다(전체 목록/편집은 팝오버에서).
-   */
-  layout?: "wrap" | "row";
-}) {
+}: LabelsProps & { type: keyof typeof ACTIONS; id: string }) {
+  const attach = (labelId: string) => ACTIONS[type].attach(id, labelId);
+  const detach = (labelId: string) => ACTIONS[type].detach(id, labelId);
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();

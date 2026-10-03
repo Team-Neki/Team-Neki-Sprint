@@ -29,13 +29,13 @@ import { TaskProgressSummary } from "@/components/detail/task-progress";
 import {
   MetaRow,
   InlineTitle,
-  InlineDescription,
   InlineStatus,
   InlinePriority,
   InlineMember,
   InlineLink,
   InlineDate,
 } from "@/components/detail/inline-fields";
+import { InlineDescription } from "@/components/detail/inline-description";
 
 export const dynamic = "force-dynamic";
 
