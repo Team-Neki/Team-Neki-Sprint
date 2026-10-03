@@ -102,7 +102,7 @@ flowchart LR
 - **엔티티 폼 다이얼로그**: 4종(`forms/*-dialog.tsx`)은 공용 셸·필드 블록 `forms/form-dialog.tsx`(`FormDialog`·`FormField`·`FormRow`·`TitleField`·`DescriptionField`·`StatusPriorityFields`·`DateRangeFields`·`FormFooter`)로 조립한다(2026-07-22 통합). 다이얼로그 공통 수정(레이아웃·푸터·mount-reset 규약)은 이 한 곳에. 엔티티 고유 필드·검증·submit 만 각 다이얼로그에 있다. 셀렉트류 공용 필드는 `forms/fields.tsx`(`TeamKeyReadonly` 포함).
 - **위키 연결 카드**: `wiki/entity-linked-pages.tsx` 하나가 task/sprint/project/epic 4종 공용(`entityType: LinkEntityType | "task"` — 태스크만 전용 링크 액션으로 내부 분기). 구 `wiki/linked-pages.tsx` 는 흡수·삭제됨(2026-07-22).
 - **멘션**: '@' suggestion(`person-mention.tsx`)이 멤버+**팀**을 함께 노출(`searchMentionTargets`). 팀 선택 시 `teamMention` 노드(`team-mention.tsx`) 삽입, 저장 시 서버(`notify.newMentionRecipients`)가 팀원 전원으로 확장해 알림. 새 멘션 종류를 추가하면 `lib/mentions.ts` 추출기와 `rich-content.docToPlainText` 도 함께.
-- **공지**: `Announcement` 모델 + 대시보드 최상단 카드 + `/announcements`(목록)·`/announcements/[id]`(상세, `?edit=1`=편집 진입). 에디터는 위키 구성요소 재사용(`announcement-editor.tsx`), draft 없음. 수정은 전원, **삭제는 작성자만**(author null 이면 ADMIN).
+- **공지**: `Announcement` 모델 + 대시보드 최상단 카드 + `/announcements`(목록)·`/announcements/[id]`(상세, `?edit=1`=편집 진입). 에디터는 위키 구성요소 재사용(`announcement-editor.tsx`), draft 없음. 수정은 전원, **삭제는 작성자만**(author null 이면 ADMIN). **기본 비활성**: 서버 env `ANNOUNCEMENTS_ENABLED=true` 일 때만 대시보드 카드와 `/announcements` 하위(`announcements/layout.tsx` 가 404)를 노출한다. 코드·데이터는 그대로다.
 - **서버 캐시**: `lib/server-cache.ts`(TTL 인메모리, pod-local). 검색/멘션 자동완성만 적용 — 적용처 확장 전 [gotchas §13] 예외 조건 필독.
 - **알림 벨**: `notification-bell.tsx`가 45s 폴링(`getBellNotifications`). 실시간 소켓 아님.
 - **태스크 의존성**: `TaskDependency`(blocker→blocked 방향). 상세 사이드바 `task-dependencies.tsx`에서 '차단됨/차단함' 편집. 순환은 `lib/task-deps.wouldCreateCycle`로 서버에서 거부. 방향/함정은 [gotchas §17].
