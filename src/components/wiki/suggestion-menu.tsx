@@ -5,6 +5,7 @@
 // 한 곳에 둔다. 항목 마크업·빈 상태·너비 같은 메뉴별 차이는 각 호출부에 남긴다.
 
 import {
+  useEffect,
   useImperativeHandle,
   useRef,
   useState,
@@ -40,6 +41,12 @@ export function useSuggestionList<I>(
     setPrevItems(items);
     setSelected(0);
   }
+
+  // 목록이 바뀌면(입력으로 필터) 선택이 0 으로 돌아가므로 스크롤도 맨 위로. listRef 는
+  // 스크롤 컨테이너 자신이라 scrollTop 만 바꾼다(페이지는 스크롤되지 않는다).
+  useEffect(() => {
+    if (listRef.current) listRef.current.scrollTop = 0;
+  }, [items]);
 
   function pick(index: number) {
     const item = items[index];
