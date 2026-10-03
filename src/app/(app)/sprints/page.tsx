@@ -1,7 +1,8 @@
 import { Plus } from "lucide-react";
-import type { SprintStatus } from "@prisma/client";
 import { getSprints, getColumnPref, SPRINT_SORT_FIELDS } from "@/server/queries";
 import { parseListSort } from "@/lib/list-sort";
+import { parseListFilters } from "@/lib/list-filters";
+import { SPRINT_STATUS_ORDER } from "@/lib/constants";
 import { requireUser } from "@/lib/session";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -29,10 +30,11 @@ export default async function SprintsPage({
   const sort = parseListSort(sp, SPRINT_SORT_FIELDS);
   const user = await requireUser();
   // 다중선택 필터는 콤마구분 값(예: `?status=ACTIVE,PLANNED`) → 배열로 파싱한다(F6).
-  const toArray = (v?: string) => (v ?? "").split(",").filter(Boolean);
-  const hasFilter = !!sp.status;
+  const { hasFilter, status } = parseListFilters(sp, {
+    status: SPRINT_STATUS_ORDER,
+  });
   const [sprints, pref] = await Promise.all([
-    getSprints({ status: toArray(sp.status) as SprintStatus[], sort }),
+    getSprints({ status, sort }),
     getColumnPref(user.id, "sprints"),
   ]);
 

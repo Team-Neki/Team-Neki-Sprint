@@ -1,5 +1,4 @@
 import { Plus } from "lucide-react";
-import type { Status } from "@prisma/client";
 import {
   getTasks,
   getEpicOptions,
@@ -10,6 +9,8 @@ import {
   TASK_SORT_FIELDS,
 } from "@/server/queries";
 import { parseListSort } from "@/lib/list-sort";
+import { parseListFilters } from "@/lib/list-filters";
+import { STATUS_ORDER } from "@/lib/constants";
 import { requireUser } from "@/lib/session";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -39,23 +40,22 @@ export default async function TasksPage({
 }) {
   const sp = await searchParams;
   const sort = parseListSort(sp, TASK_SORT_FIELDS);
-  // 필터가 하나라도 걸렸으면 "필터 결과 0"으로 안내(생성 CTA 대신 필터 조정 유도).
-  const hasFilter = !!(
-    sp.status ||
-    sp.assignee ||
-    sp.team ||
-    sp.label ||
-    sp.q
-  );
-  const user = await requireUser();
   // 다중선택 필터는 콤마구분 값(예: `?assignee=a,b`) → 배열로 파싱한다(F6).
-  const toArray = (v?: string) => (v ?? "").split(",").filter(Boolean);
+  const f = parseListFilters(sp, {
+    status: STATUS_ORDER,
+    assignee: null,
+    team: null,
+    label: null,
+  });
+  // 필터가 하나라도 걸렸으면 "필터 결과 0"으로 안내(생성 CTA 대신 필터 조정 유도).
+  const hasFilter = f.hasFilter || !!sp.q;
+  const user = await requireUser();
   const [tasks, epics, teams, members, labels, pref] = await Promise.all([
     getTasks({
-      status: toArray(sp.status) as Status[],
-      assigneeId: toArray(sp.assignee),
-      teamId: toArray(sp.team),
-      labelId: toArray(sp.label),
+      status: f.status,
+      assigneeId: f.assignee,
+      teamId: f.team,
+      labelId: f.label,
       q: sp.q || undefined,
       sort,
     }),
