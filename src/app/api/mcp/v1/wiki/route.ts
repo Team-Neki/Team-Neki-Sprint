@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { withMcpAuth, ok, fail, parseLimit } from "@/server/api/mcp-auth";
-import { createWikiPageCore, updateWikiContentCore } from "@/server/actions/wiki";
+import { createWikiPageCore, updateWikiContentCore } from "@/server/services/wiki";
 import { getWikiFolders, searchWikiPages } from "@/server/queries";
 import { markdownToDoc } from "@/lib/text-to-doc";
 import { tiptapDocSchema } from "@/lib/tiptap-doc";

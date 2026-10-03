@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/api-token", () => ({ authenticateBearer: mocks.authenticateBearer }));
 vi.mock("@/server/queries", () => ({ getWikiFolders: mocks.getWikiFolders, searchWikiPages: mocks.searchWikiPages }));
-vi.mock("@/server/actions/wiki", () => ({ createWikiPageCore: mocks.createWikiPageCore, updateWikiContentCore: mocks.updateWikiContentCore }));
+vi.mock("@/server/services/wiki", () => ({ createWikiPageCore: mocks.createWikiPageCore, updateWikiContentCore: mocks.updateWikiContentCore }));
 import { POST } from "./route";
 
 const ctx = { params: Promise.resolve({}) };

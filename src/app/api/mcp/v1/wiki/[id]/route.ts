@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { withMcpAuth, ok, fail } from "@/server/api/mcp-auth";
-import { updateWikiContentCore } from "@/server/actions/wiki";
+import { updateWikiContentCore } from "@/server/services/wiki";
 import { getWikiPage } from "@/server/queries";
 import { docToPlainText } from "@/lib/rich-content";
 import { markdownToDoc } from "@/lib/text-to-doc";
