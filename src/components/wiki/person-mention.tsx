@@ -9,28 +9,24 @@
 // 같은 '@' 문자에 Suggestion 플러그인을 두 개 둘 수 없어 팀 항목도 이 모듈의
 // suggestion 이 함께 노출한다.
 
-import {
-  forwardRef,
-  useImperativeHandle,
-  useState,
-  type ForwardedRef,
-} from "react";
+import { forwardRef, type ForwardedRef } from "react";
 import { useRouter } from "next/navigation";
 import { Node, mergeAttributes } from "@tiptap/core";
 import {
-  ReactRenderer,
   ReactNodeViewRenderer,
   NodeViewWrapper,
   type NodeViewProps,
 } from "@tiptap/react";
 import { PluginKey } from "@tiptap/pm/state";
-import Suggestion, {
-  type SuggestionProps,
-  type SuggestionKeyDownProps,
-} from "@tiptap/suggestion";
+import Suggestion, { type SuggestionProps } from "@tiptap/suggestion";
 import { Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { searchMentionTargetsAction } from "@/server/actions/wiki";
+import {
+  suggestionRender,
+  useSuggestionList,
+  type SuggestionListHandle,
+} from "@/components/wiki/suggestion-menu";
 
 export type PersonItem =
   | {
@@ -79,48 +75,17 @@ function PersonChip({ node }: NodeViewProps) {
 
 // ---------- 검색 드롭다운 ----------
 
-type PersonListHandle = { onKeyDown: (props: SuggestionKeyDownProps) => boolean };
-
 const PersonSuggestionList = forwardRef(function PersonSuggestionList(
   props: SuggestionProps<PersonItem, PersonItem>,
-  ref: ForwardedRef<PersonListHandle>,
+  ref: ForwardedRef<SuggestionListHandle>,
 ) {
-  const [selected, setSelected] = useState(0);
+  const { selected, setSelected, pick, listRef } = useSuggestionList(props, ref);
   const items = props.items;
 
-  // items가 바뀌면 선택을 0으로 리셋. effect 대신 렌더 중 이전값 비교 패턴 사용.
-  const [prevItems, setPrevItems] = useState(items);
-  if (items !== prevItems) {
-    setPrevItems(items);
-    setSelected(0);
-  }
-
-  function pick(index: number) {
-    const item = items[index];
-    if (item) props.command(item);
-  }
-
-  useImperativeHandle(ref, () => ({
-    onKeyDown: ({ event }) => {
-      if (items.length === 0) return false;
-      if (event.key === "ArrowUp") {
-        setSelected((s) => (s + items.length - 1) % items.length);
-        return true;
-      }
-      if (event.key === "ArrowDown") {
-        setSelected((s) => (s + 1) % items.length);
-        return true;
-      }
-      if (event.key === "Enter") {
-        pick(selected);
-        return true;
-      }
-      return false;
-    },
-  }));
-
   return (
-    <div className="bg-popover text-popover-foreground ring-foreground/10 z-50 max-h-72 w-72 overflow-y-auto rounded-lg p-1 shadow-md ring-1">
+    <div
+      ref={listRef}
+      className="bg-popover text-popover-foreground ring-foreground/10 z-50 max-h-72 w-72 overflow-y-auto rounded-lg p-1 shadow-md ring-1">
       {props.loading ? (
         <div className="text-muted-foreground px-2 py-3 text-center text-sm">
           검색 중…
@@ -270,35 +235,7 @@ export const PersonMention = Node.create({
             .insertContentAt(range, [node, { type: "text", text: " " }])
             .run();
         },
-        render: () => {
-          let component: ReactRenderer<PersonListHandle> | null = null;
-          let unmount: (() => void) | undefined;
-
-          return {
-            onStart: (props) => {
-              component = new ReactRenderer(PersonSuggestionList, {
-                props,
-                editor: props.editor,
-              });
-              unmount = props.mount(component.element);
-            },
-            onUpdate: (props) => {
-              component?.updateProps(props);
-            },
-            onKeyDown: (props) => {
-              if (props.event.key === "Escape") {
-                unmount?.();
-                return true;
-              }
-              return component?.ref?.onKeyDown(props) ?? false;
-            },
-            onExit: () => {
-              unmount?.();
-              component?.destroy();
-              component = null;
-            },
-          };
-        },
+        render: suggestionRender(PersonSuggestionList),
       }),
     ];
   },

@@ -5,15 +5,14 @@
 // (뷰/에디터 스키마 동등성에 영향 없음). 커맨드 정의·드롭다운은 slash-menu.tsx 참고.
 
 import { Extension } from "@tiptap/core";
-import { ReactRenderer } from "@tiptap/react";
 import { PluginKey } from "@tiptap/pm/state";
 import Suggestion from "@tiptap/suggestion";
 import {
   SlashMenu,
   filterSlashItems,
   type SlashItem,
-  type SlashMenuHandle,
 } from "@/components/wiki/slash-menu";
+import { suggestionRender } from "@/components/wiki/suggestion-menu";
 
 const slashSuggestionKey = new PluginKey("slashCommand");
 
@@ -39,35 +38,7 @@ export const SlashCommand = Extension.create({
         command: ({ editor, range, props }) => {
           props.run(editor, range);
         },
-        render: () => {
-          let component: ReactRenderer<SlashMenuHandle> | null = null;
-          let unmount: (() => void) | undefined;
-
-          return {
-            onStart: (props) => {
-              component = new ReactRenderer(SlashMenu, {
-                props,
-                editor: props.editor,
-              });
-              unmount = props.mount(component.element);
-            },
-            onUpdate: (props) => {
-              component?.updateProps(props);
-            },
-            onKeyDown: (props) => {
-              if (props.event.key === "Escape") {
-                unmount?.();
-                return true;
-              }
-              return component?.ref?.onKeyDown(props) ?? false;
-            },
-            onExit: () => {
-              unmount?.();
-              component?.destroy();
-              component = null;
-            },
-          };
-        },
+        render: suggestionRender(SlashMenu),
       }),
     ];
   },

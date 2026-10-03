@@ -5,13 +5,7 @@
 // 모듈(slash-commands.ts)에 있고, 여기선 key 로 아이콘(lucide)·실행(editor 클로저)을
 // 결합해 렌더한다. 확장 배선은 slash-command.ts.
 
-import {
-  forwardRef,
-  useImperativeHandle,
-  useState,
-  type ComponentType,
-  type ForwardedRef,
-} from "react";
+import { forwardRef, type ComponentType, type ForwardedRef } from "react";
 import type { Editor, Range } from "@tiptap/core";
 import {
   Heading1,
@@ -32,11 +26,12 @@ import {
   Paperclip,
   type LucideIcon,
 } from "lucide-react";
-import type {
-  SuggestionProps,
-  SuggestionKeyDownProps,
-} from "@tiptap/suggestion";
+import type { SuggestionProps } from "@tiptap/suggestion";
 import { cn } from "@/lib/utils";
+import {
+  useSuggestionList,
+  type SuggestionListHandle,
+} from "@/components/wiki/suggestion-menu";
 import {
   SLASH_COMMANDS,
   filterByQuery,
@@ -138,47 +133,14 @@ export function filterSlashItems(query: string): SlashItem[] {
   return filterByQuery(SLASH_ITEMS, query);
 }
 
-export type SlashMenuHandle = {
-  onKeyDown: (props: SuggestionKeyDownProps) => boolean;
-};
+export type SlashMenuHandle = SuggestionListHandle;
 
 export const SlashMenu = forwardRef(function SlashMenu(
   props: SuggestionProps<SlashItem, SlashItem>,
   ref: ForwardedRef<SlashMenuHandle>,
 ) {
-  const [selected, setSelected] = useState(0);
+  const { selected, setSelected, pick, listRef } = useSuggestionList(props, ref);
   const items = props.items;
-
-  // items 가 바뀌면 선택을 0 으로 리셋(멘션 목록과 동일: 렌더 중 이전값 비교).
-  const [prevItems, setPrevItems] = useState(items);
-  if (items !== prevItems) {
-    setPrevItems(items);
-    setSelected(0);
-  }
-
-  function pick(index: number) {
-    const item = items[index];
-    if (item) props.command(item);
-  }
-
-  useImperativeHandle(ref, () => ({
-    onKeyDown: ({ event }) => {
-      if (items.length === 0) return false;
-      if (event.key === "ArrowUp") {
-        setSelected((s) => (s + items.length - 1) % items.length);
-        return true;
-      }
-      if (event.key === "ArrowDown") {
-        setSelected((s) => (s + 1) % items.length);
-        return true;
-      }
-      if (event.key === "Enter") {
-        pick(selected);
-        return true;
-      }
-      return false;
-    },
-  }));
 
   if (items.length === 0) {
     return (
@@ -191,7 +153,10 @@ export const SlashMenu = forwardRef(function SlashMenu(
   }
 
   return (
-    <div className="bg-popover text-popover-foreground ring-foreground/10 z-50 max-h-72 w-64 overflow-y-auto rounded-lg p-1 shadow-md ring-1">
+    <div
+      ref={listRef}
+      className="bg-popover text-popover-foreground ring-foreground/10 z-50 max-h-72 w-64 overflow-y-auto rounded-lg p-1 shadow-md ring-1"
+    >
       {items.map((item, i) => {
         const Icon = item.icon;
         return (
