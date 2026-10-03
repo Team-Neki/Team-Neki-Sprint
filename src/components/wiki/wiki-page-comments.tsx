@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -36,10 +36,14 @@ export function WikiPageComments({
   const router = useRouter();
   const [body, setBody] = useState("");
   const [pending, startTransition] = useTransition();
+  // pending 은 리렌더 전 연속 호출(Cmd+Enter 연타)을 못 막는다 — ref 로 동기 가드.
+  const submittingRef = useRef(false);
 
   function submit() {
+    if (submittingRef.current) return;
     const text = body.trim();
     if (!text) return;
+    submittingRef.current = true;
     startTransition(async () => {
       try {
         // quote="" → 페이지 전체 댓글(앵커 없음).
@@ -48,6 +52,8 @@ export function WikiPageComments({
         router.refresh();
       } catch {
         toast.error("댓글 등록에 실패했습니다");
+      } finally {
+        submittingRef.current = false;
       }
     });
   }
