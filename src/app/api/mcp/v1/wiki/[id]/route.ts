@@ -15,9 +15,10 @@ const patchInput = z.object({
   contentJson: tiptapDocSchema.nullish(),
 });
 
-export const GET = withMcpAuth(async (_actor, _req, ctx) => {
+export const GET = withMcpAuth(async (actor, _req, ctx) => {
   const { id } = await ctx.params;
-  const page = await getWikiPage(id);
+  // 타인의 초안·휴지통 페이지는 없는 페이지로(404).
+  const page = await getWikiPage(id, actor.id);
   if (!page) return fail(`wiki page not found: ${id}`, 404);
   return ok({
     id: page.id,
@@ -34,7 +35,7 @@ export const PATCH = withMcpAuth(async (actor, req, ctx) => {
   const { id } = await ctx.params;
   const input = patchInput.parse(await req.json());
 
-  const page = await getWikiPage(id);
+  const page = await getWikiPage(id, actor.id);
   if (!page) return fail(`wiki page not found: ${id}`, 404);
 
   const title = input.title ?? page.title;

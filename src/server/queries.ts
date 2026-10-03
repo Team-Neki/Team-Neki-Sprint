@@ -951,10 +951,15 @@ export async function isWikiPageFavorited(userId: string, pageId: string) {
   return !!row;
 }
 
-export function getWikiPage(id: string) {
+export function getWikiPage(id: string, viewerId: string) {
   return prisma.wikiPage.findFirst({
     // 휴지통에 있는 페이지는 상세로 열지 않는다(목록/트리에서 이미 숨김).
-    where: { id, deletedAt: null },
+    // 초안은 작성자(viewerId)에게만 돌려준다 — 타인의 초안은 없는 페이지로 취급.
+    where: {
+      id,
+      deletedAt: null,
+      OR: [{ isDraft: false }, { authorId: viewerId }],
+    },
     include: {
       author: miniUser,
       editor: miniUser,

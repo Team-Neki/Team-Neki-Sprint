@@ -7,7 +7,7 @@ const m = vi.hoisted(() => {
     notification: { createMany: vi.fn() },
   };
   const prisma = {
-    wikiPage: { findUnique: vi.fn() },
+    wikiPage: { findFirst: vi.fn() },
     wikiDraft: { deleteMany: vi.fn() },
     $transaction: vi.fn((fn: (t: typeof tx) => unknown) => fn(tx)),
   };
@@ -26,8 +26,17 @@ const page = { id: "p", title: "T", content: doc("old"), editorId: "other", isDr
 describe("updateWikiContentCore", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    m.prisma.wikiPage.findUnique.mockResolvedValue(page);
+    m.prisma.wikiPage.findFirst.mockResolvedValue(page);
     m.newMentionRecipients.mockResolvedValue(["u1"]);
+  });
+
+  it("treats trashed pages and other users' drafts as not found", async () => {
+    m.prisma.wikiPage.findFirst.mockResolvedValue(null);
+    await expect(updateWikiContentCore(actor, "p", "T", doc("new"))).rejects.toThrow("페이지를 찾을 수 없습니다");
+    expect(m.prisma.wikiPage.findFirst.mock.calls[0][0].where).toEqual({
+      id: "p", deletedAt: null, OR: [{ isDraft: false }, { authorId: "me" }],
+    });
+    expect(m.prisma.$transaction).not.toHaveBeenCalled();
   });
 
   it("returns conflict without a revision or notification when the page moved past the expected updatedAt", async () => {

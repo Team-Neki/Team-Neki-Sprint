@@ -113,7 +113,14 @@ export async function updateWikiContentCore(
   /** 클라이언트가 마지막으로 관측한 updatedAt(ISO). 주면 그 뒤 다른 저장이 있었을 때 덮지 않고 conflict. */
   expectedUpdatedAt?: string,
 ): Promise<{ id: string } | { conflict: true }> {
-  const current = await prisma.wikiPage.findUnique({ where: { id } });
+  // 휴지통 페이지와 남의 초안은 없는 페이지로 취급한다(getWikiPage 와 같은 규칙).
+  const current = await prisma.wikiPage.findFirst({
+    where: {
+      id,
+      deletedAt: null,
+      OR: [{ isDraft: false }, { authorId: actor.id }],
+    },
+  });
   if (!current) throw new Error("페이지를 찾을 수 없습니다");
 
   const nextTitle = title.trim() || "제목 없음";
