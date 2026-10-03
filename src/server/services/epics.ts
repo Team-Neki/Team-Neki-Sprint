@@ -75,30 +75,40 @@ export async function updateEpicFieldsCore(
   const { changes, data } = diffFields(current, patch);
   if (changes.length === 0) return { id };
 
-  const epic = await prisma.epic.update({ where: { id }, data });
+  // 변경·히스토리·멘션 알림을 한 트랜잭션으로(태스크 Core 와 같은 이유).
+  const epic = await prisma.$transaction(async (tx) => {
+    const epic = await tx.epic.update({ where: { id }, data });
 
-  await Promise.all(
-    changes.map((c) =>
-      logActivity({
-        userId: actor.id,
-        entityType: "epic",
-        entityId: id,
-        action: "field_changed",
-        meta: { field: c.field, from: c.from, to: c.to },
-      }),
-    ),
-  );
+    await Promise.all(
+      changes.map((c) =>
+        logActivity(
+          {
+            userId: actor.id,
+            entityType: "epic",
+            entityId: id,
+            action: "field_changed",
+            meta: { field: c.field, from: c.from, to: c.to },
+          },
+          tx,
+        ),
+      ),
+    );
 
-  if (changes.some((c) => c.field === "description")) {
-    await notifyNewMentions({
-      actorId: actor.id,
-      entityType: "epic",
-      entityId: id,
-      context: epic.title,
-      before: current.description,
-      after: epic.description,
-    });
-  }
+    if (changes.some((c) => c.field === "description")) {
+      await notifyNewMentions(
+        {
+          actorId: actor.id,
+          entityType: "epic",
+          entityId: id,
+          context: epic.title,
+          before: current.description,
+          after: epic.description,
+        },
+        tx,
+      );
+    }
+    return epic;
+  });
 
   revalidateEpicPaths(id, epic.projectId);
   // 프로젝트 이동 시 이전 프로젝트 상세도 무효화.

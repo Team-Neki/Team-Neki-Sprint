@@ -17,15 +17,34 @@ const EMPTY_DOC: Prisma.InputJsonValue = {
   content: [{ type: "paragraph" }],
 };
 
+/** 본문의 새 멘션 수신자별 알림 행(B5). 페이지 쓰기와 같은 트랜잭션에서 넣는다. */
+function mentionRows(
+  recipients: string[],
+  actorId: string,
+  pageId: string,
+  title: string,
+) {
+  return recipients.map((uid) => ({
+    userId: uid,
+    actorId,
+    type: "mention",
+    entityType: "wiki",
+    entityId: pageId,
+    context: title,
+  }));
+}
+
 /** createWikiPage의 actor 주입 코어. 서버 액션과 MCP API 라우트가 공유한다.
- * MCP/API 는 본문을 갖고 생성하므로 draft 없이(false) 만든다. */
+ * MCP/API 는 본문을 갖고 생성하므로 draft 없이(false) 만들고, 본문(content)을 함께
+ * 넘겨 한 번에 쓴다(빈 리비전·'수정' 활동이 생기지 않게). */
 export async function createWikiPageCore(
   actor: Actor,
   input: unknown,
-  opts?: { draft?: boolean },
+  opts?: { draft?: boolean; content?: unknown },
 ) {
   const data = wikiPageSchema.parse(input);
   const draft = opts?.draft === true;
+  const content = opts?.content;
 
   // 초안 아래에는 하위 페이지를 만들 수 없다(트리에서 버튼을 숨기지만 이중 방어).
   if (data.parentId) {
@@ -43,18 +62,31 @@ export async function createWikiPageCore(
     where: { parentId: data.parentId, folderId: data.folderId },
   });
 
-  const page = await prisma.wikiPage.create({
-    data: {
-      title: data.title,
-      parentId: data.parentId,
-      folderId: data.folderId,
-      content: EMPTY_DOC,
-      searchText: "",
-      position: siblingCount,
-      authorId: actor.id,
-      editorId: actor.id,
-      isDraft: draft,
-    },
+  // 초기 본문의 멘션은 빈 문서 대비 전부 새 멘션(수정과 같은 규칙).
+  const recipients = content
+    ? await newMentionRecipients(EMPTY_DOC, content, actor.id)
+    : [];
+  const page = await prisma.$transaction(async (tx) => {
+    const page = await tx.wikiPage.create({
+      data: {
+        title: data.title,
+        parentId: data.parentId,
+        folderId: data.folderId,
+        content: (content ?? EMPTY_DOC) as Prisma.InputJsonValue,
+        // 전역 검색 본문 매칭용 순수 텍스트 사본(gotchas §16 참조).
+        searchText: content ? docToPlainText(content as JSONContent) : "",
+        position: siblingCount,
+        authorId: actor.id,
+        editorId: actor.id,
+        isDraft: draft,
+      },
+    });
+    if (recipients.length > 0) {
+      await tx.notification.createMany({
+        data: mentionRows(recipients, actor.id, page.id, page.title),
+      });
+    }
+    return page;
   });
 
   // 초안 생성은 활동 로그를 남기지 않는다(취소되면 노이즈) — 첫 커밋 때 남긴다.
@@ -78,7 +110,9 @@ export async function updateWikiContentCore(
   id: string,
   title: string,
   content: unknown,
-) {
+  /** 클라이언트가 마지막으로 관측한 updatedAt(ISO). 주면 그 뒤 다른 저장이 있었을 때 덮지 않고 conflict. */
+  expectedUpdatedAt?: string,
+): Promise<{ id: string } | { conflict: true }> {
   const current = await prisma.wikiPage.findUnique({ where: { id } });
   if (!current) throw new Error("페이지를 찾을 수 없습니다");
 
@@ -111,28 +145,53 @@ export async function updateWikiContentCore(
     return { id };
   }
 
-  // Snapshot the previous version before overwriting.
-  await prisma.wikiRevision.create({
-    data: {
-      pageId: id,
-      title: current.title,
-      content: current.content as Prisma.InputJsonValue,
-      editorId: current.editorId,
-    },
-  });
+  // 본문에 '새로 추가된' 멘션(사람 + 팀→팀원 전원 확장)에 대해 수신자별 알림 생성(B5).
+  // 저장 전/후 doc 의 멘션 차집합만 → 재저장마다 중복 알림 방지. 자기멘션 제외.
+  const recipients = await newMentionRecipients(
+    current.content,
+    content,
+    actor.id,
+  );
 
-  await prisma.wikiPage.update({
-    where: { id },
-    data: {
-      title: nextTitle,
-      content: content as Prisma.InputJsonValue,
-      // 전역 검색 본문 매칭용 순수 텍스트 사본(gotchas §16 참조).
-      searchText: docToPlainText(content as JSONContent),
-      editorId: actor.id,
-      // 첫 저장(커밋)이면 초안 → 정식 전환.
-      isDraft: false,
-    },
+  // 페이지 갱신·리비전·알림을 한 트랜잭션으로(알림만 실패하면 재시도가 unchanged 로 빠져 알림이 빠진다).
+  // 충돌 검사는 updatedAt 조건부 updateMany 의 count 로 — 읽고 비교한 뒤 쓰면 그 틈의 저장을 덮는다.
+  const saved = await prisma.$transaction(async (tx) => {
+    const { count } = await tx.wikiPage.updateMany({
+      where: {
+        id,
+        ...(expectedUpdatedAt
+          ? { updatedAt: new Date(expectedUpdatedAt) }
+          : {}),
+      },
+      data: {
+        title: nextTitle,
+        content: content as Prisma.InputJsonValue,
+        // 전역 검색 본문 매칭용 순수 텍스트 사본(gotchas §16 참조).
+        searchText: docToPlainText(content as JSONContent),
+        editorId: actor.id,
+        // 첫 저장(커밋)이면 초안 → 정식 전환.
+        isDraft: false,
+      },
+    });
+    if (count === 0) return false;
+
+    // Snapshot the previous version before overwriting.
+    await tx.wikiRevision.create({
+      data: {
+        pageId: id,
+        title: current.title,
+        content: current.content as Prisma.InputJsonValue,
+        editorId: current.editorId,
+      },
+    });
+    if (recipients.length > 0) {
+      await tx.notification.createMany({
+        data: mentionRows(recipients, actor.id, id, nextTitle),
+      });
+    }
+    return true;
   });
+  if (!saved) return { conflict: true };
 
   // 초안의 첫 커밋은 '생성', 그 외에는 '수정' 활동으로 남긴다.
   await logActivity({
@@ -142,26 +201,6 @@ export async function updateWikiContentCore(
     action: current.isDraft ? "created" : "updated",
     ...(current.isDraft ? { meta: { title: nextTitle } } : {}),
   });
-
-  // 본문에 '새로 추가된' 멘션(사람 + 팀→팀원 전원 확장)에 대해 수신자별 알림 생성(B5).
-  // 저장 전/후 doc 의 멘션 차집합만 → 재저장마다 중복 알림 방지. 자기멘션 제외.
-  const recipients = await newMentionRecipients(
-    current.content,
-    content,
-    actor.id,
-  );
-  if (recipients.length > 0) {
-    await prisma.notification.createMany({
-      data: recipients.map((uid) => ({
-        userId: uid,
-        actorId: actor.id,
-        type: "mention",
-        entityType: "wiki",
-        entityId: id,
-        context: nextTitle,
-      })),
-    });
-  }
 
   // 저장(커밋)했으니 이 유저의 임시저장본은 정리(있으면).
   // deleteMany: 초안이 없는 경우가 정상 흐름(초안 없이 바로 저장)이라 delete 를 쓰면

@@ -37,30 +37,39 @@ export async function updateSprintFieldsCore(
   const { changes, data } = diffFields(current, patch);
   if (changes.length === 0) return { id };
 
-  const sprint = await prisma.sprint.update({ where: { id }, data });
+  // 변경·히스토리·멘션 알림을 한 트랜잭션으로(태스크 Core 와 같은 이유).
+  await prisma.$transaction(async (tx) => {
+    const sprint = await tx.sprint.update({ where: { id }, data });
 
-  await Promise.all(
-    changes.map((c) =>
-      logActivity({
-        userId: actor.id,
-        entityType: "sprint",
-        entityId: id,
-        action: "field_changed",
-        meta: { field: c.field, from: c.from, to: c.to },
-      }),
-    ),
-  );
+    await Promise.all(
+      changes.map((c) =>
+        logActivity(
+          {
+            userId: actor.id,
+            entityType: "sprint",
+            entityId: id,
+            action: "field_changed",
+            meta: { field: c.field, from: c.from, to: c.to },
+          },
+          tx,
+        ),
+      ),
+    );
 
-  if (changes.some((c) => c.field === "description")) {
-    await notifyNewMentions({
-      actorId: actor.id,
-      entityType: "sprint",
-      entityId: id,
-      context: sprint.name,
-      before: current.description,
-      after: sprint.description,
-    });
-  }
+    if (changes.some((c) => c.field === "description")) {
+      await notifyNewMentions(
+        {
+          actorId: actor.id,
+          entityType: "sprint",
+          entityId: id,
+          context: sprint.name,
+          before: current.description,
+          after: sprint.description,
+        },
+        tx,
+      );
+    }
+  });
 
   revalidatePath("/sprints");
   revalidatePath(`/sprints/${id}`);

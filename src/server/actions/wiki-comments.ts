@@ -130,8 +130,8 @@ export async function deleteWikiCommentThread(threadId: string) {
  * 낙관적 동시성(A3): 앵커 저장은 content 를 통째로 덮어쓰는 last-write-wins 라, 클라이언트가
  * 본문을 로드한 뒤 댓글을 다는 사이 다른 사용자가 본문을 저장하면 그 편집이 조용히 되돌아간다.
  * 이를 막기 위해 클라이언트가 마지막으로 관측한 updatedAt(ISO 문자열, RSC 경계 직렬화)을 받아
- * 현재 값과 대조한다. 다르면(중간에 저장 발생) 덮어쓰지 않고 conflict 를 돌려주고, 같으면 저장 후
- * 새 updatedAt 을 돌려줘 클라이언트가 기준선을 갱신하도록 한다.
+ * 그 값일 때만 갱신한다(updateMany 조건 — 읽고 비교한 뒤 쓰면 그 틈의 저장을 덮는다). 0건이면
+ * (중간에 저장 발생) conflict 를 돌려주고, 갱신되면 새 updatedAt 을 돌려줘 기준선을 갱신하게 한다.
  */
 export async function saveWikiCommentAnchors(
   pageId: string,
@@ -142,23 +142,19 @@ export async function saveWikiCommentAnchors(
 > {
   await requireUser();
 
-  const current = await prisma.wikiPage.findUnique({
-    where: { id: pageId },
-    select: { updatedAt: true },
+  // updateMany 는 갱신된 행을 돌려주지 않으므로 새 기준선을 직접 정해 쓴다.
+  const updatedAt = new Date();
+  const { count } = await prisma.wikiPage.updateMany({
+    where: { id: pageId, updatedAt: new Date(expectedUpdatedAt) },
+    data: { content: content as Prisma.InputJsonValue, updatedAt },
   });
-  if (!current) throw new Error("페이지를 찾을 수 없습니다");
-
-  // 기준선 불일치 = 그 사이 누군가 본문을 저장함 → 덮어쓰기 거부(그 편집 보존).
-  if (current.updatedAt.getTime() !== new Date(expectedUpdatedAt).getTime()) {
+  if (count === 0) {
+    const exists = await prisma.wikiPage.count({ where: { id: pageId } });
+    if (!exists) throw new Error("페이지를 찾을 수 없습니다");
+    // 기준선 불일치 = 그 사이 누군가 본문을 저장함 → 덮어쓰기 거부(그 편집 보존).
     return { ok: false, conflict: true };
   }
-
-  const updated = await prisma.wikiPage.update({
-    where: { id: pageId },
-    data: { content: content as Prisma.InputJsonValue },
-    select: { updatedAt: true },
-  });
   revalidatePath(`/wiki/${pageId}`);
   // 앵커 저장은 page.content/updatedAt 을 바꾼다 → 사이드바 트리 updatedAt 반영.
-  return { ok: true, updatedAt: updated.updatedAt.toISOString() };
+  return { ok: true, updatedAt: updatedAt.toISOString() };
 }

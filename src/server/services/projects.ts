@@ -45,30 +45,40 @@ export async function updateProjectFieldsCore(
   const { changes, data } = diffFields(current, patch);
   if (changes.length === 0) return { id };
 
-  const project = await prisma.project.update({ where: { id }, data });
+  // 변경·히스토리·멘션 알림을 한 트랜잭션으로(태스크 Core 와 같은 이유).
+  const project = await prisma.$transaction(async (tx) => {
+    const project = await tx.project.update({ where: { id }, data });
 
-  await Promise.all(
-    changes.map((c) =>
-      logActivity({
-        userId: actor.id,
-        entityType: "project",
-        entityId: id,
-        action: "field_changed",
-        meta: { field: c.field, from: c.from, to: c.to },
-      }),
-    ),
-  );
+    await Promise.all(
+      changes.map((c) =>
+        logActivity(
+          {
+            userId: actor.id,
+            entityType: "project",
+            entityId: id,
+            action: "field_changed",
+            meta: { field: c.field, from: c.from, to: c.to },
+          },
+          tx,
+        ),
+      ),
+    );
 
-  if (changes.some((c) => c.field === "description")) {
-    await notifyNewMentions({
-      actorId: actor.id,
-      entityType: "project",
-      entityId: id,
-      context: project.title,
-      before: current.description,
-      after: project.description,
-    });
-  }
+    if (changes.some((c) => c.field === "description")) {
+      await notifyNewMentions(
+        {
+          actorId: actor.id,
+          entityType: "project",
+          entityId: id,
+          context: project.title,
+          before: current.description,
+          after: project.description,
+        },
+        tx,
+      );
+    }
+    return project;
+  });
 
   revalidateProjectPaths(id, project.sprintId);
   // 스프린트 이동 시 이전 스프린트도 무효화.

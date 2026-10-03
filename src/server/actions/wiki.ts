@@ -36,19 +36,7 @@ export async function updateWikiContent(
   expectedUpdatedAt?: string,
 ): Promise<{ id: string } | { conflict: true }> {
   const user = await requireUser();
-  if (expectedUpdatedAt) {
-    const current = await prisma.wikiPage.findUnique({
-      where: { id },
-      select: { updatedAt: true },
-    });
-    if (
-      current &&
-      current.updatedAt.getTime() !== new Date(expectedUpdatedAt).getTime()
-    ) {
-      return { conflict: true };
-    }
-  }
-  return updateWikiContentCore(user, id, title, content);
+  return updateWikiContentCore(user, id, title, content, expectedUpdatedAt);
 }
 
 // ---------- 편집 임시저장본(draft) ----------

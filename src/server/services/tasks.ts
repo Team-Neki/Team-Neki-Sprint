@@ -108,32 +108,43 @@ export async function updateTaskFieldsCore(
   const { changes, data } = diffFields(current, patch);
   if (changes.length === 0) return { id };
 
-  const task = await prisma.task.update({ where: { id }, data });
+  // 변경·히스토리·멘션 알림을 한 트랜잭션으로. 알림만 실패하고 변경이 남으면 재시도가
+  // 빈 diff 로 끝나 히스토리·알림이 조용히 빠진다(updateAnnouncement 와 같은 이유).
+  const task = await prisma.$transaction(async (tx) => {
+    const task = await tx.task.update({ where: { id }, data });
 
-  await Promise.all(
-    changes.map((c) =>
-      logActivity({
-        userId: actor.id,
-        entityType: "task",
-        entityId: id,
-        action: "field_changed",
-        meta: { field: c.field, from: c.from, to: c.to },
-      }),
-    ),
-  );
+    await Promise.all(
+      changes.map((c) =>
+        logActivity(
+          {
+            userId: actor.id,
+            entityType: "task",
+            entityId: id,
+            action: "field_changed",
+            meta: { field: c.field, from: c.from, to: c.to },
+          },
+          tx,
+        ),
+      ),
+    );
 
-  // 설명(description) 변경 시 새로 추가된 '@' 멘션 → 알림.
-  const descChange = changes.find((c) => c.field === "description");
-  if (descChange) {
-    await notifyNewMentions({
-      actorId: actor.id,
-      entityType: "task",
-      entityId: id,
-      context: task.title,
-      before: current.description,
-      after: task.description,
-    });
-  }
+    // 설명(description) 변경 시 새로 추가된 '@' 멘션 → 알림.
+    const descChange = changes.find((c) => c.field === "description");
+    if (descChange) {
+      await notifyNewMentions(
+        {
+          actorId: actor.id,
+          entityType: "task",
+          entityId: id,
+          context: task.title,
+          before: current.description,
+          after: task.description,
+        },
+        tx,
+      );
+    }
+    return task;
+  });
 
   revalidateTaskPaths(id, task.epicId);
   // 에픽 이동 시 이전 에픽 상세도 무효화.

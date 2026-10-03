@@ -39,9 +39,6 @@ export async function addEntityCommentCore(
       });
       if (!t) throw new Error("대상을 찾을 수 없습니다");
       context = t.title;
-      await prisma.comment.create({
-        data: { taskId: entityId, body: parsed, authorId: actor.id },
-      });
       break;
     }
     case "epic": {
@@ -51,9 +48,6 @@ export async function addEntityCommentCore(
       });
       if (!e) throw new Error("대상을 찾을 수 없습니다");
       context = e.title;
-      await prisma.comment.create({
-        data: { epicId: entityId, body: parsed, authorId: actor.id },
-      });
       break;
     }
     case "project": {
@@ -63,9 +57,6 @@ export async function addEntityCommentCore(
       });
       if (!p) throw new Error("대상을 찾을 수 없습니다");
       context = p.title;
-      await prisma.comment.create({
-        data: { projectId: entityId, body: parsed, authorId: actor.id },
-      });
       break;
     }
     case "sprint": {
@@ -75,25 +66,32 @@ export async function addEntityCommentCore(
       });
       if (!s) throw new Error("대상을 찾을 수 없습니다");
       context = s.name;
-      await prisma.comment.create({
-        data: { sprintId: entityId, body: parsed, authorId: actor.id },
-      });
       break;
     }
   }
+
+  // 댓글과 멘션 알림을 한 트랜잭션으로 — 알림만 실패하고 댓글이 남으면 재시도가 댓글을 중복 생성한다.
+  const target = {
+    task: { taskId: entityId },
+    epic: { epicId: entityId },
+    project: { projectId: entityId },
+    sprint: { sprintId: entityId },
+  }[entityType];
+  await prisma.$transaction(async (tx) => {
+    await tx.comment.create({
+      data: { ...target, body: parsed, authorId: actor.id },
+    });
+    await notifyNewMentions(
+      { actorId: actor.id, entityType, entityId, context, after: parsed },
+      tx,
+    );
+  });
 
   await logActivity({
     userId: actor.id,
     entityType,
     entityId,
     action: "commented",
-  });
-  await notifyNewMentions({
-    actorId: actor.id,
-    entityType,
-    entityId,
-    context,
-    after: parsed,
   });
   revalidatePath(entityPath(entityType, entityId));
 }
