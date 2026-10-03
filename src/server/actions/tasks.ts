@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import type { Status } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { orderBetween } from "@/lib/order";
 import { requireUser } from "@/lib/session";
 import { taskSchema } from "@/lib/validators";
 import { logActivity, diffFields } from "@/server/activity";
@@ -116,13 +117,33 @@ export async function reorderBoardTask(
     // 로드. 크로스 컬럼 이동이면 이동 태스크(id)는 아직 다른 status 라 여기 없음.
     const columnTasks = await tx.task.findMany({
       where: { status },
-      select: { id: true },
+      select: { id: true, boardOrder: true },
       orderBy: [
         { boardOrder: { sort: "asc", nulls: "last" } },
         { createdAt: "asc" },
+        { id: "asc" }, // 보드 조회(getBoardTasks)와 같은 tiebreaker — 이웃 판단이 화면과 일치.
       ],
     });
 
+    // 빠른 경로(BACKEND-186): 이동 태스크만 1행 갱신. 다음 visible 태스크 N 바로 앞
+    // (N 이 없으면 컬럼 끝)에 이웃 중간값으로 둔다. 결과는 아래 앵커 규칙과 같되, 이동
+    // 태스크 바로 뒤에 붙어 있던 숨은 태스크는 따라가지 않고 제자리에 남는다.
+    // 이웃 boardOrder 가 null 이거나 간격이 고갈되면 폴백.
+    const rest = columnTasks.filter((t) => t.id !== id);
+    const pos = orderedIds.indexOf(id);
+    const nextId = pos === -1 ? undefined : orderedIds[pos + 1];
+    const ni =
+      nextId === undefined ? rest.length : rest.findIndex((t) => t.id === nextId);
+    const order =
+      ni === -1 ? null : orderBetween(rest[ni - 1]?.boardOrder, rest[ni]?.boardOrder);
+    if (order !== null) {
+      await tx.task.update({ where: { id }, data: { status, boardOrder: order } });
+      return;
+    }
+
+    // 폴백: 컬럼 전체 재번호.
+    // ponytail: 여전히 컬럼 크기만큼 순차 UPDATE — null 이웃·간격 고갈 때만 드물게 탄다.
+    // 거대한 컬럼에서도 시간 초과가 나면 UPDATE ... FROM (VALUES ...) 1문으로 일괄화.
     // 숨은 태스크를 "직전 visible 태스크"에 앵커링해 상대 위치를 보존한다.
     // 어떤 visible 보다도 앞에 있던 숨은 태스크는 START 앵커로 묶어 선두에 둔다.
     const visible = new Set(orderedIds);
