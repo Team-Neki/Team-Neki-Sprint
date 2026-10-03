@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { Editor } from "@tiptap/react";
 import { DragHandle } from "@tiptap/extension-drag-handle-react";
 import { NodeSelection } from "@tiptap/pm/state";
@@ -17,6 +17,14 @@ export function BlockHandle({ editor }: { editor: Editor }) {
   // onNodeChange 로 받은 현재 hover 블록 위치. 메뉴 액션이 이 pos 기준으로 동작.
   const posRef = useRef<number>(-1);
   const [menuOpen, setMenuOpen] = useState(false);
+
+  // 참조를 고정해야 한다. DragHandle 은 onNodeChange 가 바뀌면 플러그인을 다시 등록하고,
+  // 그 재등록이 모든 plugin view 를 destroy 해 @·#·/ 제안 팝업이 닫힌다(gotchas §40).
+  const onNodeChange = useCallback(({ pos }: { pos: number }) => {
+    // 다른 블록으로 이동하면 열린 메뉴를 닫는다(엉뚱한 블록에 액션 방지).
+    if (pos !== posRef.current) setMenuOpen(false);
+    posRef.current = pos;
+  }, []);
 
   function currentPos(): number | null {
     const pos = posRef.current;
@@ -67,11 +75,7 @@ export function BlockHandle({ editor }: { editor: Editor }) {
     <DragHandle
       editor={editor}
       className="wiki-block-handle"
-      onNodeChange={({ pos }) => {
-        // 다른 블록으로 이동하면 열린 메뉴를 닫는다(엉뚱한 블록에 액션 방지).
-        if (pos !== posRef.current) setMenuOpen(false);
-        posRef.current = pos;
-      }}
+      onNodeChange={onNodeChange}
     >
       <div className="relative" contentEditable={false}>
         <button
