@@ -144,7 +144,7 @@
 | O-F-1 | auto | `test -f src/components/detail/use-field-save.ts && test -f src/components/detail/inline-description.tsx` 종료코드 0 |
 | O-F-2 | auto | `grep -c "RichEditor" src/components/detail/inline-fields.tsx` = 0 |
 | O-F-3 | auto | `grep -c "useOptimisticValue" src/components/detail/inline-assignee.tsx` ≥ 1 |
-| O-F-4 | auto | `grep -c "useOptimisticValue" src/components/detail/epic-field.tsx` ≥ 1 |
+| O-F-4 | auto | `grep -c "useOptimisticValue" src/components/detail/parent-field.tsx` ≥ 1 (Q 에서 `epic-field.tsx` 가 `ParentField` 로 일반화됨) |
 | O-F-5 | manual | 태스크 목록에서 담당자를 바꾸면 refresh 동안에도 새 값이 바로 보인다 |
 
 ## O-Q. 상세 셸 공용화 (BACKEND-193)

@@ -328,3 +328,12 @@ tiptap v3 패키지들은 peer 로 `@tiptap/core@정확버전`(캐럿 아님)을
 - **해결**: `shouldShow` 를 모듈 스코프 함수(`showBubble`)로 올려 참조를 고정.
 - **규칙**: 트랜잭션마다 리렌더하는 에디터 아래의 tiptap React 컴포넌트(BubbleMenu·FloatingMenu·DragHandle 등)에 넘기는 함수/객체 prop 은 모듈 스코프나 `useCallback`/`useMemo` 로 고정한다. `DragHandle` 의 `onNodeChange` 도 예외가 아니다. 루프는 아니지만 렌더마다 플러그인을 재등록하고, 그 `state.reconfigure` 가 ProseMirror `updatePluginViews` 에서 **모든 plugin view 를 destroy** 한다 — Suggestion 의 `destroy` 가 `onExit` 를 불러 `@`·`#`·`/` 팝업이 첫 입력 직후 닫혔다(2026-10-04 BACKEND-179, `useCallback` 으로 고정).
 - **재현법(로그인 없이)**: jsdom 을 레포 밖(스크래치)에 설치하고, vitest 임시 테스트에서 전역에 jsdom `window` 를 깔고(`Range.getClientRects`·`elementFromPoint`·`ResizeObserver` 스텁) `next/navigation`·서버 액션을 `vi.mock` 한 채 실제 `WikiEditor` 를 `createRoot` 로 마운트한다. `.ProseMirror` 요소의 `.editor` 로 `commands.setTextSelection(n)` 을 `act` 안에서 호출하면 수정 전엔 #185 가 그대로 난다.
+
+## 41. zod 4 의 `.partial()` 은 `.default()` 를 그대로 채운다 — 단일 필드 patch 가 상태를 덮어쓴다 (2026-10-04)
+
+- **증상**: 태스크 제목만 인라인으로 고쳐도 상태가 `TODO`, 우선순위가 `MEDIUM` 으로 돌아가고 히스토리에 그 변경이 남았다. 에픽·프로젝트도 같고, 스프린트는 이름만 고쳐도 상태가 `PLANNED` 가 됐다. MCP `update_ticket`·`update_epic` 도 같은 경로라 같은 증상. 처음 커밋(2026-07-08)부터 있던 버그로, 구조 검토의 S2(BACKEND-183) 중 발견했습니다.
+- **원인**: `taskSchema.partial().parse({ title: "x" })` 의 결과가 `{ title: "x", status: "TODO", priority: "MEDIUM" }` 입니다. zod 4(4.4.3)는 `.partial()` 로 감싸도 입력에 없는 키에 `.default()` 값을 넣습니다. `update*FieldsCore` 는 이 결과를 `diffFields` 에 그대로 넘겨, 현재 값과 다르면 기본값으로 저장했습니다.
+- **해결**: `src/server/services/patch.ts` 의 `parsePatch(schema, input)` 로 검증한 뒤 **입력에 있던 키만** 남깁니다. 네 엔티티의 수정 Core 가 모두 이 함수를 거칩니다.
+- **규칙**: 부분 수정 입력을 검증할 때 `schema.partial().parse()` 결과를 그대로 쓰지 않습니다. `parsePatch` 를 쓰거나, 기본값이 있는 스키마라면 기본값 없는 patch 전용 스키마를 따로 둡니다.
+- **운영 데이터**: 버그 기간의 `Activity`(`action = 'field_changed'`)에 다른 필드 변경과 같은 시각에 `status → TODO`·`priority → MEDIUM`·스프린트 `status → PLANNED` 가 함께 남은 행이 덮어쓰기 흔적입니다. 복구는 그 행의 `from` 값으로 되돌리는 방식이 가능합니다.
+

@@ -39,7 +39,7 @@
 
 | id | 종류 | 판정 |
 |---|---|---|
-| O-C-1 | auto | `src/server/actions/wiki.ts` 의 `updateWikiContent` 시그니처에 `expectedUpdatedAt` 인자가 있고 함수 본문에 `{ conflict: true }` 반환이 존재 |
+| O-C-1 | auto | `src/server/actions/wiki.ts` 의 `updateWikiContent` 시그니처에 `expectedUpdatedAt` 인자가 있고 `{ conflict: true }` 반환이 존재(BACKEND-182 이후 본문은 `src/server/services/wiki.ts` 의 `updateWikiContentCore`, 액션은 반환 타입만 가짐) |
 | O-C-2 | auto | `editor.tsx` 에 `useTransition` import 및 사용, `draftGenRef` 사용, `ConfirmDelete` import 이 존재 |
 | O-C-3 | auto | `editor.tsx` 의 배너 JSX 조건이 `usingDraft` 가 아닌 별도 state(`showDraftBanner`) 를 참조 |
 | O-C-4 | auto | `wiki-detail.tsx` 의 상태 텍스트 span 클래스에 `hidden` 과 `sm:inline` 이 없음 |

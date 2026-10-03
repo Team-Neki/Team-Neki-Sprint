@@ -8,6 +8,7 @@
 
 | 날짜 | 세션 | 상태 |
 |---|---|---|
+| 2026-10-04 | 코드 구조 개선 묶음(BACKEND-179~193, worktree 7-스트림 병렬 + Q 후행): 구조 검토에서 나온 버그·권한 경계·쓰기 경로·중복 drift 를 [계획](./superpowers/plans/2026-10-04-structure-fixes.md)의 DAG 로 처리. (1) 위키 `@`·`#`·`/` 팝업 즉시 닫힘(DragHandle `onNodeChange` 고정), (2) **zod 4 `.partial()` 기본값 주입으로 인라인 편집·MCP 수정이 상태·우선순위를 덮어쓰던 운영 버그**(gotchas §41), (3) 쓰기 Core 를 `services/*` 로 옮겨 서버 액션 노출 차단, 페이지별 `requireUser`(+`cache()`), MCP 위키 초안·휴지통 가드, (4) 다이얼로그 수정을 인라인 Core 로 위임, 변경+히스토리+알림 트랜잭션, 위키 충돌 검사 `updateMany` 원자화, (5) 보드 재정렬 이웃 중간값 1행 갱신, (6) 위키 에디터 공용 훅(공지 에디터 첨부 패리티)·`editor.tsx` 1487→320줄, 제안 메뉴·필드 저장 훅·목록 필터·상세 셸 공용화, 부모 링크 통일. 완료 판정은 [오라클](./oracle/structure-fixes.md)(auto 전부 통과, manual 은 배포 후) | `DONE`\* |
 | 2026-09-30 | 하위 태스크 진행률 롤업(BACKEND-160): 에픽·프로젝트·스프린트 상세에서 하위 항목이 얼마나 끝났는지 표를 세어야만 알 수 있던 문제. (1) 상세의 하위 목록 헤더와 표 사이에 진행 요약(`TaskProgressSummary`: 막대 + `40% 태스크 10개 중 완료 4 · 진행 중 3 · 할 일 3`), (2) 에픽·프로젝트·스프린트 표에 `진행률` 컬럼(작은 막대 + `완료/전체`, 정렬 없음 — 목록 페이지에도 노출), (3) 집계는 최하위 태스크까지 롤업. 기존 MD 롤업 쿼리를 `(key, status)` 단위로 바꿔 한 쿼리로 MD·상태 개수를 함께 구함(`rollupBy{Epic,Project,Sprint}`, `mdByEpic` 제거, 스키마 변경 없음), (4) 같은 집계 덕에 프로젝트 상세 에픽 표·스프린트 상세 프로젝트 표의 MD 컬럼이 "—" 대신 값을 보임. 순수 로직 `lib/task-progress.ts`(+vitest 11), raw SQL 은 임시 Postgres 에 마이그레이션 적용 후 6개 쿼리 결과를 손계산과 대조해 검증. 오라클 [`oracle/task-progress-rollup.md`](./oracle/task-progress-rollup.md) | `DONE`\* |
 | 2026-09-25 | 위키 편집 화면 사용성 개선(BACKEND-144~149, worktree 5-스트림 병렬): (1) **툴바 활성 상태 미갱신** — Tiptap 3.x `useEditor` 기본값이 트랜잭션에 리렌더하지 않아 굵게/표/색상 표시가 커서와 어긋나던 것 `shouldRerenderOnTransaction: true` 로 해결(공지 에디터 동일) + `WikiDetail` `key={page.id}` 로 페이지 전환 시 편집 모드 잔존 차단, (2) 편집 진입 시 본문 폭 3xl→5xl 리플로우 제거, (3) **저장/임시저장 안전장치** — 첫 자동 임시저장 뒤 '불러왔습니다' 배너 오표시, 커밋과 임시저장 경합으로 생기던 유령 draft(세대 카운터), 취소/원본으로 확인 다이얼로그, `updateWikiContent` `expectedUpdatedAt` 낙관적 충돌 감지, 저장 후 `useTransition` 으로 이전 본문 깜빡임 제거, 모바일 상태 텍스트 노출, (4) 링크 인풋 `type=url`→`text`+`normalizeHref`(+vitest 4), (5) **파일 첨부 확장** — 비이미지 파일 드롭 시 브라우저가 파일을 열며 페이지 이탈하던 버그(`handleDrop` false 반환) 해결, 드롭/붙여넣기/슬래시(`/이미지`·`/파일`)/다중 선택, 헬퍼를 `wiki/upload.ts` 로 분리, 칩 편집 모드 클릭 차단+선택 외곽선, (6) prod 인그레스는 Traefik IngressRoute(본문 상한 없음) 확인. 완료 판정은 신설 `docs/oracle/` 오라클(auto 통과, manual 은 배포 후 확인) | `DONE`\* |
 | 2026-08-02 | README 현행화(BACKEND-69): 초기 커밋(2026-07-08) 이후 321커밋 동안 방치돼 계층·상태·추정 단위·배포 절차가 전부 옛 사실이던 루트 `README.md` 정리. 존재하지 않는 `k8s/` 를 apply 하라던 배포 절 → GitOps+ArgoCD+수동 트리거로 교체, 누락 기능(MCP·GitHub·공지/알림/멘션·라벨·위키 리치·OG·테스트) 반영, `docs/README.md` MCP 패키지명 오기 수정 | `DONE` |
@@ -47,6 +48,19 @@
 \*\* 빌드된 standalone 서버를 실제로 띄워 `og:image`·`robots.txt`·PNG 응답까지 실증. prod 반영은 배포 후 재확인 필요.
 
 ---
+
+## 2026-10-04 — 코드 구조 개선 묶음 (브랜치 `koosco/structure-fixes`, BACKEND-179~193)
+
+구조 검토(서버 계층·위키 UI·엔티티 UI 3방향)에서 나온 항목 중 결정이 필요 없는 15개를 노드로 나눠 처리했습니다. 작은 노드 3개(A·K·P)는 통합 브랜치에서 직접, 나머지는 worktree 7개에서 서브에이전트가 병렬로 구현한 뒤 M→B→G→F→L→W→S 순으로 병합했고, Q(상세 셸)는 F 병합 후 띄웠습니다. 병합 충돌은 없었습니다. 결정이 필요한 3건은 티켓만 남겼습니다(BACKEND-194 삭제 권한 정책, 195 보드 DONE 로드 범위, 196 refresh 이중 렌더 확인).
+
+- **운영 버그(BACKEND-183 중 발견)**: zod 4 `.partial()` 이 `.default()` 를 채워, 단일 필드 인라인 편집·MCP 수정마다 상태·우선순위(스프린트는 상태)가 기본값으로 덮어써졌음. `parsePatch` 로 입력 키만 남김. 버그 기간 데이터 확인법은 [gotchas §41]
+- **위키 팝업(BACKEND-179)**: `block-handle.tsx` 의 인라인 `onNodeChange` 가 렌더마다 플러그인을 재등록 → 모든 plugin view destroy → Suggestion `onExit`. `useCallback` 고정, gotchas §40 정정
+- **권한 경계(BACKEND-181·182·185)**: 쓰기 Core 를 `"use server"` 없는 `services/*` 로 이동(`server-only` 는 미설치라 생략, prisma import 가 클라이언트 번들 가드), 데이터 페이지 6곳 `requireUser` + `cache()`, MCP 위키 GET/PATCH 와 본문 저장에 초안(타인)·휴지통 거부
+- **쓰기 정합성(BACKEND-183·184)**: 다이얼로그 `update*` 를 `update*FieldsCore` 로 위임(필드 히스토리·멘션 알림·담당자 배타 적용). 변경+히스토리+알림·댓글+알림·위키 저장+리비전+알림을 `$transaction` 으로, 위키 충돌 검사는 `updateMany` count. MCP 위키 생성은 1단계(빈 리비전 제거). 트랜잭션 안의 `logActivity` 는 예외를 다시 던짐
+- **보드(BACKEND-186)**: 이동 태스크를 다음 visible 태스크 앞 이웃 중간값으로 1행 갱신. 숨은 태스크는 불변(roadmap A2 대안 b). null 이웃·간격 고갈 시 기존 전체 재번호로 폴백
+- **위키 UI(BACKEND-187~190)**: `useWikiEditor` 로 공지 에디터에 업로드 삽입·붙여넣기·드롭·트리플클릭 패리티, 확장·`editorProps` 고정으로 렌더마다 `setOptions` 제거. `editor.tsx` 를 툴바·버블·표 hover 로 분리(1487→320줄), `applyLink` 단일화. 댓글 3곳 `submittingRef`. 제안 메뉴 3벌을 `suggestion-menu.tsx` 로, 방향키 이동 시 `scrollIntoView`·목록 변경 시 스크롤 초기화
+- **목록·상세(BACKEND-180·191~193)**: 연결 위키에서 휴지통 페이지 숨김, 이슈키 파서 통일. `parseListFilters`(enum 화이트리스트로 `?status=foo` 에러 페이지 제거)·`useSetSearchParams`, 태스크 필터 초기화가 정렬 유지·검색 300ms 디바운스, 죽은 `?sprint=` 제거. `use-field-save.ts` 로 담당자·부모 필드도 낙관적 표시, `InlineDescription` 분리로 목록 페이지가 위키 에디터 번들을 받지 않음. `detail-shell.tsx`·`ParentField` 로 상세 셸 공용화, 에픽→프로젝트·프로젝트→스프린트도 링크+변경
+- **검증**: tsc 0 · eslint 0 · vitest 38파일 275개(기준 34/257) · `next build` 성공 · 오라클 auto 전부 통과 · NUL/바이너리/이모지 0. 브라우저 확인(오라클 manual)은 로그인 게이트로 미실시
 
 ## 2026-09-25 — 위키 편집 화면 사용성 개선 (브랜치 `koosco/wiki-editor-usability`, BACKEND-144~149)
 
