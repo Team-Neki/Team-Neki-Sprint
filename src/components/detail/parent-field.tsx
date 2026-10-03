@@ -15,6 +15,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import { defaultFilter } from "cmdk";
 import {
   useFieldSave,
   useOptimisticValue,
@@ -33,8 +34,13 @@ const PARENT = {
 /**
  * 상세의 부모 필드(태스크->에픽, 에픽->프로젝트, 프로젝트->스프린트, #3). 현재 부모는 링크
  * (클릭 시 부모 상세로 이동), "변경" 버튼은 검색 콤보박스를 열어 부모를 바꾼다.
- * cmdk 기본 필터를 쓰며, 각 항목 value 에 key·제목을 넣어 둘 다로 검색된다.
+ * 항목 value 는 고유한 id 라 제목이 같은 부모가 있어도 키보드 선택이 정확하다. 검색은
+ * keywords(key·제목)로만 한다 — value(id)까지 점수에 넣으면 id 글자가 짧은 검색어에 걸린다.
  */
+function filterByKeywords(_value: string, search: string, keywords?: string[]) {
+  return defaultFilter("", search, keywords);
+}
+
 export function ParentField({
   parent,
   id,
@@ -94,19 +100,22 @@ export function ParentField({
           }
         />
         <PopoverContent align="end" className="w-72 p-0">
-          <Command>
+          <Command filter={filterByKeywords}>
             <CommandInput placeholder={search} />
             <CommandList>
               <CommandEmpty>결과가 없습니다</CommandEmpty>
-              <CommandItem value="none 없음" onSelect={() => choose(null)}>
+              <CommandItem
+                value="none"
+                keywords={["없음", "none"]}
+                onSelect={() => choose(null)}
+              >
                 <span className="text-muted-foreground">없음</span>
               </CommandItem>
               {options.map((o) => (
                 <CommandItem
                   key={o.id}
-                  // ponytail: 제목이 같은 프로젝트·스프린트는 value 가 겹쳐 키보드 Enter 가 첫 항목을
-                  // 고른다(마우스 클릭은 정확). 문제 되면 value=id + keywords + 커스텀 filter 로.
-                  value={`${o.issueKey ?? ""} ${o.title}`}
+                  value={o.id}
+                  keywords={o.issueKey ? [o.issueKey, o.title] : [o.title]}
                   onSelect={() => choose(o.id)}
                   disabled={pending}
                 >

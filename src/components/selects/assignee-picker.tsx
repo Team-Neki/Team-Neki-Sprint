@@ -36,7 +36,7 @@ const chipTrigger =
 
 /**
  * 검색 가능한 담당자 콤보박스(B5). 사람 + 팀을 한 팝오버에서 검색해 고른다.
- * epic-field.tsx 의 Popover + cmdk Command 패턴을 따르며, 각 항목 value 에
+ * parent-field.tsx 의 Popover + cmdk Command 패턴을 따르며, 각 항목 value 에
  * 이름/이메일/키를 넣어 cmdk 기본 필터가 셋 다로 매칭하게 한다.
  */
 export function AssigneePicker({
