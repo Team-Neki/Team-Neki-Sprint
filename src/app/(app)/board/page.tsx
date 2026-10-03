@@ -5,6 +5,7 @@ import {
   getTeamOptions,
   getMembers,
 } from "@/server/queries";
+import { parseListFilters } from "@/lib/list-filters";
 import { requireUser } from "@/lib/session";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -24,11 +25,13 @@ export default async function BoardPage({
   await requireUser();
   const sp = await searchParams;
   // 다중선택 필터는 콤마구분 값(예: `?team=a,b`) → 배열로 파싱한다(F6).
-  const toArray = (v?: string) => (v ?? "").split(",").filter(Boolean);
-  const teamIds = toArray(sp.team);
+  const { assignee, team: teamIds } = parseListFilters(sp, {
+    assignee: null,
+    team: null,
+  });
   const [tasks, epics, teams, members] = await Promise.all([
     getBoardTasks({
-      assigneeId: toArray(sp.assignee),
+      assigneeId: assignee,
       teamId: teamIds,
     }),
     getEpicOptions(),

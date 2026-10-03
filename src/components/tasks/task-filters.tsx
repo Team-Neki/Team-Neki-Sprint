@@ -1,10 +1,12 @@
 "use client";
 
-import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { CheckboxFilter } from "@/components/filters/checkbox-filter";
+import { useSetSearchParams } from "@/components/filters/use-set-search-params";
 import {
   memberLabel,
   renderTeamOption,
@@ -15,6 +17,9 @@ import type { TeamOption } from "@/components/selects/option-select";
 
 export type LabelFilterOption = { id: string; name: string; color: string };
 
+// 초기화 대상. sort·dir(표 정렬)은 필터가 아니므로 초기화해도 유지한다.
+const FILTER_KEYS = ["status", "assignee", "team", "label", "q"];
+
 export function TaskFilters({
   members,
   teams,
@@ -24,22 +29,25 @@ export function TaskFilters({
   teams: TeamOption[];
   labels: LabelFilterOption[];
 }) {
-  const router = useRouter();
-  const pathname = usePathname();
   const params = useSearchParams();
+  const setParams = useSetSearchParams();
+  const qTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  // 언마운트(다른 화면 이동) 후 남은 타이머가 이 목록으로 되돌리지 않게 정리.
+  useEffect(() => () => clearTimeout(qTimer.current), []);
 
   // 제목 검색(q)만 단일값 파라미터로 유지한다. 나머지 필터는 CheckboxFilter 가 직접 URL 을 쓴다.
+  // 타이핑마다 페이지를 다시 그리지 않도록 300ms 디바운스.
   function setQ(value: string) {
-    const next = new URLSearchParams(params.toString());
-    if (value) next.set("q", value);
-    else next.delete("q");
-    const qs = next.toString();
-    router.replace(qs ? `${pathname}?${qs}` : pathname);
+    clearTimeout(qTimer.current);
+    qTimer.current = setTimeout(() => setParams({ q: value }), 300);
   }
 
-  const hasFilters = ["status", "assignee", "team", "label", "q"].some((k) =>
-    params.get(k),
-  );
+  function reset() {
+    clearTimeout(qTimer.current);
+    setParams(Object.fromEntries(FILTER_KEYS.map((k) => [k, ""])));
+  }
+
+  const hasFilters = FILTER_KEYS.some((k) => params.get(k));
 
   const statusOptions = STATUS_ORDER.map((s) => ({
     value: s,
@@ -95,11 +103,7 @@ export function TaskFilters({
       <CheckboxFilter paramKey="label" label="라벨" options={labelOptions} />
 
       {hasFilters && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.replace(pathname)}
-        >
+        <Button variant="ghost" size="sm" onClick={reset}>
           <X className="size-4" /> 초기화
         </Button>
       )}

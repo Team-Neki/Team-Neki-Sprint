@@ -1,5 +1,4 @@
 import { Plus } from "lucide-react";
-import type { Status } from "@prisma/client";
 import {
   getEpics,
   getProjectOptions,
@@ -11,6 +10,8 @@ import {
   EPIC_SORT_FIELDS,
 } from "@/server/queries";
 import { parseListSort } from "@/lib/list-sort";
+import { parseListFilters } from "@/lib/list-filters";
+import { STATUS_ORDER } from "@/lib/constants";
 import { requireUser } from "@/lib/session";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -46,13 +47,16 @@ export default async function EpicsPage({
   const sort = parseListSort(sp, EPIC_SORT_FIELDS);
   const user = await requireUser();
   // 다중선택 필터는 콤마구분 값(예: `?owner=a,b`) → 배열로 파싱한다(F6).
-  const toArray = (v?: string) => (v ?? "").split(",").filter(Boolean);
-  const hasFilter = !!(sp.owner || sp.team || sp.status);
+  const { hasFilter, ...f } = parseListFilters(sp, {
+    owner: null,
+    team: null,
+    status: STATUS_ORDER,
+  });
   const [epics, projects, teams, members, labels, pref, me] = await Promise.all([
     getEpics({
-      ownerId: toArray(sp.owner),
-      teamId: toArray(sp.team),
-      status: toArray(sp.status) as Status[],
+      ownerId: f.owner,
+      teamId: f.team,
+      status: f.status,
       sort,
     }),
     getProjectOptions(),

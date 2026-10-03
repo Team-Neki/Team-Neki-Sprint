@@ -335,7 +335,6 @@ export type ProjectSortField = (typeof PROJECT_SORT_FIELDS)[number];
 
 export type ProjectFilter = {
   ownerId?: string[];
-  sprintId?: string[];
   status?: Status[];
   sort?: ListSort<ProjectSortField>;
 };
@@ -362,10 +361,6 @@ export const getProjects = async (filter: ProjectFilter = {}) => {
       ownerId:
         filter.ownerId && filter.ownerId.length
           ? { in: filter.ownerId }
-          : undefined,
-      sprintId:
-        filter.sprintId && filter.sprintId.length
-          ? { in: filter.sprintId }
           : undefined,
       status:
         filter.status && filter.status.length

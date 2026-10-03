@@ -1,8 +1,5 @@
 "use client";
 
-import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { X } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { CheckboxFilter } from "@/components/filters/checkbox-filter";
 import {
   STATUS_ORDER,
@@ -27,19 +24,6 @@ export function StatusFilter({
   kind?: "entity" | "sprint";
   paramKey?: string;
 }) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const params = useSearchParams();
-
-  const selected = (params.get(paramKey) ?? "").split(",").filter(Boolean);
-
-  function clear() {
-    const next = new URLSearchParams(params.toString());
-    next.delete(paramKey);
-    const qs = next.toString();
-    router.replace(qs ? `${pathname}?${qs}` : pathname);
-  }
-
   const options =
     kind === "sprint"
       ? SPRINT_STATUS_ORDER.map((s) => ({
@@ -52,14 +36,11 @@ export function StatusFilter({
         }));
 
   return (
-    <>
-      <CheckboxFilter paramKey={paramKey} label="상태" options={options} />
-
-      {selected.length > 0 && (
-        <Button variant="ghost" size="sm" onClick={clear}>
-          <X className="size-4" /> 초기화
-        </Button>
-      )}
-    </>
+    <CheckboxFilter
+      paramKey={paramKey}
+      label="상태"
+      options={options}
+      clearable
+    />
   );
 }
