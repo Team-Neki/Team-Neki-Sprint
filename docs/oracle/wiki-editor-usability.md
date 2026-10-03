@@ -20,7 +20,7 @@
 
 | id | 종류 | 판정 |
 |---|---|---|
-| O-A-1 | auto | `src/components/wiki/editor.tsx` 와 `src/components/announcements/announcement-editor.tsx` 의 `useEditor({` 블록 안에 `shouldRerenderOnTransaction: true` 가 각각 1회 존재. `grep -c "shouldRerenderOnTransaction: true" <file>` = 1 |
+| O-A-1 | auto | 두 에디터가 공용 훅을 거쳐 `shouldRerenderOnTransaction: true` 로 생성된다(BACKEND-187 에서 `use-wiki-editor.ts` 로 이동). `grep -c "shouldRerenderOnTransaction: true" src/components/wiki/use-wiki-editor.ts` = 1, `grep -c "useWikiEditor(" <file>` = 1 (`src/components/wiki/editor.tsx`·`src/components/announcements/announcement-editor.tsx` 각각) |
 | O-A-2 | auto | `src/app/(app)/wiki/[id]/page.tsx` 의 `<WikiDetail` 시작 태그에 `key={page.id}` 존재 |
 | O-A-3 | manual | 굵은 텍스트를 마우스로 드래그 선택(타이핑 없이)하면 툴바 "굵게" 가 눌린 상태로 표시된다. 선택을 일반 텍스트로 옮기면 즉시 풀린다 |
 | O-A-4 | manual | 표 안을 클릭만 한 뒤(편집 없이) 툴바 "표" 를 누르면 행·열 편집 메뉴가 뜬다(새 표 크기 그리드가 아님) |
@@ -66,7 +66,7 @@
 |---|---|---|
 | O-F-1 | auto | `src/components/wiki/upload.ts` 가 `uploadAndInsertImages`, `uploadAndInsertFiles`, `uploadAndInsertAny`, `pickFiles`, `splitFiles` 를 export. `editor.tsx` 에 `async function uploadImage` 정의가 없음(이동 완료) |
 | O-F-2 | auto | `npx vitest run src/components/wiki/upload.test.ts src/components/wiki/upload-placeholder.test.ts src/components/wiki/slash-commands.test.ts` 통과 |
-| O-F-3 | auto | `editor.tsx` `handleDrop` 이 `imageFilesFrom` 을 쓰지 않고, 파일이 하나라도 있으면 `return true` |
+| O-F-3 | auto | `use-wiki-editor.ts`(BACKEND-187 에서 `editor.tsx` 로부터 이동) `handleDrop` 이 `imageFilesFrom` 을 쓰지 않고, 파일이 하나라도 있으면 `return true`. `sed -n '/handleDrop:/,/^      },/p' src/components/wiki/use-wiki-editor.ts` 에 `imageFilesFrom` 0회, `return true` 1회 |
 | O-F-4 | auto | `slash-commands.ts` 의 `SLASH_COMMANDS` 에 `key: "image"` 와 `key: "file"` 존재 |
 | O-F-5 | auto | `file-attachment.tsx` 의 `<a>` 에 `editor.isEditable` 기반 `preventDefault` 존재. `globals.css` 에 `.wiki-file-block.ProseMirror-selectednode` 규칙 존재 |
 | O-F-6 | manual | 편집 중 PDF 를 본문에 드롭: 페이지가 이탈하지 않고 "파일 업로드 중…" 이 드롭 위치에 표시된 뒤 다운로드 칩이 그 자리에 생긴다. SVG 를 드롭하면 "첨부할 수 없는 파일 형식입니다" 토스트가 뜨고 문서는 변하지 않는다 |
