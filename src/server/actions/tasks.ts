@@ -93,11 +93,13 @@ export async function updateTask(id: string, input: unknown) {
  * 주의(A2): 보드 필터(담당자/팀)가 걸린 뷰에서는 orderedIds 가 필터를 통과한
  * visible 태스크만 담는다. 그래서 예전처럼 orderedIds 만 0..n 으로 재번호하면
  * 같은 컬럼의 숨은(필터 제외) 태스크 boardOrder 와 충돌·순서 붕괴가 난다.
- * 해결: 대상 컬럼의 "전체" 태스크를 로드해 visible 새 순서와 병합한 뒤 전체를
- * 한 번에 재번호한다. 숨은 태스크는 이동 전 인접했던 visible 태스크 바로 뒤에
- * 다시 앵커링되어 상대 위치가 보존되고, 전체를 일관되게 재번호하므로 충돌이 없다.
+ * 해결(BACKEND-186): 이동 태스크를 "다음 visible 태스크 바로 앞"(없으면 컬럼 끝)에
+ * 이웃 boardOrder 중간값(`orderBetween`)으로 두고 그 1행만 갱신한다. 숨은 태스크는
+ * 건드리지 않는다. 이웃 boardOrder 가 null 이거나 간격이 고갈되면, 대상 컬럼 전체를
+ * 로드해 숨은 태스크를 직전 visible 뒤에 앵커링한 뒤 전체를 재번호하는 경로로 폴백한다
+ * (예전 기본 경로 — 컬럼이 커지면 순차 UPDATE 가 트랜잭션 시간 제한에 걸릴 수 있었다).
  * 옮겨온 태스크만 status 를 갱신하고, 상태가 실제로 바뀐 경우에만
- * Activity(status_changed)를 기록한다. 컬럼은 작아 전체 재번호가 저렴.
+ * Activity(status_changed)를 기록한다.
  */
 export async function reorderBoardTask(
   id: string,
