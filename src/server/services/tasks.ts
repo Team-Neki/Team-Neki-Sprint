@@ -9,6 +9,7 @@ import { logActivity, diffFields } from "@/server/activity";
 import { notifyNewMentions } from "@/server/notify";
 import { nextTeamNumber } from "@/server/keys";
 import { assertCanManage, type Actor } from "@/lib/authz";
+import { parsePatch } from "@/server/services/patch";
 
 /** createTask의 actor 주입 코어. 서버 액션과 MCP API 라우트가 공유한다. */
 export async function createTaskCore(actor: Actor, input: unknown) {
@@ -86,7 +87,7 @@ export async function updateTaskFieldsCore(
   id: string,
   input: unknown,
 ) {
-  const patch = taskSchema.partial().parse(input) as Record<string, unknown>;
+  const patch = parsePatch(taskSchema, input);
   // 팀(teamId)과 번호는 생성 후 불변 — patch 에서 제외.
   delete patch.teamId;
   // 담당자 상호배타(B4): 유저 담당자를 지정하면 팀 담당자를 비우고, 반대도 동일.

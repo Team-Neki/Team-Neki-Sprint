@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import type { Status } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
-import { taskSchema } from "@/lib/validators";
 import { logActivity } from "@/server/activity";
 import { wouldCreateCycle } from "@/lib/task-deps";
 import { formatIssueKey } from "@/lib/constants";
@@ -19,26 +18,10 @@ export async function createTask(input: unknown) {
   return createTaskCore(user, input);
 }
 
+/** 다이얼로그 저장. 인라인 편집과 같은 코어로 필드별 히스토리·멘션 알림·담당자 상호배타를 적용한다. */
 export async function updateTask(id: string, input: unknown) {
   const user = await requireUser();
-  const data = taskSchema.partial().parse(input);
-  // 팀(teamId)과 번호는 생성 후 불변 — 에픽 이동에도 key는 안정(재번호 없음).
-  delete (data as { teamId?: string }).teamId;
-
-  const task = await prisma.task.update({ where: { id }, data });
-
-  await logActivity({
-    userId: user.id,
-    entityType: "task",
-    entityId: id,
-    action: "updated",
-  });
-
-  revalidatePath("/board");
-  revalidatePath("/tasks");
-  revalidatePath(`/tasks/${id}`);
-  if (task.epicId) revalidatePath(`/epics/${task.epicId}`);
-  return { id };
+  return updateTaskFieldsCore(user, id, input);
 }
 
 /**

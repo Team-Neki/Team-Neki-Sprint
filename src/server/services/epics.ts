@@ -9,6 +9,7 @@ import { logActivity, diffFields } from "@/server/activity";
 import { notifyNewMentions } from "@/server/notify";
 import { nextTeamNumber } from "@/server/keys";
 import { assertCanManage, type Actor } from "@/lib/authz";
+import { parsePatch } from "@/server/services/patch";
 
 /** createEpic의 actor 주입 코어. 서버 액션과 MCP API 라우트가 공유한다. */
 export async function createEpicCore(actor: Actor, input: unknown) {
@@ -61,7 +62,7 @@ export async function updateEpicFieldsCore(
   id: string,
   input: unknown,
 ) {
-  const patch = epicSchema.partial().parse(input) as Record<string, unknown>;
+  const patch = parsePatch(epicSchema, input);
   // 팀(teamId)은 생성 후 불변 — 표시 key 안정성 위해 patch 에서 제외.
   delete patch.teamId;
 
