@@ -52,7 +52,6 @@ type DateTarget =
 type NumberTarget = { type: "task"; field: "estimatedMd" | "actualMd" };
 
 const UNASSIGNED = "__none__";
-const NONE = "__none__";
 
 // 칩처럼 보이는 인라인 select 트리거: 보더 투명 + hover 시 인셋 면 노출(우측 정렬).
 const chipTrigger =
@@ -347,48 +346,6 @@ export function InlineMember({
       disabled={pending}
       size="sm"
       triggerClassName={chipTrigger}
-    />
-  );
-}
-
-/* ---------- 엔티티 링크(에픽/프로젝트/스프린트) ---------- */
-
-export function InlineLink({
-  type,
-  id,
-  field,
-  value,
-  options,
-  noneLabel = "없음",
-  placeholder = "선택",
-}: {
-  type: DetailEntity;
-  id: string;
-  field: "epicId" | "projectId" | "sprintId";
-  value: string | null;
-  options: { id: string; label: string }[];
-  noneLabel?: string;
-  placeholder?: string;
-}) {
-  const { pending, save } = useFieldSave(type, id);
-  const [shown, show, reset] = useOptimisticValue<string>(value ?? NONE);
-  return (
-    <OptionSelect<{ id: string; label: string }>
-      value={shown}
-      onValueChange={(v) => {
-        show(v);
-        save({ [field]: v === NONE ? null : v }, reset);
-      }}
-      options={options}
-      getValue={(o) => o.id}
-      getSearchText={(o) => o.label}
-      renderOption={(o) => o.label}
-      searchPlaceholder={placeholder}
-      placeholder={placeholder}
-      leadingOption={{ value: NONE, label: noneLabel }}
-      disabled={pending}
-      size="sm"
-      triggerClassName={cn(chipTrigger, "max-w-44")}
     />
   );
 }

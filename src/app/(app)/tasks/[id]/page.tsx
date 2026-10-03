@@ -12,11 +12,14 @@ import { requireUser } from "@/lib/session";
 import { deleteTask } from "@/server/actions/tasks";
 import { formatIssueKey } from "@/lib/constants";
 import { Card } from "@/components/ui/card";
-import { SheetDeleteButton } from "@/components/detail/sheet-delete-button";
 import { EntityLinkedPages } from "@/components/wiki/entity-linked-pages";
-import { BackButton } from "@/components/detail/back-button";
 import { CommentsHistoryTabs } from "@/components/detail/comments-history-tabs";
-import { EpicField } from "@/components/detail/epic-field";
+import {
+  DetailHeader,
+  DetailDescription,
+  TeamRow,
+} from "@/components/detail/detail-shell";
+import { ParentField } from "@/components/detail/parent-field";
 import { InlineAssignee } from "@/components/detail/inline-assignee";
 import { TaskLabels } from "@/components/detail/task-labels";
 import { TaskCc } from "@/components/detail/task-cc";
@@ -32,7 +35,6 @@ import {
   InlineDate,
   InlineNumber,
 } from "@/components/detail/inline-fields";
-import { InlineDescription } from "@/components/detail/inline-description";
 
 export const dynamic = "force-dynamic";
 
@@ -55,11 +57,10 @@ export default async function TaskDetail({
     ]);
   if (!task) notFound();
 
-  const epicPickOptions = epics.map((e) => ({
+  const epicOptions = epics.map((e) => ({
     id: e.id,
     title: e.title,
-    number: e.number,
-    teamKey: e.team?.key ?? null,
+    issueKey: formatIssueKey(e.team?.key, e.number),
   }));
 
   async function handleDelete() {
@@ -71,26 +72,15 @@ export default async function TaskDetail({
     <div className="@container/detail mx-auto max-w-5xl">
       <div className="grid gap-6 @3xl/detail:grid-cols-3">
       <div className="min-w-0 @3xl/detail:col-span-2">
-        <BackButton fallback="/tasks" label="태스크" />
+        <DetailHeader
+          href="/tasks"
+          label="태스크"
+          issueKey={formatIssueKey(task.team?.key, task.number)}
+          title={<InlineTitle type="task" id={task.id} value={task.title} />}
+          onDelete={handleDelete}
+        />
 
-        <div className="mb-6 flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <span className="text-muted-foreground font-mono text-xs">
-              {formatIssueKey(task.team?.key, task.number)}
-            </span>
-            <InlineTitle type="task" id={task.id} value={task.title} />
-          </div>
-          <SheetDeleteButton onConfirm={handleDelete} redirectTo="/tasks" />
-        </div>
-
-        <Card className="mb-6 p-5">
-          <h3 className="mb-2 text-sm font-medium">설명</h3>
-          <InlineDescription
-            type="task"
-            id={task.id}
-            value={task.description}
-          />
-        </Card>
+        <DetailDescription type="task" id={task.id} value={task.description} />
 
         <CommentsHistoryTabs
           entityType="task"
@@ -133,10 +123,11 @@ export default async function TaskDetail({
             <InlinePriority type="task" id={task.id} value={task.priority} />
           </MetaRow>
           <MetaRow label="에픽">
-            <EpicField
-              taskId={task.id}
-              epicId={task.epicId}
-              epics={epicPickOptions}
+            <ParentField
+              parent="epic"
+              id={task.id}
+              value={task.epicId}
+              options={epicOptions}
             />
           </MetaRow>
           <MetaRow
@@ -197,21 +188,7 @@ export default async function TaskDetail({
               value={task.dueDate}
             />
           </MetaRow>
-          <MetaRow label="팀">
-            <span className="inline-flex items-center gap-1.5 pr-1.5">
-              <span
-                className="size-2 shrink-0 rounded-full"
-                style={
-                  task.team?.color
-                    ? { backgroundColor: task.team.color }
-                    : undefined
-                }
-              />
-              <span className="text-muted-foreground font-mono text-xs">
-                {task.team?.key}
-              </span>
-            </span>
-          </MetaRow>
+          <TeamRow team={task.team} />
           <MetaRow label="라벨" align="start">
             <TaskLabels
               taskId={task.id}
