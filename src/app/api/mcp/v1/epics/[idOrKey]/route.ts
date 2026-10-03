@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { withMcpAuth, ok, fail } from "@/server/api/mcp-auth";
-import { updateEpicFieldsCore, deleteEpicCore } from "@/server/actions/epics";
+import { updateEpicFieldsCore, deleteEpicCore } from "@/server/services/epics";
 import { getEpic } from "@/server/queries";
 import { resolveEpicId, resolveUserId } from "@/lib/issue-key";
 import { formatIssueKey } from "@/lib/constants";

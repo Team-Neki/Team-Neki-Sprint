@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { parseDoc } from "@/lib/rich-content";
 import { extractMentionUserIds, extractMentionTeamIds } from "@/lib/mentions";
@@ -54,22 +55,26 @@ export async function newMentionRecipients(
  * 리치 텍스트(설명/댓글)의 '새로 추가된' 멘션(사람 + 팀)에 대해 수신자별 알림 생성(B6).
  * before(수정 전)와 after(수정 후)의 멘션 차집합만 → 재저장/수정 시 중복 알림 방지.
  * 자기 자신 멘션은 제외. 새 댓글처럼 before 가 없으면 after 의 모든 멘션이 대상.
+ * tx 를 주면 알림 생성을 본 변경과 같은 트랜잭션에 묶는다.
  */
-export async function notifyNewMentions({
-  actorId,
-  entityType,
-  entityId,
-  context,
-  before,
-  after,
-}: {
-  actorId: string;
-  entityType: string;
-  entityId: string;
-  context: string | null;
-  before?: string | null;
-  after: string | null;
-}) {
+export async function notifyNewMentions(
+  {
+    actorId,
+    entityType,
+    entityId,
+    context,
+    before,
+    after,
+  }: {
+    actorId: string;
+    entityType: string;
+    entityId: string;
+    context: string | null;
+    before?: string | null;
+    after: string | null;
+  },
+  tx?: Prisma.TransactionClient,
+) {
   // 문자열 저장값(JSON 또는 레거시 plain) → doc. before 없음(parseDoc(null)=빈 doc)
   // 이면 after 의 모든 멘션이 신규.
   const recipients = await newMentionRecipients(
@@ -79,7 +84,7 @@ export async function notifyNewMentions({
   );
   if (recipients.length === 0) return;
 
-  await prisma.notification.createMany({
+  await (tx ?? prisma).notification.createMany({
     data: recipients.map((uid) => ({
       userId: uid,
       actorId,

@@ -74,7 +74,7 @@ export default async function WikiPageView({
   const user = await requireUser();
   const [page, tree, folders, revisions, favorited, threads, draftRow] =
     await Promise.all([
-      getWikiPage(id),
+      getWikiPage(id, user.id),
       getWikiTree(user.id),
       getWikiFolders(),
       getWikiRevisions(id),
@@ -82,9 +82,8 @@ export default async function WikiPageView({
       getWikiComments(id),
       getWikiDraft(id, user.id),
     ]);
+  // 휴지통·타인의 초안은 getWikiPage 가 null 로 거른다(타인의 초안 URL 직접 접근 차단).
   if (!page) notFound();
-  // 초안은 작성자에게만 보인다 — 타인의 초안 URL 직접 접근 차단.
-  if (page.isDraft && page.authorId !== user.id) notFound();
 
   const breadcrumb = buildWikiBreadcrumb(id, tree, folders);
 

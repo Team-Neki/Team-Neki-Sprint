@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { withMcpAuth, ok, fail } from "@/server/api/mcp-auth";
-import { updateTaskFieldsCore, deleteTaskCore } from "@/server/actions/tasks";
+import { updateTaskFieldsCore, deleteTaskCore } from "@/server/services/tasks";
 import { getTask } from "@/server/queries";
 import { resolveTaskId, resolveUserId } from "@/lib/issue-key";
 import { formatIssueKey } from "@/lib/constants";

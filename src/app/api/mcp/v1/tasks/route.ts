@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { Status } from "@prisma/client";
 import { withMcpAuth, ok, fail, parseLimit } from "@/server/api/mcp-auth";
-import { createTaskCore } from "@/server/actions/tasks";
+import { createTaskCore } from "@/server/services/tasks";
 import { getTasks, searchTasks } from "@/server/queries";
 import {
   resolveEpicId,
