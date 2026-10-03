@@ -20,7 +20,7 @@
 
 | id | 종류 | 판정 |
 |---|---|---|
-| O-A-1 | auto | `src/components/wiki/editor.tsx` 와 `src/components/announcements/announcement-editor.tsx` 의 `useEditor({` 블록 안에 `shouldRerenderOnTransaction: true` 가 각각 1회 존재. `grep -c "shouldRerenderOnTransaction: true" <file>` = 1 |
+| O-A-1 | auto | 두 에디터가 공용 훅을 거쳐 `shouldRerenderOnTransaction: true` 로 생성된다(BACKEND-187 에서 `use-wiki-editor.ts` 로 이동). `grep -c "shouldRerenderOnTransaction: true" src/components/wiki/use-wiki-editor.ts` = 1, `grep -c "useWikiEditor(" <file>` = 1 (`src/components/wiki/editor.tsx`·`src/components/announcements/announcement-editor.tsx` 각각) |
 | O-A-2 | auto | `src/app/(app)/wiki/[id]/page.tsx` 의 `<WikiDetail` 시작 태그에 `key={page.id}` 존재 |
 | O-A-3 | manual | 굵은 텍스트를 마우스로 드래그 선택(타이핑 없이)하면 툴바 "굵게" 가 눌린 상태로 표시된다. 선택을 일반 텍스트로 옮기면 즉시 풀린다 |
 | O-A-4 | manual | 표 안을 클릭만 한 뒤(편집 없이) 툴바 "표" 를 누르면 행·열 편집 메뉴가 뜬다(새 표 크기 그리드가 아님) |
@@ -32,7 +32,7 @@
 |---|---|---|
 | O-B-1 | auto | `editor.tsx` 의 `WikiEditor` 루트 div 클래스가 `mx-auto max-w-5xl`. `grep -c 'className="mx-auto max-w-3xl"' src/components/wiki/editor.tsx` = 0 |
 | O-B-2 | manual | "수정" 클릭 전후로 본문 줄바꿈 위치가 바뀌지 않는다(데스크톱 1280px 이상) |
-| O-B-3 | auto | 툴바 sticky 오프셋이 헤더 실측 높이를 따른다: `grep -c 'top-\[var(--wiki-header-h' src/components/wiki/editor.tsx` = 1 이고 `grep -c '"--wiki-header-h"' src/components/wiki/wiki-detail.tsx` = 1 (후속 PR, 2026-09-25) |
+| O-B-3 | auto | 툴바 sticky 오프셋이 헤더 실측 높이를 따른다: `grep -c 'top-\[var(--wiki-header-h' src/components/wiki/editor-toolbar.tsx` = 1(BACKEND-188 에서 툴바가 `editor.tsx` 로부터 이동) 이고 `grep -c '"--wiki-header-h"' src/components/wiki/wiki-detail.tsx` = 1 (후속 PR, 2026-09-25) |
 | O-B-4 | manual | 편집 중 긴 본문을 스크롤해도 툴바 상단과 헤더 하단 사이로 본문 글자가 비치지 않는다(데스크톱·모바일 폭 모두) |
 
 ## O-C. 저장·임시저장 흐름 안전장치 (BACKEND-146)
@@ -55,8 +55,8 @@
 | id | 종류 | 판정 |
 |---|---|---|
 | O-D-1 | auto | `npx vitest run src/components/wiki/link-href.test.ts` 통과(최소 4개 describe 케이스) |
-| O-D-2 | auto | `editor.tsx` 에 `type="url"` 이 0회. `grep -c 'type="url"' src/components/wiki/editor.tsx` = 0 |
-| O-D-3 | auto | `editor.tsx` 가 `normalizeHref` 를 2회 이상 호출(툴바·버블) |
+| O-D-2 | auto | 링크 입력(툴바·버블, BACKEND-188 에서 `editor.tsx` 로부터 분리)에 `type="url"` 이 0회. `cat src/components/wiki/editor.tsx src/components/wiki/editor-toolbar.tsx src/components/wiki/bubble-toolbar.tsx \| grep -c 'type="url"'` = 0 |
+| O-D-3 | auto | 툴바·버블이 `normalizeHref` 를 거치는 공용 `applyLink`(`editor-toolbar.tsx`, BACKEND-188)를 쓴다. `grep -c "normalizeHref(" src/components/wiki/editor-toolbar.tsx` ≥ 1 이고 `grep -c "applyLink(editor" <file>` ≥ 1 (`src/components/wiki/editor-toolbar.tsx`·`src/components/wiki/bubble-toolbar.tsx` 각각) |
 | O-D-4 | manual | 텍스트 선택 → 버블 링크 → `example.com` 입력 → Enter: 링크가 `https://example.com` 으로 걸린다. 뷰 모드에서 클릭하면 새 탭으로 열린다 |
 | O-D-5 | manual | 버블 링크 입력 중 Esc 를 누르면 링크 입력이 닫히고 서식 메뉴로 돌아간다(선택 유지) |
 
@@ -66,7 +66,7 @@
 |---|---|---|
 | O-F-1 | auto | `src/components/wiki/upload.ts` 가 `uploadAndInsertImages`, `uploadAndInsertFiles`, `uploadAndInsertAny`, `pickFiles`, `splitFiles` 를 export. `editor.tsx` 에 `async function uploadImage` 정의가 없음(이동 완료) |
 | O-F-2 | auto | `npx vitest run src/components/wiki/upload.test.ts src/components/wiki/upload-placeholder.test.ts src/components/wiki/slash-commands.test.ts` 통과 |
-| O-F-3 | auto | `editor.tsx` `handleDrop` 이 `imageFilesFrom` 을 쓰지 않고, 파일이 하나라도 있으면 `return true` |
+| O-F-3 | auto | `use-wiki-editor.ts`(BACKEND-187 에서 `editor.tsx` 로부터 이동) `handleDrop` 이 `imageFilesFrom` 을 쓰지 않고, 파일이 하나라도 있으면 `return true`. `sed -n '/handleDrop:/,/^      },/p' src/components/wiki/use-wiki-editor.ts` 에 `imageFilesFrom` 0회, `return true` 1회 |
 | O-F-4 | auto | `slash-commands.ts` 의 `SLASH_COMMANDS` 에 `key: "image"` 와 `key: "file"` 존재 |
 | O-F-5 | auto | `file-attachment.tsx` 의 `<a>` 에 `editor.isEditable` 기반 `preventDefault` 존재. `globals.css` 에 `.wiki-file-block.ProseMirror-selectednode` 규칙 존재 |
 | O-F-6 | manual | 편집 중 PDF 를 본문에 드롭: 페이지가 이탈하지 않고 "파일 업로드 중…" 이 드롭 위치에 표시된 뒤 다운로드 칩이 그 자리에 생긴다. SVG 를 드롭하면 "첨부할 수 없는 파일 형식입니다" 토스트가 뜨고 문서는 변하지 않는다 |
