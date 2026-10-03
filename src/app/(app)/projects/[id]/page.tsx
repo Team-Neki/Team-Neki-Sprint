@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import { Plus } from "lucide-react";
 import {
   getProject,
   getMembers,
@@ -17,7 +16,6 @@ import { deleteProject } from "@/server/actions/projects";
 import { deleteEpic } from "@/server/actions/epics";
 import { EntityLinkedPages } from "@/components/wiki/entity-linked-pages";
 import { ProjectLabels } from "@/components/detail/project-labels";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EntityTable } from "@/components/tables/entity-table";
 import {
@@ -25,21 +23,22 @@ import {
   EPIC_DELETE_DESCRIPTION,
 } from "@/components/tables/epic-columns";
 import { EpicDialog } from "@/components/forms/epic-dialog";
-import { SheetDeleteButton } from "@/components/detail/sheet-delete-button";
-import { BackButton } from "@/components/detail/back-button";
 import { CommentsHistoryTabs } from "@/components/detail/comments-history-tabs";
-import { MdRollupText } from "@/components/detail/md-rollup";
-import { TaskProgressSummary } from "@/components/detail/task-progress";
+import {
+  DetailHeader,
+  DetailDescription,
+  ChildList,
+  MdRollupRow,
+} from "@/components/detail/detail-shell";
+import { ParentField } from "@/components/detail/parent-field";
 import {
   MetaRow,
   InlineTitle,
   InlineStatus,
   InlinePriority,
   InlineMember,
-  InlineLink,
   InlineDate,
 } from "@/components/detail/inline-fields";
-import { InlineDescription } from "@/components/detail/inline-description";
 
 export const dynamic = "force-dynamic";
 
@@ -84,43 +83,36 @@ export default async function ProjectDetail({
     <div className="@container/detail mx-auto max-w-5xl">
       <div className="grid gap-6 @3xl/detail:grid-cols-3">
       <div className="min-w-0 @3xl/detail:col-span-2">
-        <BackButton fallback="/projects" label="프로젝트" />
-
-        <div className="mb-6 flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
+        <DetailHeader
+          href="/projects"
+          label="프로젝트"
+          title={
             <InlineTitle type="project" id={project.id} value={project.title} />
-          </div>
-          <SheetDeleteButton onConfirm={handleDelete} redirectTo="/projects" />
-        </div>
+          }
+          onDelete={handleDelete}
+        />
 
-        <Card className="mb-6 p-5">
-          <h3 className="mb-2 text-sm font-medium">설명</h3>
-          <InlineDescription
-            type="project"
-            id={project.id}
-            value={project.description}
-          />
-        </Card>
+        <DetailDescription
+          type="project"
+          id={project.id}
+          value={project.description}
+        />
 
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">에픽 {project.epics.length}</h2>
-          <EpicDialog
-            members={members}
-            teams={teams}
-            projects={projects}
-            defaultProjectId={project.id}
-            me={me}
-            trigger={
-              <Button size="sm" variant="outline">
-                <Plus className="size-4" /> 에픽 추가
-              </Button>
-            }
-          />
-        </div>
-
-        <TaskProgressSummary progress={project.progress} />
-
-        <Card className="mb-6 overflow-hidden py-0">
+        <ChildList
+          label="에픽"
+          count={project.epics.length}
+          progress={project.progress}
+          add={(trigger) => (
+            <EpicDialog
+              members={members}
+              teams={teams}
+              projects={projects}
+              defaultProjectId={project.id}
+              me={me}
+              trigger={trigger}
+            />
+          )}
+        >
           <EntityTable
             rows={project.epics}
             columns={EPIC_COLUMNS}
@@ -130,7 +122,7 @@ export default async function ProjectDetail({
             deleteAction={deleteEpic}
             deleteDescription={EPIC_DELETE_DESCRIPTION}
           />
-        </Card>
+        </ChildList>
 
         <CommentsHistoryTabs
           entityType="project"
@@ -168,14 +160,11 @@ export default async function ProjectDetail({
             />
           </MetaRow>
           <MetaRow label="스프린트">
-            <InlineLink
-              type="project"
+            <ParentField
+              parent="sprint"
               id={project.id}
-              field="sprintId"
               value={project.sprintId}
-              options={sprints.map((s) => ({ id: s.id, label: s.name }))}
-              noneLabel="없음"
-              placeholder="스프린트 선택"
+              options={sprints.map((s) => ({ id: s.id, title: s.name }))}
             />
           </MetaRow>
           <MetaRow label="시작일">
@@ -194,13 +183,7 @@ export default async function ProjectDetail({
               value={project.dueDate}
             />
           </MetaRow>
-          <MetaRow label="MD (롤업)">
-            <MdRollupText
-              estimated={project.md.estimated}
-              actual={project.md.actual}
-              className="text-sm"
-            />
-          </MetaRow>
+          <MdRollupRow md={project.md} />
           <MetaRow label="라벨" align="start">
             <ProjectLabels
               projectId={project.id}
