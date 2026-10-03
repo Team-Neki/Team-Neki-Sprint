@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -56,10 +56,14 @@ export function CommentThreadCard({
   const router = useRouter();
   const [reply, setReply] = useState("");
   const [pending, startTransition] = useTransition();
+  // pending 은 리렌더 전 연속 호출(Cmd+Enter 연타)을 못 막는다 — ref 로 동기 가드.
+  const submittingRef = useRef(false);
 
   function submitReply() {
+    if (submittingRef.current) return;
     const text = reply.trim();
     if (!text) return;
+    submittingRef.current = true;
     startTransition(async () => {
       try {
         await addWikiCommentReply(thread.id, text);
@@ -67,6 +71,8 @@ export function CommentThreadCard({
         router.refresh();
       } catch {
         toast.error("답글 저장에 실패했습니다");
+      } finally {
+        submittingRef.current = false;
       }
     });
   }

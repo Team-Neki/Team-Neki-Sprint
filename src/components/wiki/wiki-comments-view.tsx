@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
@@ -37,6 +38,11 @@ const GUTTER = 296; // w-72(288) 카드 + 여유
 const CARD_GAP = 8; // 세로로 겹칠 때 카드 간 최소 간격
 const COMPOSER_WIDTH = 256; // 컴포저 팝업 폭(w-64) — 좌측 위치 클램프에 사용
 const POPOVER_GAP = 6; // 모바일 팝오버와 앵커 사이 간격
+// useEditor 는 옵션 참조가 바뀌면 렌더마다 setOptions 를 호출한다 — 정적 옵션은 모듈 스코프로 고정.
+const EDITOR_PROPS = {
+  attributes: { class: "tiptap focus:outline-none" },
+  handleTripleClick: selectWikiLine,
+};
 
 // 우측 마진노트(거터) 레이아웃은 md 이상에서만. 모바일은 거터 폭이 안 나와 본문이
 // 뭉개지므로, 앵커를 탭했을 때 그 바로 아래에 팝오버로 띄운다. useSyncExternalStore 로
@@ -103,16 +109,16 @@ export function WikiCommentsView({
     {},
   );
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  // state 는 리렌더 전 연속 호출(Cmd+Enter 연타)을 못 막는다 — ref 로 동기 가드.
+  const submittingRef = useRef(false);
+  const extensions = useMemo(() => wikiExtensions(), []);
 
   const editor = useEditor({
     immediatelyRender: false,
     editable: false,
-    extensions: wikiExtensions(),
+    extensions,
     content,
-    editorProps: {
-      attributes: { class: "tiptap focus:outline-none" },
-      handleTripleClick: selectWikiLine,
-    },
+    editorProps: EDITOR_PROPS,
   });
 
   // Tiptap useEditor 는 최초 content 만 반영하고 이후 content prop 변경엔 반응하지 않는다.
@@ -208,9 +214,10 @@ export function WikiCommentsView({
 
   // 댓글 생성: 스레드 생성 → 그 threadId 로 선택 범위에 마크 → content 저장.
   async function createThread() {
-    if (!editor || !composer) return;
+    if (submittingRef.current || !editor || !composer) return;
     const text = draft.trim();
     if (!text) return;
+    submittingRef.current = true;
     setBusy(true);
     try {
       const { threadId } = await createWikiCommentThread(
@@ -234,6 +241,7 @@ export function WikiCommentsView({
     } catch {
       toast.error("댓글 저장에 실패했습니다");
     } finally {
+      submittingRef.current = false;
       setBusy(false);
     }
   }
