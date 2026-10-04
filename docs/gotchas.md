@@ -337,3 +337,10 @@ tiptap v3 패키지들은 peer 로 `@tiptap/core@정확버전`(캐럿 아님)을
 - **규칙**: 부분 수정 입력을 검증할 때 `schema.partial().parse()` 결과를 그대로 쓰지 않습니다. `parsePatch` 를 쓰거나, 기본값이 있는 스키마라면 기본값 없는 patch 전용 스키마를 따로 둡니다.
 - **운영 데이터**: 버그 기간의 `Activity`(`action = 'field_changed'`)에 다른 필드 변경과 같은 시각에 `status → TODO`·`priority → MEDIUM`·스프린트 `status → PLANNED` 가 함께 남은 행이 덮어쓰기 흔적입니다. 복구는 그 행의 `from` 값으로 되돌리는 방식이 가능합니다.
 
+## 42. Notion 에서 복사해 붙여넣으면 첨부는 `attachment:` 참조, 콜아웃은 `<aside>` 글자로 들어온다 (2026-10-04)
+
+- **증상**: Notion 회의록을 통째로 붙여넣은 위키에서 이미지가 깨져 보이고(prod 3건), 본문에 `<aside>💡` · `</aside>` 가 글자로 남았다. (BACKEND-197)
+- **원인**: Notion 클립보드 HTML 의 업로드 이미지·파일은 `<img src="attachment:<uuid>:<파일명>">` 입니다. Notion 안에서만 통하는 참조라 브라우저가 불러올 수 없고, 원본 파일은 클립보드에 들어 있지 않습니다. 에디터 `handlePaste` 는 클립보드에 파일이 없으면 기본 붙여넣기로 넘기고, tiptap 이미지 확장은 `data:` 외의 src 를 모두 받아 깨진 이미지 노드가 저장됐습니다. 콜아웃은 태그가 아니라 글자로 들어와 `<aside>`(+줄바꿈+아이콘) 문단 · 내용 문단 · `</aside>` 문단으로 남습니다. 목록 항목 안에서도 같은 모양입니다.
+- **해결**: `src/components/wiki/notion-paste.ts` 의 `cleanNotionPaste` 를 `useWikiEditor` 의 `transformPasted` 에 연결. 불러올 수 없는 src(`/`·http(s) 가 아닌 것)의 이미지는 빼고 개수를 토스트로 알리며, `<aside>` ~ `</aside>` 문단은 표시를 벗겨 인용 블록으로 감쌉니다(아이콘만 있는 첫 줄은 다음 문단 앞에 붙임). 바꾼 것이 없으면 slice 를 그대로 돌려줘 일반 붙여넣기는 영향이 없습니다.
+- **한계**: 콜아웃 일부만 복사해 시작·끝 표시 중 하나가 빠지면 글자로 남습니다. 이미 저장된 페이지는 붙여넣기를 거치지 않으므로 별도 정리가 필요합니다. MCP `contentJson` 경로는 이 정리를 거치지 않습니다.
+

@@ -2,10 +2,12 @@
 
 import { useEffect, useMemo, useRef, type RefObject } from "react";
 import { useEditor, type Editor, type JSONContent } from "@tiptap/react";
+import { toast } from "sonner";
 import { wikiExtensions } from "@/components/wiki/extensions";
 import { UploadPlaceholder } from "@/components/wiki/upload-placeholder";
 import { htmlHasText, uploadAndInsertAny } from "@/components/wiki/upload";
 import { selectWikiLine } from "@/components/wiki/line-selection";
+import { cleanNotionPaste } from "@/components/wiki/notion-paste";
 import type { EditorProps } from "@tiptap/pm/view";
 
 /**
@@ -74,6 +76,18 @@ export function useWikiEditor({
         })?.pos;
         void uploadAndInsertAny(editorRef.current, files, pos);
         return true;
+      },
+      // Notion 에서 복사한 내용 정리(notion-paste.ts): 불러올 수 없는 첨부 이미지·파일
+      // (attachment:) 는 빼고, 글자로 들어온 콜아웃(<aside>)은 인용 블록으로 바꾼다.
+      // 뺀 것이 있으면 안내한다 — 조용히 사라지면 함께 들어간 줄 알고 넘어간다.
+      transformPasted: (slice) => {
+        const { slice: cleaned, dropped } = cleanNotionPaste(slice);
+        if (dropped > 0) {
+          toast.info(
+            `Notion 첨부 이미지·파일 ${dropped}개는 함께 붙여넣을 수 없어 제외했습니다. 필요하면 직접 올려 주세요`,
+          );
+        }
+        return cleaned;
       },
     }),
     [],
