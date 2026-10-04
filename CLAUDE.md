@@ -103,3 +103,4 @@ flowchart LR
 - **알림 벨**: `notification-bell.tsx`가 45s 폴링(`getBellNotifications`). 실시간 소켓 아님.
 - **태스크 의존성**: `TaskDependency`(blocker→blocked 방향). 상세 사이드바 `task-dependencies.tsx`에서 '차단됨/차단함' 편집. 순환은 `lib/task-deps.wouldCreateCycle`로 서버에서 거부. 방향/함정은 [gotchas §17].
 - **에러/로딩 바운더리**: `(app)/error.tsx`·`loading.tsx`가 하위 전 세그먼트 상속(루트 `global-error.tsx`는 극단 안전망). 새 세그먼트는 필요 시에만 자체 추가.
+- **MCP 위키 쓰기(마크다운)**: MCP `create/update_wiki_page`·`add_comment` 의 `body` 는 `lib/text-to-doc.ts` 의 `markdownToDoc` 이 변환한다(제목·목록·체크리스트·들여쓰기 중첩·인용·구분선·파이프 표·코드 펜스·` ```mermaid `→`mermaidBlock`). **변환기가 모르는 블록 문법은 글자 문단으로 남아 깨져 보인다**(파이프 표가 한 문단으로 뭉쳤던 BACKEND-206). 위키에 새 블록 노드를 추가하면 변환기와 MCP 안내(`mcp/src/tools/wiki.ts` 의 `WIKI_MARKDOWN_GUIDE`)도 함께 고치고 `text-to-doc.test.ts` 의 회귀 테스트(블록 문법 잔존 검사)에 케이스를 더한다. MCP 설명 변경은 `mcp/package.json` 버전 bump 를 main 에 머지해야 npm 에 게시된다(`publish-mcp.yml`).

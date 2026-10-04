@@ -21,7 +21,7 @@ Claude Code / Claude Desktop / Cursor 등 MCP 클라이언트에서 Sprint 트�
 | `list_sprints` / `get_sprint` | 스프린트 목록/상세(하위 프로젝트 포함) |
 | `add_comment` | task/epic/project/sprint 에 댓글 추가(`body`=마크다운) |
 | `list_wiki_folders` | 전체 위키 폴더의 id/name/parentId/position 조회. 부모 계층으로 지정 경로 확인 |
-| `create_wiki_page` | 위키 페이지 생성. `body`=마크다운. 표·서식 보존은 `contentJson`=Tiptap doc 사용 |
+| `create_wiki_page` | 위키 페이지 생성. `body`=마크다운(제목·목록·체크리스트·중첩·인용·구분선·파이프 표·코드 펜스). **다이어그램은 ` ```mermaid ` 펜스**로 쓰면 다이어그램 블록으로 렌더링(ASCII 그림 금지). `contentJson`=Tiptap doc 은 마크다운으로 못 쓰는 내용에만 |
 | `update_wiki_page` | 위키 제목/본문 수정(본문은 교체). `contentJson`이 `body`보다 우선 |
 | `get_wiki_page` | 위키 조회(순수 텍스트 + Tiptap JSON + folderId/parentId) |
 | `search_wiki_pages` | 제목으로 위키 검색 |
@@ -109,7 +109,7 @@ npm run build   # dist/ 로 컴파일
 
 1. `list_wiki_folders`로 전체 폴더 목록을 조회한다.
 2. 이름과 `parentId`를 따라 `기획/사용자 행동 지표 싱크`처럼 요청받은 경로를 확인한다. 같은 이름이 다른 부모 아래 있을 수 있으므로 이름만 보고 첫 항목을 선택하지 않는다. 경로가 없거나 모호하면 사용자에게 확인한다.
-3. 확인한 ID를 `create_wiki_page.folderId`에 전달한다. 표가 있는 문서는 `contentJson`에 Tiptap doc을 전달한다. `body`와 함께 주면 `contentJson`이 우선한다.
+3. 확인한 ID를 `create_wiki_page.folderId`에 전달한다. 표는 `body` 마크다운의 파이프 표(`| a | b |` + `|---|---|`)로 쓰면 표로 변환되고, 다이어그램은 ` ```mermaid ` 펜스로 쓴다. `body`와 `contentJson`을 함께 주면 `contentJson`이 우선한다.
 4. `get_wiki_page`의 `folderId`와 본문으로 저장 위치와 내용을 확인한다.
 
 서버의 `GET /api/mcp/v1/wiki/folders` 배포가 필요하다. 이전 서버에서 404가 반환되면 루트 폴더에 대신 저장하지 않는다. npm 최신 패키지는 `npx -y @neki-team/sprint-mcp@latest`로 실행하며, 실행 중인 MCP 프로세스는 업데이트 후 재연결한다.

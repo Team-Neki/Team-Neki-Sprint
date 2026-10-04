@@ -4,6 +4,17 @@ import type { SprintClient } from "../client.js";
 import type { Config } from "../config.js";
 import { deepLink } from "../format.js";
 
+/**
+ * 위키 본문(body) 마크다운 작성 규칙. 서버 변환기(src/lib/text-to-doc.ts)가 지원하는 문법과
+ * 맞춰 둔다 — 지원하지 않는 문법은 글자 문단으로 남아 위키에서 깨져 보인다.
+ */
+export const WIKI_MARKDOWN_GUIDE =
+  "'body' markdown supports: # headings, paragraphs, **bold** / *italic* / `code` / [links](url), " +
+  "bullet / numbered / task (- [ ] / - [x]) lists nested by indenting 2 spaces, > blockquotes, --- rules, " +
+  "pipe tables (| a | b | header row, then |---|---|, then rows), and fenced code. " +
+  "Draw every diagram (flow, architecture, sequence, state, ER) as a ```mermaid fence - it renders as a diagram. " +
+  "Never draw diagrams as ASCII art in a code block, and never use HTML tags.";
+
 export function registerWikiTools(
   server: McpServer,
   client: SprintClient,
@@ -26,7 +37,9 @@ export function registerWikiTools(
     "create_wiki_page",
     {
       description:
-        "Create a wiki page. 'body' is markdown; use contentJson (Tiptap doc) to preserve tables and rich content (takes precedence over body). Resolve folderId with list_wiki_folders. Optional parentId/folderId to nest.",
+        "Create a wiki page. " +
+        WIKI_MARKDOWN_GUIDE +
+        " contentJson (Tiptap doc) takes precedence over body; use it only for content markdown cannot express. Resolve folderId with list_wiki_folders. Optional parentId/folderId to nest.",
       inputSchema: {
         title: z.string(),
         body: z.string().nullish(),
@@ -52,7 +65,8 @@ export function registerWikiTools(
     "update_wiki_page",
     {
       description:
-        "Update a wiki page's title and/or body (markdown) or contentJson (Tiptap doc, takes precedence). Content replaces the page body.",
+        "Update a wiki page's title and/or body or contentJson (Tiptap doc, takes precedence). Content replaces the page body. " +
+        WIKI_MARKDOWN_GUIDE,
       inputSchema: {
         id: z.string(),
         title: z.string().nullish(),
