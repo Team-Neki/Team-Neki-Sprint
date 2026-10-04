@@ -88,6 +88,7 @@ flowchart LR
     - 이미지: `POST /api/wiki/upload` → `GET /api/wiki/image/[id]`. PNG·JPEG·GIF·WebP 만 허용, **5MB**. SVG 는 XSS 때문에 이미지로 받지 않는다(첨부 쪽으로 가서 415).
     - 파일: `POST /api/wiki/file` → `GET /api/wiki/file/[id]`. 대부분 허용하되 SVG·HTML·XHTML·PHP 는 차단(415), **25MB**. 서빙은 항상 `Content-Disposition: attachment`(UTF-8 파일명)+`nosniff` 라 브라우저에서 열리지 않는다.
     - 공통 서빙 헤더: `Cache-Control: private, max-age=31536000, immutable`(cuid URL). 삭제·GC 경로는 없다(영구 보존).
+    - Notion 붙여넣기: `notion-paste.ts`(`transformPasted`)가 불러올 수 없는 첨부(`attachment:` src 이미지·파일)는 빼고 안내 토스트, 글자로 들어온 콜아웃(`<aside>`…`</aside>`)은 인용 블록으로 바꾼다. 이미지 src 는 `/`(업로드)·http(s) 만 유지. [gotchas §42].
   - **생성 모드/초안**: UI '새 페이지'는 `WikiPage.isDraft=true` 로 생성 → `/wiki/{id}?edit=1`(편집 모드+제목 포커스, Enter/↓ 본문 이동). 첫 저장 시 정식 전환. 초안은 **작성자에게만** 노출(트리 흐림+[초안], 검색/링크검색 제외, 타인 URL `notFound`), 초안 하위 페이지 생성 불가. MCP/API 생성은 초안 아님.
   - **색상/정렬 팔레트**: 정본은 `colors.ts`(`TEXT_COLORS` 10·`BG_COLORS` 9·`CELL_COLORS`) — 툴바/버블/표 메뉴가 공유, 새 색은 여기에만. 정렬은 툴바 팝오버+버블 3버튼.
   - **줄(블록) 핸들**(`block-handle.tsx`): `@tiptap/extension-drag-handle-react`. 클릭=블록 NodeSelection+복제/삭제 메뉴, 드래그=이동. WikiEditor 전용(뷰에는 없음).
