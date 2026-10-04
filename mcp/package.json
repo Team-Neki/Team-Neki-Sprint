@@ -1,6 +1,6 @@
 {
   "name": "@neki-team/sprint-mcp",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "MCP server for the Team Neki Sprint tracker (tickets + wiki)",
   "license": "MIT",
   "repository": {
@@ -8,12 +8,26 @@
     "url": "git+https://github.com/Team-Neki/Team-Neki-Sprint.git",
     "directory": "mcp"
   },
-  "keywords": ["mcp", "modelcontextprotocol", "sprint", "tickets", "wiki"],
+  "keywords": [
+    "mcp",
+    "modelcontextprotocol",
+    "sprint",
+    "tickets",
+    "wiki"
+  ],
   "type": "module",
-  "bin": { "sprint-mcp": "dist/index.js" },
-  "files": ["dist"],
-  "engines": { "node": ">=18" },
-  "publishConfig": { "access": "public" },
+  "bin": {
+    "sprint-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",

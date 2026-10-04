@@ -25,6 +25,23 @@ async function setup(payload: unknown, status = 200) {
 }
 
 describe("wiki MCP tools", () => {
+  // 재발 방지: 쓰기 도구 설명이 다이어그램은 mermaid, 표는 파이프 문법을 안내해야 한다
+  // (안내가 없으면 AI 가 ASCII 다이어그램·contentJson 누락 표로 써서 위키가 깨져 보였다).
+  it("guides writers to mermaid diagrams and pipe tables", async () => {
+    const s = await setup({});
+    try {
+      const tools = (await s.client.listTools()).tools;
+      for (const name of ["create_wiki_page", "update_wiki_page"]) {
+        const d = tools.find((t) => t.name === name)?.description ?? "";
+        expect(d).toContain("```mermaid");
+        expect(d).toContain("ASCII");
+        expect(d).toContain("| a | b |");
+      }
+    } finally {
+      await s.close();
+    }
+  });
+
   it("exposes folder lookup and returns every parent link without choosing a folder", async () => {
     const folders = [{ id: "a", name: "기획", parentId: null, position: 0 },
       { id: "b", name: "同期", parentId: "a", position: 0 },
