@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { withMcpAuth, ok, fail, parseLimit } from "@/server/api/mcp-auth";
-import { createWikiPageCore, updateWikiContentCore } from "@/server/actions/wiki";
+import { createWikiPageCore } from "@/server/services/wiki";
 import { getWikiFolders, searchWikiPages } from "@/server/queries";
 import { markdownToDoc } from "@/lib/text-to-doc";
 import { tiptapDocSchema } from "@/lib/tiptap-doc";
@@ -23,16 +23,19 @@ export const POST = withMcpAuth(async (actor, req) => {
       return fail(`wiki folder not found: ${input.folderId}`, 404);
     }
   }
-  const created = await createWikiPageCore(actor, {
-    title: input.title,
-    parentId: input.parentId ?? null,
-    folderId: input.folderId ?? null,
-  });
-
-  if (input.contentJson != null || (input.body && input.body.trim())) {
-    const content = input.contentJson ?? markdownToDoc(input.body ?? "");
-    await updateWikiContentCore(actor, created.id, input.title, content);
-  }
+  // 본문은 생성과 한 번에 쓴다(빈 리비전·'수정' 활동 없이).
+  const content =
+    input.contentJson ??
+    (input.body?.trim() ? markdownToDoc(input.body) : undefined);
+  const created = await createWikiPageCore(
+    actor,
+    {
+      title: input.title,
+      parentId: input.parentId ?? null,
+      folderId: input.folderId ?? null,
+    },
+    { content },
+  );
 
   return ok({ id: created.id }, 201);
 });

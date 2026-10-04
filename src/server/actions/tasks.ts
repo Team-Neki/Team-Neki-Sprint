@@ -3,86 +3,26 @@
 import { revalidatePath } from "next/cache";
 import type { Status } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { orderBetween } from "@/lib/order";
 import { requireUser } from "@/lib/session";
-import { taskSchema } from "@/lib/validators";
-import { logActivity, diffFields } from "@/server/activity";
-import { notifyNewMentions } from "@/server/notify";
+import { logActivity } from "@/server/activity";
 import { wouldCreateCycle } from "@/lib/task-deps";
 import { formatIssueKey } from "@/lib/constants";
-import { nextTeamNumber } from "@/server/keys";
-import { assertCanManage, type Actor } from "@/lib/authz";
+import {
+  createTaskCore,
+  updateTaskFieldsCore,
+  deleteTaskCore,
+} from "@/server/services/tasks";
 
 export async function createTask(input: unknown) {
   const user = await requireUser();
   return createTaskCore(user, input);
 }
 
-/** createTask의 actor 주입 코어. 서버 액션과 MCP API 라우트가 공유한다. */
-export async function createTaskCore(actor: Actor, input: unknown) {
-  const data = taskSchema.parse(input);
-  // 담당자 상호배타(B4): 둘 다 지정되면 유저 담당자를 우선(팀 담당자 제거).
-  if (data.assigneeId && data.assigneeTeamId) {
-    data.assigneeTeamId = null;
-  }
-
-  const task = await prisma.$transaction(async (tx) => {
-    // Task는 생성 시점 Epic의 팀을 상속(teamId 고정). 에픽이 없으면 폼 선택 팀 사용.
-    let teamId = data.teamId;
-    if (data.epicId) {
-      const epic = await tx.epic.findUnique({
-        where: { id: data.epicId },
-        select: { teamId: true },
-      });
-      if (epic) teamId = epic.teamId;
-    }
-    const number = await nextTeamNumber(tx, teamId);
-    // 보드에서 새 태스크는 해당 status 컬럼 하단에 append (B7-board).
-    const status = data.status ?? "TODO";
-    const agg = await tx.task.aggregate({
-      where: { status },
-      _max: { boardOrder: true },
-    });
-    const boardOrder = (agg._max.boardOrder ?? 0) + 1;
-    return tx.task.create({
-      data: { ...data, teamId, number, reporterId: actor.id, boardOrder },
-    });
-  });
-
-  await logActivity({
-    userId: actor.id,
-    entityType: "task",
-    entityId: task.id,
-    action: "created",
-    meta: { title: task.title },
-  });
-
-  revalidatePath("/board");
-  revalidatePath("/tasks");
-  if (task.epicId) revalidatePath(`/epics/${task.epicId}`);
-  // 태스크 캐시 + 에픽 캐시(하위 태스크 수·SP 롤업이 목록에 표시됨).
-  return { id: task.id };
-}
-
+/** 다이얼로그 저장. 인라인 편집과 같은 코어로 필드별 히스토리·멘션 알림·담당자 상호배타를 적용한다. */
 export async function updateTask(id: string, input: unknown) {
   const user = await requireUser();
-  const data = taskSchema.partial().parse(input);
-  // 팀(teamId)과 번호는 생성 후 불변 — 에픽 이동에도 key는 안정(재번호 없음).
-  delete (data as { teamId?: string }).teamId;
-
-  const task = await prisma.task.update({ where: { id }, data });
-
-  await logActivity({
-    userId: user.id,
-    entityType: "task",
-    entityId: id,
-    action: "updated",
-  });
-
-  revalidatePath("/board");
-  revalidatePath("/tasks");
-  revalidatePath(`/tasks/${id}`);
-  if (task.epicId) revalidatePath(`/epics/${task.epicId}`);
-  return { id };
+  return updateTaskFieldsCore(user, id, input);
 }
 
 /**
@@ -92,11 +32,13 @@ export async function updateTask(id: string, input: unknown) {
  * 주의(A2): 보드 필터(담당자/팀)가 걸린 뷰에서는 orderedIds 가 필터를 통과한
  * visible 태스크만 담는다. 그래서 예전처럼 orderedIds 만 0..n 으로 재번호하면
  * 같은 컬럼의 숨은(필터 제외) 태스크 boardOrder 와 충돌·순서 붕괴가 난다.
- * 해결: 대상 컬럼의 "전체" 태스크를 로드해 visible 새 순서와 병합한 뒤 전체를
- * 한 번에 재번호한다. 숨은 태스크는 이동 전 인접했던 visible 태스크 바로 뒤에
- * 다시 앵커링되어 상대 위치가 보존되고, 전체를 일관되게 재번호하므로 충돌이 없다.
+ * 해결(BACKEND-186): 이동 태스크를 "다음 visible 태스크 바로 앞"(없으면 컬럼 끝)에
+ * 이웃 boardOrder 중간값(`orderBetween`)으로 두고 그 1행만 갱신한다. 숨은 태스크는
+ * 건드리지 않는다. 이웃 boardOrder 가 null 이거나 간격이 고갈되면, 대상 컬럼 전체를
+ * 로드해 숨은 태스크를 직전 visible 뒤에 앵커링한 뒤 전체를 재번호하는 경로로 폴백한다
+ * (예전 기본 경로 — 컬럼이 커지면 순차 UPDATE 가 트랜잭션 시간 제한에 걸릴 수 있었다).
  * 옮겨온 태스크만 status 를 갱신하고, 상태가 실제로 바뀐 경우에만
- * Activity(status_changed)를 기록한다. 컬럼은 작아 전체 재번호가 저렴.
+ * Activity(status_changed)를 기록한다.
  */
 export async function reorderBoardTask(
   id: string,
@@ -116,13 +58,33 @@ export async function reorderBoardTask(
     // 로드. 크로스 컬럼 이동이면 이동 태스크(id)는 아직 다른 status 라 여기 없음.
     const columnTasks = await tx.task.findMany({
       where: { status },
-      select: { id: true },
+      select: { id: true, boardOrder: true },
       orderBy: [
         { boardOrder: { sort: "asc", nulls: "last" } },
         { createdAt: "asc" },
+        { id: "asc" }, // 보드 조회(getBoardTasks)와 같은 tiebreaker — 이웃 판단이 화면과 일치.
       ],
     });
 
+    // 빠른 경로(BACKEND-186): 이동 태스크만 1행 갱신. 다음 visible 태스크 N 바로 앞
+    // (N 이 없으면 컬럼 끝)에 이웃 중간값으로 둔다. 결과는 아래 앵커 규칙과 같되, 이동
+    // 태스크 바로 뒤에 붙어 있던 숨은 태스크는 따라가지 않고 제자리에 남는다.
+    // 이웃 boardOrder 가 null 이거나 간격이 고갈되면 폴백.
+    const rest = columnTasks.filter((t) => t.id !== id);
+    const pos = orderedIds.indexOf(id);
+    const nextId = pos === -1 ? undefined : orderedIds[pos + 1];
+    const ni =
+      nextId === undefined ? rest.length : rest.findIndex((t) => t.id === nextId);
+    const order =
+      ni === -1 ? null : orderBetween(rest[ni - 1]?.boardOrder, rest[ni]?.boardOrder);
+    if (order !== null) {
+      await tx.task.update({ where: { id }, data: { status, boardOrder: order } });
+      return;
+    }
+
+    // 폴백: 컬럼 전체 재번호.
+    // ponytail: 여전히 컬럼 크기만큼 순차 UPDATE — null 이웃·간격 고갈 때만 드물게 탄다.
+    // 거대한 컬럼에서도 시간 초과가 나면 UPDATE ... FROM (VALUES ...) 1문으로 일괄화.
     // 숨은 태스크를 "직전 visible 태스크"에 앵커링해 상대 위치를 보존한다.
     // 어떤 visible 보다도 앞에 있던 숨은 태스크는 START 앵커로 묶어 선두에 둔다.
     const visible = new Set(orderedIds);
@@ -173,30 +135,6 @@ export async function reorderBoardTask(
   revalidatePath("/tasks");
 }
 
-function revalidateTaskPaths(id: string, epicId: string | null) {
-  revalidatePath("/board");
-  revalidatePath("/tasks");
-  revalidatePath(`/tasks/${id}`);
-  if (epicId) revalidatePath(`/epics/${epicId}`);
-  // 에픽 MD 롤업(getEpics)·스프린트 MD 합(getSprints)이 태스크 estimatedMd 에 의존.
-}
-
-// 인라인 편집 시 로드하는 태스크의 편집 가능 필드(diff 대상). 팀/번호는 불변이라 제외.
-const TASK_EDITABLE = {
-  title: true,
-  description: true,
-  status: true,
-  priority: true,
-  assigneeId: true,
-  assigneeTeamId: true,
-  reporterId: true,
-  epicId: true,
-  startDate: true,
-  dueDate: true,
-  estimatedMd: true,
-  actualMd: true,
-} as const;
-
 /**
  * 상세 페이지 인라인 편집(B3)의 단일 진입점: 부분 patch 를 현재 값과 diff 해
  * 바뀐 필드만 update 하고, 필드별 before→after 를 Activity(`field_changed`)로 기록(B8).
@@ -207,91 +145,9 @@ export async function updateTaskFields(id: string, input: unknown) {
   return updateTaskFieldsCore(user, id, input);
 }
 
-/** updateTaskFields의 actor 주입 코어. 서버 액션과 MCP API 라우트가 공유한다. */
-export async function updateTaskFieldsCore(
-  actor: Actor,
-  id: string,
-  input: unknown,
-) {
-  const patch = taskSchema.partial().parse(input) as Record<string, unknown>;
-  // 팀(teamId)과 번호는 생성 후 불변 — patch 에서 제외.
-  delete patch.teamId;
-  // 담당자 상호배타(B4): 유저 담당자를 지정하면 팀 담당자를 비우고, 반대도 동일.
-  // 각 키가 patch 에 실제로 있을 때만(단일 필드 patch 안전) 상대 필드를 null 로 강제한다.
-  if ("assigneeId" in patch && patch.assigneeId != null) {
-    patch.assigneeTeamId = null;
-  }
-  if ("assigneeTeamId" in patch && patch.assigneeTeamId != null) {
-    patch.assigneeId = null;
-  }
-
-  const current = await prisma.task.findUnique({
-    where: { id },
-    select: TASK_EDITABLE,
-  });
-  if (!current) throw new Error("태스크를 찾을 수 없습니다");
-
-  const { changes, data } = diffFields(current, patch);
-  if (changes.length === 0) return { id };
-
-  const task = await prisma.task.update({ where: { id }, data });
-
-  await Promise.all(
-    changes.map((c) =>
-      logActivity({
-        userId: actor.id,
-        entityType: "task",
-        entityId: id,
-        action: "field_changed",
-        meta: { field: c.field, from: c.from, to: c.to },
-      }),
-    ),
-  );
-
-  // 설명(description) 변경 시 새로 추가된 '@' 멘션 → 알림.
-  const descChange = changes.find((c) => c.field === "description");
-  if (descChange) {
-    await notifyNewMentions({
-      actorId: actor.id,
-      entityType: "task",
-      entityId: id,
-      context: task.title,
-      before: current.description,
-      after: task.description,
-    });
-  }
-
-  revalidateTaskPaths(id, task.epicId);
-  // 에픽 이동 시 이전 에픽 상세도 무효화.
-  if (current.epicId && current.epicId !== task.epicId) {
-    revalidatePath(`/epics/${current.epicId}`);
-  }
-  return { id };
-}
-
 export async function deleteTask(id: string) {
   const user = await requireUser();
   return deleteTaskCore(user, id);
-}
-
-/** deleteTask의 actor 주입 코어. 서버 액션과 MCP API 라우트가 공유한다. */
-export async function deleteTaskCore(actor: Actor, id: string) {
-  const task = await prisma.task.findUnique({
-    where: { id },
-    select: { reporterId: true, assigneeId: true },
-  });
-  if (!task) throw new Error("태스크를 찾을 수 없습니다");
-  // 삭제는 작성자(reporter)·담당자(assignee) 또는 ADMIN 만.
-  assertCanManage(actor, "태스크", task.reporterId, task.assigneeId);
-  await prisma.task.delete({ where: { id } });
-  await logActivity({
-    userId: actor.id,
-    entityType: "task",
-    entityId: id,
-    action: "deleted",
-  });
-  revalidatePath("/board");
-  revalidatePath("/tasks");
 }
 
 // 댓글 추가는 다형 Comment 로 일반화되어 actions/comments.ts 의 addEntityComment 로 이동.

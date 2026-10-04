@@ -8,30 +8,26 @@
 // '@' 사람·팀 멘션은 동일 패턴의 별도 모듈(person-mention)이며, 여기 로직과
 // 겹치지 않는다(위키 페이지 멘션은 '@' 에서 '#' 로 이관됨).
 
-import {
-  forwardRef,
-  useImperativeHandle,
-  useState,
-  type ForwardedRef,
-} from "react";
+import { forwardRef, type ForwardedRef } from "react";
 import { useRouter } from "next/navigation";
 import { Node, mergeAttributes } from "@tiptap/core";
 import {
-  ReactRenderer,
   ReactNodeViewRenderer,
   NodeViewWrapper,
   type NodeViewProps,
 } from "@tiptap/react";
 import { PluginKey } from "@tiptap/pm/state";
-import Suggestion, {
-  type SuggestionProps,
-  type SuggestionKeyDownProps,
-} from "@tiptap/suggestion";
+import Suggestion, { type SuggestionProps } from "@tiptap/suggestion";
 import type { Status } from "@prisma/client";
 import { FileText } from "lucide-react";
 import { STATUS_META, formatIssueKey } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { searchTasksAction, searchWikiPagesAction } from "@/server/actions/wiki";
+import {
+  suggestionRender,
+  useSuggestionList,
+  type SuggestionListHandle,
+} from "@/components/wiki/suggestion-menu";
 
 // '#' suggestion 은 티켓과 위키 페이지를 함께 노출한다(티켓 먼저, 위키 나중).
 // 티켓 선택 → ticketMention 노드, 위키 선택 → wikiMention 노드(링크 칩).
@@ -70,48 +66,17 @@ function TicketChip({ node }: NodeViewProps) {
 
 // ---------- 검색 드롭다운 ----------
 
-type TicketListHandle = { onKeyDown: (props: SuggestionKeyDownProps) => boolean };
-
 const TicketSuggestionList = forwardRef(function TicketSuggestionList(
   props: SuggestionProps<TicketItem, TicketItem>,
-  ref: ForwardedRef<TicketListHandle>,
+  ref: ForwardedRef<SuggestionListHandle>,
 ) {
-  const [selected, setSelected] = useState(0);
+  const { selected, setSelected, pick, listRef } = useSuggestionList(props, ref);
   const items = props.items;
 
-  // items가 바뀌면 선택을 0으로 리셋. effect 대신 렌더 중 이전값 비교 패턴 사용.
-  const [prevItems, setPrevItems] = useState(items);
-  if (items !== prevItems) {
-    setPrevItems(items);
-    setSelected(0);
-  }
-
-  function pick(index: number) {
-    const item = items[index];
-    if (item) props.command(item);
-  }
-
-  useImperativeHandle(ref, () => ({
-    onKeyDown: ({ event }) => {
-      if (items.length === 0) return false;
-      if (event.key === "ArrowUp") {
-        setSelected((s) => (s + items.length - 1) % items.length);
-        return true;
-      }
-      if (event.key === "ArrowDown") {
-        setSelected((s) => (s + 1) % items.length);
-        return true;
-      }
-      if (event.key === "Enter") {
-        pick(selected);
-        return true;
-      }
-      return false;
-    },
-  }));
-
   return (
-    <div className="bg-popover text-popover-foreground ring-foreground/10 z-50 max-h-72 w-72 overflow-y-auto rounded-lg p-1 shadow-md ring-1">
+    <div
+      ref={listRef}
+      className="bg-popover text-popover-foreground ring-foreground/10 z-50 max-h-72 w-72 overflow-y-auto rounded-lg p-1 shadow-md ring-1">
       {props.loading ? (
         <div className="text-muted-foreground px-2 py-3 text-center text-sm">
           검색 중…
@@ -269,35 +234,7 @@ export const TicketMention = Node.create({
             .insertContentAt(range, [node, { type: "text", text: " " }])
             .run();
         },
-        render: () => {
-          let component: ReactRenderer<TicketListHandle> | null = null;
-          let unmount: (() => void) | undefined;
-
-          return {
-            onStart: (props) => {
-              component = new ReactRenderer(TicketSuggestionList, {
-                props,
-                editor: props.editor,
-              });
-              unmount = props.mount(component.element);
-            },
-            onUpdate: (props) => {
-              component?.updateProps(props);
-            },
-            onKeyDown: (props) => {
-              if (props.event.key === "Escape") {
-                unmount?.();
-                return true;
-              }
-              return component?.ref?.onKeyDown(props) ?? false;
-            },
-            onExit: () => {
-              unmount?.();
-              component?.destroy();
-              component = null;
-            },
-          };
-        },
+        render: suggestionRender(TicketSuggestionList),
       }),
     ];
   },

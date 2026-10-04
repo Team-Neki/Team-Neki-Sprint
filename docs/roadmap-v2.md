@@ -75,7 +75,7 @@
 
 ### A2. 보드 필터 활성 시 재정렬 정합성 · 규모 S~M · `DONE`
 
-> 구현: 접근안 (a) full-column renumber. `reorderBoardTask`가 대상 컬럼 전체를 로드 → 숨은 태스크를 직전 visible에 앵커링해 상대 위치 보존 → 전체 일관 재번호로 충돌 제거. Activity `status_changed` 가드·트랜잭션 보존. (sparse midpoint 대신 full renumber 채택 — 컬럼이 작아 저렴·단순·정확.)
+> 구현: 접근안 (a) full-column renumber. `reorderBoardTask`가 대상 컬럼 전체를 로드 → 숨은 태스크를 직전 visible에 앵커링해 상대 위치 보존 → 전체 일관 재번호로 충돌 제거. Activity `status_changed` 가드·트랜잭션 보존. (sparse midpoint 대신 full renumber 채택 — 컬럼이 작아 저렴·단순·정확.) **2026-10-04 BACKEND-186**: 컬럼(특히 DONE)이 계속 커져 순차 재번호가 트랜잭션 시간 제한에 걸릴 수 있어 (b) sparse 중간값으로 전환, (a)는 null 이웃·간격 고갈 시 폴백으로 남김.
 
 - **현상/배경**: 담당자/팀 필터가 켜진 상태에서 칸반 재정렬 시, **보이는 태스크만 `boardOrder` 재번호**되어 숨은(필터된) 태스크의 order와 간섭 가능. [roadmap.md B7-board 알려진 한계], [work-log 2026-07-08 B7-board].
 - **접근안**:

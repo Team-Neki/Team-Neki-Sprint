@@ -1,8 +1,5 @@
 "use client";
 
-import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { X } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { CheckboxFilter } from "@/components/filters/checkbox-filter";
 import { memberLabel } from "@/components/selects/option-select";
 import type { MiniUser } from "@/components/user-badge";
@@ -28,19 +25,6 @@ export function OwnerFilter({
   /** 하위호환용 prop(다중선택 전환 후 트리거에는 미사용). */
   allLabel?: string;
 }) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const params = useSearchParams();
-
-  const selected = (params.get(paramKey) ?? "").split(",").filter(Boolean);
-
-  function clear() {
-    const next = new URLSearchParams(params.toString());
-    next.delete(paramKey);
-    const qs = next.toString();
-    router.replace(qs ? `${pathname}?${qs}` : pathname);
-  }
-
   const options = members.map((m) => ({
     value: m.id,
     label: memberLabel(m),
@@ -48,18 +32,11 @@ export function OwnerFilter({
   }));
 
   return (
-    <>
-      <CheckboxFilter
-        paramKey={paramKey}
-        label={placeholder}
-        options={options}
-      />
-
-      {selected.length > 0 && (
-        <Button variant="ghost" size="sm" onClick={clear}>
-          <X className="size-4" /> 초기화
-        </Button>
-      )}
-    </>
+    <CheckboxFilter
+      paramKey={paramKey}
+      label={placeholder}
+      options={options}
+      clearable
+    />
   );
 }

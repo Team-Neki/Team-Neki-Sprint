@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import { Plus } from "lucide-react";
 import {
   getEpic,
   getProjectOptions,
@@ -10,29 +9,31 @@ import {
   getEntityComments,
   getEntityWikiLinks,
 } from "@/server/queries";
+import { requireUser } from "@/lib/session";
 import { deleteEpic } from "@/server/actions/epics";
 import { deleteTask } from "@/server/actions/tasks";
 import { EpicLabels } from "@/components/detail/epic-labels";
 import { EntityLinkedPages } from "@/components/wiki/entity-linked-pages";
 import { formatIssueKey } from "@/lib/constants";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EntityTable } from "@/components/tables/entity-table";
 import { TASK_COLUMNS } from "@/components/tables/task-columns";
 import { TaskDialog } from "@/components/forms/task-dialog";
-import { SheetDeleteButton } from "@/components/detail/sheet-delete-button";
-import { BackButton } from "@/components/detail/back-button";
 import { CommentsHistoryTabs } from "@/components/detail/comments-history-tabs";
-import { MdRollupText } from "@/components/detail/md-rollup";
-import { TaskProgressSummary } from "@/components/detail/task-progress";
+import {
+  DetailHeader,
+  DetailDescription,
+  ChildList,
+  TeamRow,
+  MdRollupRow,
+} from "@/components/detail/detail-shell";
+import { ParentField } from "@/components/detail/parent-field";
 import {
   MetaRow,
   InlineTitle,
-  InlineDescription,
   InlineStatus,
   InlinePriority,
   InlineMember,
-  InlineLink,
   InlineDate,
 } from "@/components/detail/inline-fields";
 
@@ -43,6 +44,7 @@ export default async function EpicDetail({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireUser();
   const { id } = await params;
   const [
     epic,
@@ -70,52 +72,35 @@ export default async function EpicDetail({
     await deleteEpic(id);
   }
 
-  const issueKey = formatIssueKey(epic.team?.key, epic.number);
-
   return (
     <div className="@container/detail mx-auto max-w-5xl">
       <div className="grid gap-6 @3xl/detail:grid-cols-3">
       <div className="min-w-0 @3xl/detail:col-span-2">
-        <BackButton fallback="/epics" label="에픽" />
+        <DetailHeader
+          href="/epics"
+          label="에픽"
+          issueKey={formatIssueKey(epic.team?.key, epic.number)}
+          title={<InlineTitle type="epic" id={epic.id} value={epic.title} />}
+          onDelete={handleDelete}
+        />
 
-        <div className="mb-6 flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <span className="text-muted-foreground font-mono text-xs">
-              {issueKey}
-            </span>
-            <InlineTitle type="epic" id={epic.id} value={epic.title} />
-          </div>
-          <SheetDeleteButton onConfirm={handleDelete} redirectTo="/epics" />
-        </div>
+        <DetailDescription type="epic" id={epic.id} value={epic.description} />
 
-        <Card className="mb-6 p-5">
-          <h3 className="mb-2 text-sm font-medium">설명</h3>
-          <InlineDescription
-            type="epic"
-            id={epic.id}
-            value={epic.description}
-          />
-        </Card>
-
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">태스크 {epic.tasks.length}</h2>
-          <TaskDialog
-            members={members}
-            teams={teams}
-            epics={[{ id: epic.id, title: epic.title, teamId: epic.teamId }]}
-            defaultEpicId={epic.id}
-            defaultTeamId={epic.teamId}
-            trigger={
-              <Button size="sm" variant="outline">
-                <Plus className="size-4" /> 태스크 추가
-              </Button>
-            }
-          />
-        </div>
-
-        <TaskProgressSummary progress={epic.progress} />
-
-        <Card className="mb-6 overflow-hidden py-0">
+        <ChildList
+          label="태스크"
+          count={epic.tasks.length}
+          progress={epic.progress}
+          add={(trigger) => (
+            <TaskDialog
+              members={members}
+              teams={teams}
+              epics={[{ id: epic.id, title: epic.title, teamId: epic.teamId }]}
+              defaultEpicId={epic.id}
+              defaultTeamId={epic.teamId}
+              trigger={trigger}
+            />
+          )}
+        >
           <EntityTable
             rows={epic.tasks}
             columns={TASK_COLUMNS}
@@ -131,7 +116,7 @@ export default async function EpicDetail({
             }}
             deleteAction={deleteTask}
           />
-        </Card>
+        </ChildList>
 
         <CommentsHistoryTabs
           entityType="epic"
@@ -161,14 +146,11 @@ export default async function EpicDetail({
             <InlinePriority type="epic" id={epic.id} value={epic.priority} />
           </MetaRow>
           <MetaRow label="프로젝트">
-            <InlineLink
-              type="epic"
+            <ParentField
+              parent="project"
               id={epic.id}
-              field="projectId"
               value={epic.projectId}
-              options={projects.map((p) => ({ id: p.id, label: p.title }))}
-              noneLabel="없음"
-              placeholder="프로젝트 선택"
+              options={projects}
             />
           </MetaRow>
           <MetaRow label="시작일">
@@ -187,28 +169,8 @@ export default async function EpicDetail({
               value={epic.dueDate}
             />
           </MetaRow>
-          <MetaRow label="팀">
-            <span className="inline-flex items-center gap-1.5 pr-1.5">
-              <span
-                className="size-2 shrink-0 rounded-full"
-                style={
-                  epic.team?.color
-                    ? { backgroundColor: epic.team.color }
-                    : undefined
-                }
-              />
-              <span className="text-muted-foreground font-mono text-xs">
-                {epic.team?.key}
-              </span>
-            </span>
-          </MetaRow>
-          <MetaRow label="MD (롤업)">
-            <MdRollupText
-              estimated={epic.md.estimated}
-              actual={epic.md.actual}
-              className="text-sm"
-            />
-          </MetaRow>
+          <TeamRow team={epic.team} />
+          <MdRollupRow md={epic.md} />
           <MetaRow label="라벨" align="start">
             <EpicLabels
               epicId={epic.id}

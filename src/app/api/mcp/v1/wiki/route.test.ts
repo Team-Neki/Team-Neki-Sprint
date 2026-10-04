@@ -2,11 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   authenticateBearer: vi.fn(), getWikiFolders: vi.fn(), searchWikiPages: vi.fn(),
-  createWikiPageCore: vi.fn(), updateWikiContentCore: vi.fn(),
+  createWikiPageCore: vi.fn(),
 }));
 vi.mock("@/lib/api-token", () => ({ authenticateBearer: mocks.authenticateBearer }));
 vi.mock("@/server/queries", () => ({ getWikiFolders: mocks.getWikiFolders, searchWikiPages: mocks.searchWikiPages }));
-vi.mock("@/server/actions/wiki", () => ({ createWikiPageCore: mocks.createWikiPageCore, updateWikiContentCore: mocks.updateWikiContentCore }));
+vi.mock("@/server/services/wiki", () => ({ createWikiPageCore: mocks.createWikiPageCore }));
 import { POST } from "./route";
 
 const ctx = { params: Promise.resolve({}) };
@@ -28,22 +28,28 @@ describe("MCP folder page creation", () => {
     const contentJson = { type: "doc", content: [{ type: "table", content: [] }] };
     const response = await POST(request({ title: "Title", folderId: "target", body: "ignored", contentJson }), ctx);
     expect(response.status).toBe(201);
-    expect(mocks.createWikiPageCore).toHaveBeenCalledWith(actor, { title: "Title", folderId: "target", parentId: null });
-    expect(mocks.updateWikiContentCore).toHaveBeenCalledWith(actor, "page", "Title", contentJson);
+    // 본문은 생성 한 번에 넘긴다(빈 페이지 생성 후 별도 수정 없음).
+    expect(mocks.createWikiPageCore).toHaveBeenCalledTimes(1);
+    expect(mocks.createWikiPageCore).toHaveBeenCalledWith(actor, { title: "Title", folderId: "target", parentId: null }, { content: contentJson });
   });
 
   it("returns 404 without creating a page when the folder no longer exists", async () => {
     const response = await POST(request({ title: "Title", folderId: "missing" }), ctx);
     expect(response.status).toBe(404);
     expect(mocks.createWikiPageCore).not.toHaveBeenCalled();
-    expect(mocks.updateWikiContentCore).not.toHaveBeenCalled();
   });
 
   it("continues creating markdown pages at the root without folder lookup", async () => {
     const response = await POST(request({ title: "Title", body: "# Heading" }), ctx);
     expect(response.status).toBe(201);
     expect(mocks.getWikiFolders).not.toHaveBeenCalled();
-    expect(mocks.updateWikiContentCore.mock.calls[0][3].content[0].type).toBe("heading");
+    expect(mocks.createWikiPageCore.mock.calls[0][2].content.content[0].type).toBe("heading");
+  });
+
+  it("creates an empty page when no body is given", async () => {
+    const response = await POST(request({ title: "Title", body: "   " }), ctx);
+    expect(response.status).toBe(201);
+    expect(mocks.createWikiPageCore).toHaveBeenCalledWith(actor, { title: "Title", folderId: null, parentId: null }, { content: undefined });
   });
 
   it("rejects invalid rich content before any writes", async () => {

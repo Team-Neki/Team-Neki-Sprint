@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import { Plus } from "lucide-react";
 import {
   getSprint,
   getMembers,
@@ -9,10 +8,10 @@ import {
   getEntityComments,
   getEntityWikiLinks,
 } from "@/server/queries";
+import { requireUser } from "@/lib/session";
 import { deleteSprint } from "@/server/actions/sprints";
 import { deleteProject } from "@/server/actions/projects";
 import { EntityLinkedPages } from "@/components/wiki/entity-linked-pages";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EntityTable } from "@/components/tables/entity-table";
 import {
@@ -20,15 +19,16 @@ import {
   PROJECT_DELETE_DESCRIPTION,
 } from "@/components/tables/project-columns";
 import { ProjectDialog } from "@/components/forms/project-dialog";
-import { SheetDeleteButton } from "@/components/detail/sheet-delete-button";
-import { BackButton } from "@/components/detail/back-button";
 import { CommentsHistoryTabs } from "@/components/detail/comments-history-tabs";
-import { MdRollupText } from "@/components/detail/md-rollup";
-import { TaskProgressSummary } from "@/components/detail/task-progress";
+import {
+  DetailHeader,
+  DetailDescription,
+  ChildList,
+  MdRollupRow,
+} from "@/components/detail/detail-shell";
 import {
   MetaRow,
   InlineTitle,
-  InlineDescription,
   InlineSprintStatus,
   InlineDate,
 } from "@/components/detail/inline-fields";
@@ -40,6 +40,7 @@ export default async function SprintDetail({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireUser();
   const { id } = await params;
   const [sprint, members, sprints, labelOptions, activities, comments, wikiLinks] =
     await Promise.all([
@@ -62,49 +63,40 @@ export default async function SprintDetail({
     <div className="@container/detail mx-auto max-w-5xl">
       <div className="grid gap-6 @3xl/detail:grid-cols-3">
       <div className="min-w-0 @3xl/detail:col-span-2">
-        <BackButton fallback="/sprints" label="스프린트" />
-
-        <div className="mb-6 flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            {/* 스프린트는 이슈 key 가 없다(팀 접두어 미부여) — 제목만. */}
+        {/* 스프린트는 이슈 key 가 없다(팀 접두어 미부여) — 제목만. */}
+        <DetailHeader
+          href="/sprints"
+          label="스프린트"
+          title={
             <InlineTitle
               type="sprint"
               id={sprint.id}
               value={sprint.name}
               field="name"
             />
-          </div>
-          <SheetDeleteButton onConfirm={handleDelete} redirectTo="/sprints" />
-        </div>
+          }
+          onDelete={handleDelete}
+        />
 
-        <Card className="mb-6 p-5">
-          <h3 className="mb-2 text-sm font-medium">설명</h3>
-          <InlineDescription
-            type="sprint"
-            id={sprint.id}
-            value={sprint.description}
-          />
-        </Card>
+        <DetailDescription
+          type="sprint"
+          id={sprint.id}
+          value={sprint.description}
+        />
 
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">
-            프로젝트 {sprint.projects.length}
-          </h2>
-          <ProjectDialog
-            members={members}
-            sprints={sprints}
-            defaultSprintId={sprint.id}
-            trigger={
-              <Button size="sm" variant="outline">
-                <Plus className="size-4" /> 프로젝트 추가
-              </Button>
-            }
-          />
-        </div>
-
-        <TaskProgressSummary progress={sprint.progress} />
-
-        <Card className="mb-6 overflow-hidden py-0">
+        <ChildList
+          label="프로젝트"
+          count={sprint.projects.length}
+          progress={sprint.progress}
+          add={(trigger) => (
+            <ProjectDialog
+              members={members}
+              sprints={sprints}
+              defaultSprintId={sprint.id}
+              trigger={trigger}
+            />
+          )}
+        >
           <EntityTable
             rows={sprint.projects}
             columns={PROJECT_COLUMNS}
@@ -118,7 +110,7 @@ export default async function SprintDetail({
             deleteAction={deleteProject}
             deleteDescription={PROJECT_DELETE_DESCRIPTION}
           />
-        </Card>
+        </ChildList>
 
         <CommentsHistoryTabs
           entityType="sprint"
@@ -152,13 +144,7 @@ export default async function SprintDetail({
               value={sprint.endDate}
             />
           </MetaRow>
-          <MetaRow label="MD (롤업)">
-            <MdRollupText
-              estimated={sprint.md.estimated}
-              actual={sprint.md.actual}
-              className="text-sm"
-            />
-          </MetaRow>
+          <MdRollupRow md={sprint.md} />
         </Card>
 
         <Card className="p-5">

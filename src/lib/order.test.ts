@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   orderByDefaultStatus,
   orderBySprintStatus,
+  orderBetween,
   TASK_LIST_ORDER,
   EPIC_LIST_ORDER,
   PROJECT_LIST_ORDER,
@@ -77,5 +78,35 @@ describe("목록 정렬 상수", () => {
       { createdAt: "desc" },
       { id: "asc" },
     ]);
+  });
+});
+
+// 보드 1행 재정렬(BACKEND-186): 이웃 boardOrder 사이 값. null 은 호출부 전체 재번호 폴백 신호.
+describe("orderBetween", () => {
+  it("빈 컬럼이면 0", () => {
+    expect(orderBetween(undefined, undefined)).toBe(0);
+  });
+
+  it("맨 앞이면 다음 이웃 - 1, 맨 뒤면 앞 이웃 + 1", () => {
+    expect(orderBetween(undefined, 3)).toBe(2);
+    expect(orderBetween(3, undefined)).toBe(4);
+  });
+
+  it("양쪽 이웃 사이면 중간값", () => {
+    expect(orderBetween(1, 2)).toBe(1.5);
+    expect(orderBetween(-1, 0)).toBe(-0.5);
+  });
+
+  it("boardOrder 없는 이웃(null)이 끼면 null", () => {
+    expect(orderBetween(null, undefined)).toBeNull();
+    expect(orderBetween(undefined, null)).toBeNull();
+    expect(orderBetween(1, null)).toBeNull();
+    expect(orderBetween(null, null)).toBeNull();
+  });
+
+  it("간격이 1e-9 이하이거나 순서가 어긋나면 null", () => {
+    expect(orderBetween(1, 1)).toBeNull();
+    expect(orderBetween(1, 1 + 1e-10)).toBeNull();
+    expect(orderBetween(2, 1)).toBeNull();
   });
 });

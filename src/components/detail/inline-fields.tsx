@@ -1,17 +1,9 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
-import type { Editor } from "@tiptap/react";
 import type { Status, Priority, SprintStatus } from "@prisma/client";
 import { Input } from "@/components/ui/input";
-import {
-  RichEditor,
-  editorContentString,
-} from "@/components/rich-text/rich-editor";
-import { parseDoc } from "@/lib/rich-content";
 import {
   OptionSelect,
   memberLabel,
@@ -35,12 +27,11 @@ import {
 import { Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toDateInput } from "@/components/forms/fields";
-import { updateTaskFields } from "@/server/actions/tasks";
-import { updateEpicFields } from "@/server/actions/epics";
-import { updateProjectFields } from "@/server/actions/projects";
-import { updateSprintFields } from "@/server/actions/sprints";
-
-export type DetailEntity = "task" | "epic" | "project" | "sprint";
+import {
+  useFieldSave,
+  useOptimisticValue,
+  type DetailEntity,
+} from "@/components/detail/use-field-save";
 
 /**
  * 엔티티마다 컬럼 이름이 달라, `type` 과 `field` 의 조합을 타입으로 묶어둔다.
@@ -61,70 +52,10 @@ type DateTarget =
 type NumberTarget = { type: "task"; field: "estimatedMd" | "actualMd" };
 
 const UNASSIGNED = "__none__";
-const NONE = "__none__";
-
-// 엔티티별 단일 필드 patch 액션(diff 로깅은 서버에서 처리).
-const UPDATE: Record<
-  DetailEntity,
-  (id: string, patch: Record<string, unknown>) => Promise<unknown>
-> = {
-  task: updateTaskFields,
-  epic: updateEpicFields,
-  project: updateProjectFields,
-  sprint: updateSprintFields,
-};
 
 // 칩처럼 보이는 인라인 select 트리거: 보더 투명 + hover 시 인셋 면 노출(우측 정렬).
 const chipTrigger =
   "h-7 gap-1 border-transparent bg-transparent px-1.5 shadow-none hover:bg-accent";
-
-/**
- * 상세 인라인 편집 공용 훅: patch 저장 → 서버 확정 후 router.refresh.
- * `onError` 는 실패 시 호출된다 — 낙관적으로 먼저 보여준 값을 되돌리는 용도.
- */
-function useFieldSave(type: DetailEntity, id: string) {
-  const router = useRouter();
-  const [pending, start] = useTransition();
-  function save(patch: Record<string, unknown>, onError?: () => void) {
-    start(async () => {
-      try {
-        await UPDATE[type](id, patch);
-        router.refresh();
-      } catch {
-        onError?.();
-        toast.error("변경에 실패했습니다");
-        router.refresh();
-      }
-    });
-  }
-  return { pending, save };
-}
-
-/**
- * 방금 고른 값을 서버 확정 전에 먼저 보여준다(낙관적 표시, BACKEND-53).
- *
- * 셀렉트류는 서버가 내려준 값을 그대로 렌더하는데, 저장 후 `router.refresh()` 가
- * route 전체를 다시 가져오기까지 수 초가 걸려 그 동안 트리거가 **옛 값 + 비활성**으로
- * 멈춰 있었다("안 눌렸나?" 하고 다시 눌러 중복 쓰기를 유발).
- *
- * React 19 `useOptimistic` 을 쓰지 않는 이유: 그쪽은 transition 이 끝나는 시점에 값을
- * 되돌리는데, refresh 가 느리면 서버 값이 도착하기 전에 되돌아가 한 번 깜빡인다.
- * 여기서는 **서버 값이 실제로 바뀐 것을 확인한 뒤** override 를 푼다(InlineTitle·
- * InlineDate·InlineNumber 가 이미 쓰던 prop 동기화 패턴을 훅으로 뽑은 것).
- *
- * null 도 유효한 값(미지정 등)이라 로컬 값은 박스에 담아 "override 없음"과 구분한다.
- */
-function useOptimisticValue<T>(serverValue: T) {
-  const [local, setLocal] = useState<{ v: T } | null>(null);
-  const [prev, setPrev] = useState(serverValue);
-  if (!Object.is(serverValue, prev)) {
-    setPrev(serverValue);
-    setLocal(null);
-  }
-  const show = (v: T) => setLocal({ v });
-  const reset = () => setLocal(null);
-  return [local ? local.v : serverValue, show, reset] as const;
-}
 
 /**
  * 필드 라벨 옆에 붙는 작은 도움말 아이콘. hover 시 툴팁으로 설명을 보여준다.
@@ -284,58 +215,6 @@ export function InlineTitle({
   );
 }
 
-/* ---------- 설명(인라인 리치 에디터, B6) ---------- */
-
-export function InlineDescription({
-  type,
-  id,
-  value,
-}: {
-  type: DetailEntity;
-  id: string;
-  value: string | null;
-}) {
-  const { save } = useFieldSave(type, id);
-  // 에디터가 만들어내는 정규화된 초기 내용을 기준으로 삼아 blur 시 실변경만 저장.
-  const baseline = useRef<string | null>(null);
-  const editorRef = useRef<Editor | null>(null);
-
-  // 실변경만 저장. explicit(Cmd/Ctrl+Enter)이면 저장 여부를 토스트로 알린다.
-  function commit(editor: Editor, explicit = false) {
-    const next = editorContentString(editor);
-    if (next !== baseline.current) {
-      baseline.current = next;
-      save({ description: next });
-      if (explicit) toast.success("저장했습니다");
-    } else if (explicit) {
-      toast("변경사항이 없습니다");
-    }
-  }
-
-  return (
-    <div className="focus-within:border-ring hover:border-input rounded-md border border-transparent px-2 py-1 transition-colors">
-      <RichEditor
-        initialContent={parseDoc(value)}
-        placeholder="설명을 입력하세요… (#티켓, @사람, ⌘+Enter 저장)"
-        onEditor={(editor) => {
-          editorRef.current = editor;
-          if (editor && baseline.current === null) {
-            baseline.current = editorContentString(editor);
-          }
-        }}
-        onBlur={(editor) => commit(editor)}
-        // Cmd/Ctrl+Enter: 즉시 저장 + blur 로 편집 종료 피드백(문서 에디터와 동일 제스처).
-        onSubmitShortcut={() => {
-          const editor = editorRef.current;
-          if (!editor) return;
-          commit(editor, true);
-          editor.commands.blur();
-        }}
-      />
-    </div>
-  );
-}
-
 /* ---------- 상태 / 우선순위 ---------- */
 
 export function InlineStatus({
@@ -467,48 +346,6 @@ export function InlineMember({
       disabled={pending}
       size="sm"
       triggerClassName={chipTrigger}
-    />
-  );
-}
-
-/* ---------- 엔티티 링크(에픽/프로젝트/스프린트) ---------- */
-
-export function InlineLink({
-  type,
-  id,
-  field,
-  value,
-  options,
-  noneLabel = "없음",
-  placeholder = "선택",
-}: {
-  type: DetailEntity;
-  id: string;
-  field: "epicId" | "projectId" | "sprintId";
-  value: string | null;
-  options: { id: string; label: string }[];
-  noneLabel?: string;
-  placeholder?: string;
-}) {
-  const { pending, save } = useFieldSave(type, id);
-  const [shown, show, reset] = useOptimisticValue<string>(value ?? NONE);
-  return (
-    <OptionSelect<{ id: string; label: string }>
-      value={shown}
-      onValueChange={(v) => {
-        show(v);
-        save({ [field]: v === NONE ? null : v }, reset);
-      }}
-      options={options}
-      getValue={(o) => o.id}
-      getSearchText={(o) => o.label}
-      renderOption={(o) => o.label}
-      searchPlaceholder={placeholder}
-      placeholder={placeholder}
-      leadingOption={{ value: NONE, label: noneLabel }}
-      disabled={pending}
-      size="sm"
-      triggerClassName={cn(chipTrigger, "max-w-44")}
     />
   );
 }

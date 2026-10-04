@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { Prisma, Status, SprintStatus } from "@prisma/client";
 import { formatIssueKey } from "@/lib/constants";
+import { parseIssueKey } from "@/lib/issue-key";
 import { searchExcerpt } from "@/lib/rich-content";
 import type { ColumnPref } from "@/components/tables/column-registry";
 import {
@@ -334,7 +335,6 @@ export type ProjectSortField = (typeof PROJECT_SORT_FIELDS)[number];
 
 export type ProjectFilter = {
   ownerId?: string[];
-  sprintId?: string[];
   status?: Status[];
   sort?: ListSort<ProjectSortField>;
 };
@@ -361,10 +361,6 @@ export const getProjects = async (filter: ProjectFilter = {}) => {
       ownerId:
         filter.ownerId && filter.ownerId.length
           ? { in: filter.ownerId }
-          : undefined,
-      sprintId:
-        filter.sprintId && filter.sprintId.length
-          ? { in: filter.sprintId }
           : undefined,
       status:
         filter.status && filter.status.length
@@ -689,8 +685,9 @@ export function getTask(id: string) {
         orderBy: { createdAt: "desc" },
         include: { author: miniUser },
       },
-      // 연결된 위키(#3).
+      // 연결된 위키(#3). 연결 후 휴지통으로 간 페이지는 숨긴다(링크 행은 남아 있다).
       wikiLinks: {
+        where: { page: { deletedAt: null } },
         include: { page: { select: { id: true, title: true } } },
       },
       // 의존성: blockedBy=나를 막는 태스크들(blocker), blocking=내가 막는 태스크들(blocked).
@@ -949,10 +946,15 @@ export async function isWikiPageFavorited(userId: string, pageId: string) {
   return !!row;
 }
 
-export function getWikiPage(id: string) {
+export function getWikiPage(id: string, viewerId: string) {
   return prisma.wikiPage.findFirst({
     // 휴지통에 있는 페이지는 상세로 열지 않는다(목록/트리에서 이미 숨김).
-    where: { id, deletedAt: null },
+    // 초안은 작성자(viewerId)에게만 돌려준다 — 타인의 초안은 없는 페이지로 취급.
+    where: {
+      id,
+      deletedAt: null,
+      OR: [{ isDraft: false }, { authorId: viewerId }],
+    },
     include: {
       author: miniUser,
       editor: miniUser,
@@ -1000,7 +1002,8 @@ export function getWikiComments(pageId: string) {
  * 엔티티(sprint/project/epic)에 연결된 위키 페이지 목록. 태스크의 wikiLinks include
  * (getTask)와 동형이나, 엔티티 상세는 각자 getSprint/getProject/getEpic 를 쓰므로
  * 그 include 를 건드리지 않고 별도 조회로 분리한다(연결 mutation 후 revalidate 로 fresh).
- * 초안/휴지통 페이지도 이미 연결됐다면 그대로 노출한다(연결 시점 검색이 이미 걸러냄).
+ * 휴지통 페이지는 숨긴다(soft delete 는 링크 행을 남기므로 연결 후 삭제된 페이지가 남음).
+ * 초안은 연결 시점 검색이 거르고 정식 페이지가 초안으로 돌아가지 않으므로 거를 필요 없다.
  */
 export async function getEntityWikiLinks(
   entityType: "epic" | "project" | "sprint",
@@ -1009,20 +1012,20 @@ export async function getEntityWikiLinks(
   const pageSelect = { page: { select: { id: true, title: true } } } as const;
   if (entityType === "epic") {
     const rows = await prisma.wikiPageEpicLink.findMany({
-      where: { epicId: id },
+      where: { epicId: id, page: { deletedAt: null } },
       select: pageSelect,
     });
     return rows.map((r) => r.page);
   }
   if (entityType === "project") {
     const rows = await prisma.wikiPageProjectLink.findMany({
-      where: { projectId: id },
+      where: { projectId: id, page: { deletedAt: null } },
       select: pageSelect,
     });
     return rows.map((r) => r.page);
   }
   const rows = await prisma.wikiPageSprintLink.findMany({
-    where: { sprintId: id },
+    where: { sprintId: id, page: { deletedAt: null } },
     select: pageSelect,
   });
   return rows.map((r) => r.page);
@@ -1041,11 +1044,11 @@ export async function searchTasks(query: string, limit = 8) {
       { title: { contains: q, mode: "insensitive" } },
     ];
     // "TEAM-123" 또는 "TEAM" + 숫자 형태를 key 매칭으로 해석.
-    const dashMatch = q.match(/^([A-Za-z0-9]+)-(\d+)$/);
-    if (dashMatch) {
+    const key = parseIssueKey(q);
+    if (key) {
       or.push({
-        team: { key: { equals: dashMatch[1], mode: "insensitive" } },
-        number: Number(dashMatch[2]),
+        team: { key: { equals: key.teamKey, mode: "insensitive" } },
+        number: key.number,
       });
     } else if (/^\d+$/.test(q)) {
       or.push({ number: Number(q) });
@@ -1132,16 +1135,16 @@ export async function globalSearch(query: string): Promise<GlobalSearchResult> {
   const insensitive = { contains: q, mode: "insensitive" as const };
 
   // 'TEAM-123' / 'TEAM' / '123' 형태를 이슈 key 매칭으로 해석(searchTasks 와 동일 규칙).
-  const dashMatch = q.match(/^([A-Za-z0-9]+)-(\d+)$/);
+  const key = parseIssueKey(q);
   const keyOr = (): (
     | import("@prisma/client").Prisma.TaskWhereInput
     | import("@prisma/client").Prisma.EpicWhereInput
   )[] => {
-    if (dashMatch) {
+    if (key) {
       return [
         {
-          team: { key: { equals: dashMatch[1], mode: "insensitive" } },
-          number: Number(dashMatch[2]),
+          team: { key: { equals: key.teamKey, mode: "insensitive" } },
+          number: key.number,
         },
       ];
     }

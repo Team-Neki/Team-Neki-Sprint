@@ -110,6 +110,9 @@ PageHeader(제목 · 설명 · 생성 CTA)
   우 1단: 메타 Card(MetaRow 나열) · [엔티티별 카드] · 위키 연결 Card
 ```
 
+- 공통 블록은 `detail/detail-shell.tsx` 의 슬롯형 조각(`DetailHeader` · `DetailDescription` · `ChildList` · `TeamRow` · `MdRollupRow`)으로 조립합니다. 네 상세가 같은 마크업을 쓰므로 이 블록을 바꿀 땐 여기만 고칩니다(BACKEND-193)
+- 부모 필드(태스크→에픽, 에픽→프로젝트, 프로젝트→스프린트)는 `detail/parent-field.tsx` 의 `ParentField` 하나. 현재 부모는 상세로 가는 링크, "변경"은 검색 콤보박스입니다
+
 - 두 컬럼 모두 `min-w-0`을 줍니다. grid 아이템 기본값이 `min-width:auto`라 긴 코드블록이나 URL이 들어오면 컬럼이 밀립니다
 - 제목·설명·메타는 인라인 편집이 기본. 상세에는 수정 다이얼로그를 두지 않음(생성만 다이얼로그)
 - 설명 카드는 값이 비어도 항상 렌더. 카드째 숨기면 상세에서 설명을 새로 쓸 수 없음

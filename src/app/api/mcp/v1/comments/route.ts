@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { withMcpAuth, ok, fail } from "@/server/api/mcp-auth";
-import { addEntityCommentCore } from "@/server/actions/comments";
+import { addEntityCommentCore } from "@/server/services/comments";
 import { resolveEpicId, resolveTaskId } from "@/lib/issue-key";
 import { markdownToDoc } from "@/lib/text-to-doc";
 import { prisma } from "@/lib/prisma";

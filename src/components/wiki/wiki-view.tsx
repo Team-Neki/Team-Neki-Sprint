@@ -1,10 +1,16 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useEditor, EditorContent, type JSONContent } from "@tiptap/react";
 import { wikiExtensions } from "@/components/wiki/extensions";
 import { selectWikiLine } from "@/components/wiki/line-selection";
 import { cn } from "@/lib/utils";
+
+// 모듈 스코프(참조 고정) — useEditor 는 렌더마다 옵션을 참조 비교해 다르면 setOptions 한다.
+const VIEW_EDITOR_PROPS = {
+  attributes: { class: "tiptap focus:outline-none" },
+  handleTripleClick: selectWikiLine,
+};
 
 /**
  * 위키 본문 읽기전용 렌더러. 에디터와 동일한 Tiptap 확장(wikiExtensions)으로
@@ -22,15 +28,14 @@ export function WikiView({
   showTitle?: boolean;
   className?: string;
 }) {
+  // 확장 인스턴스는 에디터마다 따로(wikiExtensions 주석) — 모듈 상수가 아니라 useMemo.
+  const extensions = useMemo(() => wikiExtensions(), []);
   const editor = useEditor({
     immediatelyRender: false,
     editable: false,
-    extensions: wikiExtensions(),
+    extensions,
     content,
-    editorProps: {
-      attributes: { class: "tiptap focus:outline-none" },
-      handleTripleClick: selectWikiLine,
-    },
+    editorProps: VIEW_EDITOR_PROPS,
   });
 
   // Tiptap useEditor 는 최초 content 만 반영하므로, content prop 이 바뀌면(버전

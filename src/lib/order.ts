@@ -93,3 +93,19 @@ export function orderBySprintStatus<T extends { status: SprintStatus }>(
     (a, b) => SPRINT_STATUS_RANK[a.status] - SPRINT_STATUS_RANK[b.status],
   );
 }
+
+/**
+ * 칸반 카드 순서(`Task.boardOrder Float?`)에서 두 이웃 사이 값. 보드 재정렬이 이동
+ * 태스크 1행만 갱신하도록 쓴다(BACKEND-186). `undefined` = 그쪽에 이웃 없음,
+ * `null` = 이웃은 있지만 boardOrder 미부여. null 이웃이 끼거나 간격이 1e-9 이하로
+ * 고갈되면 null 을 돌려주고, 호출부는 컬럼 전체 재번호로 폴백한다.
+ */
+export function orderBetween(
+  prev: number | null | undefined,
+  next: number | null | undefined,
+): number | null {
+  if (prev === null || next === null) return null;
+  if (prev === undefined) return next === undefined ? 0 : next - 1;
+  if (next === undefined) return prev + 1;
+  return next - prev > 1e-9 ? (prev + next) / 2 : null;
+}
