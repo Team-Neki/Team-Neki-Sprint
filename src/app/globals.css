@@ -491,6 +491,16 @@
   max-width: 100%;
   height: auto;
 }
+.tiptap[contenteditable="false"] .wiki-mermaid-diagram svg {
+  cursor: zoom-in;
+}
+/* 확대 라이트박스(body 포털): 가로는 화면 폭까지 키우되 원래 크기는 넘지 않고
+   (mermaid 의 width=100% + 인라인 max-width=원래 폭), 세로로 길면 스크롤. */
+.wiki-mermaid-zoom svg {
+  display: block;
+  margin: 0 auto;
+  height: auto;
+}
 .tiptap .wiki-mermaid-error {
   color: var(--destructive);
   background: color-mix(in oklch, var(--destructive) 8%, transparent);
