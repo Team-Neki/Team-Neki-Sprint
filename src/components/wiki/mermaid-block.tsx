@@ -11,6 +11,10 @@ import { Pencil, Eye } from "lucide-react";
 
 const DEFAULT_CODE = "flowchart TD\n  A[시작] --> B[끝]";
 
+// 렌더 id 는 페이지 전체에서 고유해야 한다. mermaid.render 는 시작할 때 같은 id 의 요소를
+// 문서에서 지우므로, 블록끼리 id 가 겹치면 먼저 그려진 다른 블록의 SVG 가 사라진다.
+let renderSeq = 0;
+
 /**
  * mermaid 다이어그램 블록(atom 노드). 소스는 노드 attrs.code 에 문자열로 저장하고,
  * 렌더는 NodeView 에서 mermaid 를 동적 import(무거운 번들이라 지연 로드) 해 SVG 로 그린다.
@@ -22,7 +26,6 @@ function MermaidView({ node, updateAttributes, editor, selected }: NodeViewProps
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const hostRef = useRef<HTMLDivElement>(null);
-  const seq = useRef(0);
   // 코드 textarea 는 controlled(value=code) 라 updateAttributes 후 caret 이 끝으로
   // 튀므로, Enter 들여쓰기 삽입 위치를 pending 으로 두고 재렌더 후 복원한다.
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -71,9 +74,7 @@ function MermaidView({ node, updateAttributes, editor, selected }: NodeViewProps
           securityLevel: "strict",
           fontFamily: "inherit",
         });
-        // 렌더마다 고유 id(mermaid 가 임시 노드를 그 id 로 body 에 붙였다 지운다).
-        seq.current += 1;
-        const id = `wiki-mermaid-${seq.current}-${Math.floor(performance.now())}`;
+        const id = `wiki-mermaid-${++renderSeq}`;
         const { svg } = await mermaid.render(id, code);
         if (!cancelled) {
           host.innerHTML = svg;
