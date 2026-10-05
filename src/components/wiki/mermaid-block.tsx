@@ -8,6 +8,7 @@ import {
   type NodeViewProps,
 } from "@tiptap/react";
 import { Pencil, Eye } from "lucide-react";
+import { Lightbox } from "./image-view";
 
 const DEFAULT_CODE = "flowchart TD\n  A[시작] --> B[끝]";
 
@@ -20,11 +21,13 @@ let renderSeq = 0;
  * 렌더는 NodeView 에서 mermaid 를 동적 import(무거운 번들이라 지연 로드) 해 SVG 로 그린다.
  * 에디터(편집 가능)에선 '편집' 토글로 코드 textarea 를 열어 실시간 미리보기, 읽기전용
  * 뷰(WikiView·WikiCommentsView)에선 다이어그램만 보여준다(확장을 공유하므로 자동).
+ * 읽기전용 뷰에서 더블클릭하면 이미지와 같은 라이트박스로 화면 폭에 맞춰 확대한다.
  */
 function MermaidView({ node, updateAttributes, editor, selected }: NodeViewProps) {
   const code = (node.attrs.code as string) ?? "";
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [zoomSvg, setZoomSvg] = useState<string | null>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   // 코드 textarea 는 controlled(value=code) 라 updateAttributes 후 caret 이 끝으로
   // 튀므로, Enter 들여쓰기 삽입 위치를 pending 으로 두고 재렌더 후 복원한다.
@@ -131,7 +134,26 @@ function MermaidView({ node, updateAttributes, editor, selected }: NodeViewProps
         />
       )}
 
-      <div className="wiki-mermaid-diagram" ref={hostRef} />
+      <div
+        className="wiki-mermaid-diagram"
+        ref={hostRef}
+        onDoubleClick={() => {
+          if (!editor.isEditable && hostRef.current?.querySelector("svg")) {
+            setZoomSvg(hostRef.current.innerHTML);
+          }
+        }}
+      />
+      {zoomSvg && (
+        // <img> 로 띄우면 라벨(foreignObject)이 페이지 폰트를 못 받아 글자가 넘치므로 인라인 SVG.
+        // id 가 본문 SVG 와 겹치지만 내용이 같아 스타일·마커 참조 결과도 같다.
+        <Lightbox label="다이어그램 확대 보기" onClose={() => setZoomSvg(null)}>
+          <div
+            className="wiki-mermaid-zoom max-h-full w-full overflow-auto rounded-md bg-card p-6"
+            onClick={(e) => e.stopPropagation()}
+            dangerouslySetInnerHTML={{ __html: zoomSvg }}
+          />
+        </Lightbox>
+      )}
       {error && (
         <pre className="wiki-mermaid-error" contentEditable={false}>
           {error}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import Image from "@tiptap/extension-image";
 import {
@@ -250,27 +250,53 @@ function ImageView({ node, updateAttributes, editor, selected }: NodeViewProps) 
         )}
       </div>
       {lightbox && (
-        <ImageLightbox src={src} alt={alt} onClose={() => setLightbox(false)} />
+        <Lightbox
+          label={alt || "이미지 확대 보기"}
+          onClose={() => setLightbox(false)}
+          actions={
+            <>
+              <a className={chip} href={src} target="_blank" rel="noreferrer">
+                <ExternalLink className="size-3.5" /> 원본
+              </a>
+              <a className={chip} href={src} download>
+                <Download className="size-3.5" /> 다운로드
+              </a>
+            </>
+          }
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={src}
+            alt={alt}
+            className="max-h-full max-w-full rounded-md object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </Lightbox>
       )}
     </NodeViewWrapper>
   );
 }
 
+const chip =
+  "flex items-center gap-1.5 rounded-md bg-white/10 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-white/20";
+
 /**
- * 뷰 모드 더블클릭 확대 오버레이. 네이티브 <dialog>.showModal() 로 포커스
+ * 뷰 모드 더블클릭 확대 오버레이(이미지·mermaid 공용). 네이티브 <dialog>.showModal() 로 포커스
  * 트래핑·ESC 닫기를 내장 동작으로 얻는다(ESC 는 cancel→close 이벤트로 onClose 전파).
  * body 포털은 유지 — .tiptap 하위에 두면 에디터 CSS(.tiptap img 등)가 라이트박스에
- * 새어 들어온다. 배경 클릭 닫기, 열려 있는 동안 body 스크롤 잠금, 원본 새 탭
- * 열기/다운로드 액션 포함(same-origin URL).
+ * 새어 들어온다. 배경 클릭 닫기, 열려 있는 동안 body 스크롤 잠금. children 은 클릭이
+ * 배경으로 번지지 않게 stopPropagation 해야 하고, actions 는 닫기 버튼 왼쪽에 붙는다.
  */
-function ImageLightbox({
-  src,
-  alt,
+export function Lightbox({
+  label,
   onClose,
+  actions,
+  children,
 }: {
-  src: string;
-  alt: string;
+  label: string;
   onClose: () => void;
+  actions?: ReactNode;
+  children: ReactNode;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
 
@@ -286,9 +312,6 @@ function ImageLightbox({
     };
   }, []);
 
-  const chip =
-    "flex items-center gap-1.5 rounded-md bg-white/10 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-white/20";
-
   // 렌더 중 document 접근 가드 — 서버 렌더에선 브라우저 전역이 없다.
   // (실제로는 뷰 모드 더블클릭 후에만 마운트되지만, 클라이언트 전용 경로를 명시한다.)
   if (typeof document === "undefined") return null;
@@ -297,27 +320,16 @@ function ImageLightbox({
     <dialog
       ref={dialogRef}
       className="fixed inset-0 z-50 m-0 h-full max-h-none w-full max-w-none items-center justify-center border-0 bg-black/80 p-6 outline-none backdrop:bg-transparent open:flex"
-      aria-label={alt || "이미지 확대 보기"}
+      aria-label={label}
       onClose={onClose}
       onClick={onClose}
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={src}
-        alt={alt}
-        className="max-h-full max-w-full rounded-md object-contain"
-        onClick={(e) => e.stopPropagation()}
-      />
+      {children}
       <div
         className="absolute top-4 right-4 flex items-center gap-2"
         onClick={(e) => e.stopPropagation()}
       >
-        <a className={chip} href={src} target="_blank" rel="noreferrer">
-          <ExternalLink className="size-3.5" /> 원본
-        </a>
-        <a className={chip} href={src} download>
-          <Download className="size-3.5" /> 다운로드
-        </a>
+        {actions}
         <button
           type="button"
           className={chip}
