@@ -167,7 +167,7 @@ flowchart LR
 - **마이그레이션** : 롤아웃마다 initContainer 가 `prisma migrate deploy` 를 실행합니다. Prisma 가 advisory lock 을 잡으므로 다중 파드 동시 배포에도 안전하며, 로컬에서 손으로 적용할 필요가 없습니다. 대신 스키마를 바꾸면 마이그레이션 SQL 을 **반드시 커밋에 포함**해야 합니다
 - **베이스라인** : 최초 배포 시 `prisma/migrations/20260707170339_sprint_project_team` 이 테이블을 생성하고, 이후 마이그레이션이 차례로 적용됩니다
 - **빌드 인자** : `NEXT_PUBLIC_APP_URL` 은 `next build` 시점에 번들로 인라인되므로 ConfigMap 이 아니라 Dockerfile build arg 로 주입합니다
-- **헬스체크** : `/api/health`(DB 미의존)를 readiness / liveness 로 사용합니다
+- **헬스체크** : liveness 는 `/api/health`(DB 미의존), readiness 는 `/api/ready` 를 사용합니다. `/api/ready` 는 첫 호출에 주요 페이지와 DB(`SELECT 1`)를 한 번씩 미리 호출하는 웜업을 시작하고, 끝날 때까지 503 을 돌려줍니다. 그래서 새 파드는 데워진 뒤에 트래픽을 받습니다(배포 직후 첫 요청 2~3초 → 0.1초). 웜업이 끝난 뒤에는 DB 를 건드리지 않습니다
 
 CI(`.github/workflows/ci.yml`)는 모든 push · PR 에서 lint → typecheck → test → build 를 실행합니다.
 
