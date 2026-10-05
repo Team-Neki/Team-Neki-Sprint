@@ -155,7 +155,7 @@
 
 - **확장은 한 곳(`wikiExtensions()`)에서만** 추가한다 → 에디터(`editor.tsx`)와 읽기전용 뷰(`wiki-view.tsx`·`wiki-comments-view.tsx`) 가 같은 배열을 쓰므로 편집·뷰가 자동으로 동일 스키마. 표(`TableKit`)·구문강조 코드블록(`CodeBlockLowlight`+lowlight)·mermaid(`MermaidBlock`)를 여기 한 줄씩만 등록.
 - **StarterKit 기본 CodeBlock 을 끄고**(`codeBlock: false`) `CodeBlockLowlight` 로 대체한다(중복 확장 경고 방지, Link 를 끄는 것과 동일 패턴, [gotchas §7]). 강조 색은 `globals.css` 의 `.tiptap pre code .hljs-*` 라이트 팔레트.
-- **mermaid 는 지연 로드(atom NodeView)**: `mermaid-block.tsx` 가 소스를 `attrs.code` 문자열로 저장하고, NodeView 의 effect 에서 `await import("mermaid")` 로 **동적 import**(번들 크지만 mermaid 블록 있는 페이지에서만 로드) 후 `mermaid.render(uniqueId, code)` SVG 를 주입한다. **렌더마다 고유 id 필수**(mermaid 가 그 id 로 임시 노드를 body 에 붙였다 지움 — 재사용 시 충돌). `securityLevel: "strict"`(다이어그램 내 스크립트/HTML 차단).
+- **mermaid 는 지연 로드(atom NodeView)**: `mermaid-block.tsx` 가 소스를 `attrs.code` 문자열로 저장하고, NodeView 의 effect 에서 `await import("mermaid")` 로 **동적 import**(번들 크지만 mermaid 블록 있는 페이지에서만 로드) 후 `mermaid.render(uniqueId, code)` SVG 를 주입한다. **렌더 id 는 페이지 전체에서 고유해야 한다**: mermaid.render 는 시작할 때 같은 id 의 요소를 문서에서 지운다(`removeExistingElements`). 그래서 모듈 전역 카운터(`renderSeq`)로 만든다. 예전엔 블록별 ref 카운터 + `performance.now()` 밀리초였는데, 블록들이 동시에 마운트되면 동적 import 직후 같은 밀리초에 id 가 겹쳐 다른 블록의 SVG 가 지워지거나 다른 자리에 그려졌다(BACKEND-216). `securityLevel: "strict"`(다이어그램 내 스크립트/HTML 차단).
   - **setState 는 effect 본문 금지**([gotchas §15] `react-hooks/set-state-in-effect`): 빈 코드 처리·에러 표시 setState 를 모두 **async 콜백 안**에서 호출. 취소 플래그(`cancelled`)로 언마운트 후 setState 방지.
   - editor.isEditable 로 편집(코드 textarea 토글 + 실시간 미리보기) vs 뷰(다이어그램만) 분기. 읽기전용 뷰는 editable=false 라 자동으로 다이어그램만.
 - **검색(searchText, §16) 커버리지**: `docToPlainText` 는 node.content 를 재귀하므로 **표 셀·코드블록 텍스트는 검색됨**. **mermaid 소스는 atom(attrs.code)라 검색 안 됨**(다이어그램은 프로즈 아님 — 의도).
