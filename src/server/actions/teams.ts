@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
-import { teamSchema, assigneeIdSchema } from "@/lib/validators";
+import { teamSchema, assigneeIdSchema, roleSchema } from "@/lib/validators";
 import { logActivity } from "@/server/activity";
 
 export async function createTeam(input: unknown) {
@@ -82,4 +82,40 @@ export async function setUserTeam(userId: string, teamId: string | null) {
     meta: { userId, teamId: value },
   });
   revalidatePath("/teams");  return { id: userId };
+}
+
+/** 유저 역할(ADMIN/MEMBER) 변경. 관리자 전용. 본인 역할은 바꿀 수 없다(마지막 관리자 잠금 방지). */
+export async function setUserRole(userId: string, role: unknown) {
+  const user = await requireUser();
+  if (user.role !== "ADMIN") {
+    throw new Error("관리자만 역할을 변경할 수 있습니다.");
+  }
+  if (userId === user.id) {
+    throw new Error("본인의 역할은 변경할 수 없습니다.");
+  }
+  const value = roleSchema.parse(role);
+  // 관리자 둘이 동시에 서로를 강등하면 둘 다 세션 검사를 통과해 관리자가 0명이 될 수 있다.
+  // 직렬화 트랜잭션 안에서 요청자 역할을 다시 읽어, 경합 시 한쪽은 직렬화 실패로 거부된다.
+  await prisma.$transaction(
+    async (tx) => {
+      const actor = await tx.user.findUniqueOrThrow({
+        where: { id: user.id },
+        select: { role: true },
+      });
+      if (actor.role !== "ADMIN") {
+        throw new Error("관리자만 역할을 변경할 수 있습니다.");
+      }
+      await tx.user.update({ where: { id: userId }, data: { role: value } });
+    },
+    { isolationLevel: "Serializable" },
+  );
+  await logActivity({
+    userId: user.id,
+    entityType: "team",
+    entityId: userId,
+    action: "updated",
+    meta: { userId, role: value },
+  });
+  revalidatePath("/teams");
+  return { id: userId };
 }
