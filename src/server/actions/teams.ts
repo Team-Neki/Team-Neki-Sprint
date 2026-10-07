@@ -94,7 +94,21 @@ export async function setUserRole(userId: string, role: unknown) {
     throw new Error("본인의 역할은 변경할 수 없습니다.");
   }
   const value = roleSchema.parse(role);
-  await prisma.user.update({ where: { id: userId }, data: { role: value } });
+  // 관리자 둘이 동시에 서로를 강등하면 둘 다 세션 검사를 통과해 관리자가 0명이 될 수 있다.
+  // 직렬화 트랜잭션 안에서 요청자 역할을 다시 읽어, 경합 시 한쪽은 직렬화 실패로 거부된다.
+  await prisma.$transaction(
+    async (tx) => {
+      const actor = await tx.user.findUniqueOrThrow({
+        where: { id: user.id },
+        select: { role: true },
+      });
+      if (actor.role !== "ADMIN") {
+        throw new Error("관리자만 역할을 변경할 수 있습니다.");
+      }
+      await tx.user.update({ where: { id: userId }, data: { role: value } });
+    },
+    { isolationLevel: "Serializable" },
+  );
   await logActivity({
     userId: user.id,
     entityType: "team",
