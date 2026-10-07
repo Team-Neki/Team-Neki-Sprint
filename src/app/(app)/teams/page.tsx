@@ -9,6 +9,7 @@ import { UserBadge } from "@/components/user-badge";
 import { TeamDialog } from "@/components/forms/team-dialog";
 import { ConfirmDelete } from "@/components/confirm-delete";
 import { MemberTeamSelect } from "@/components/teams/member-team-select";
+import { MemberRoleSelect } from "@/components/teams/member-role-select";
 import { UserPreviewDialog } from "@/components/teams/user-preview-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { requireUser } from "@/lib/session";
@@ -157,11 +158,18 @@ export default async function TeamsPage() {
                     </span>
                   </div>
                 </UserPreviewDialog>
-                <MemberTeamSelect
-                  userId={m.id}
-                  teamId={m.teamId ?? null}
-                  teams={teamOptions}
-                />
+                <div className="flex shrink-0 items-center gap-2">
+                  <MemberRoleSelect
+                    userId={m.id}
+                    role={m.role}
+                    self={m.id === user.id}
+                  />
+                  <MemberTeamSelect
+                    userId={m.id}
+                    teamId={m.teamId ?? null}
+                    teams={teamOptions}
+                  />
+                </div>
               </div>
             ))}
           </Card>

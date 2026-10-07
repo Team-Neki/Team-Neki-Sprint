@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
-import { teamSchema, assigneeIdSchema } from "@/lib/validators";
+import { teamSchema, assigneeIdSchema, roleSchema } from "@/lib/validators";
 import { logActivity } from "@/server/activity";
 
 export async function createTeam(input: unknown) {
@@ -82,4 +82,26 @@ export async function setUserTeam(userId: string, teamId: string | null) {
     meta: { userId, teamId: value },
   });
   revalidatePath("/teams");  return { id: userId };
+}
+
+/** 유저 역할(ADMIN/MEMBER) 변경. 관리자 전용. 본인 역할은 바꿀 수 없다(마지막 관리자 잠금 방지). */
+export async function setUserRole(userId: string, role: unknown) {
+  const user = await requireUser();
+  if (user.role !== "ADMIN") {
+    throw new Error("관리자만 역할을 변경할 수 있습니다.");
+  }
+  if (userId === user.id) {
+    throw new Error("본인의 역할은 변경할 수 없습니다.");
+  }
+  const value = roleSchema.parse(role);
+  await prisma.user.update({ where: { id: userId }, data: { role: value } });
+  await logActivity({
+    userId: user.id,
+    entityType: "team",
+    entityId: userId,
+    action: "updated",
+    meta: { userId, role: value },
+  });
+  revalidatePath("/teams");
+  return { id: userId };
 }
