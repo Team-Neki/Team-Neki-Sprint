@@ -114,16 +114,20 @@ async function adminUpdateUser(
         throw new Error("관리자만 변경할 수 있습니다.");
       }
       await tx.user.update({ where: { id: userId }, data });
+      // 감사 기록은 같은 트랜잭션에 묶는다(권한 변경이 기록 없이 남지 않도록).
+      await logActivity(
+        {
+          userId: actorId,
+          entityType: "team",
+          entityId: userId,
+          action: "updated",
+          meta: { userId, ...data },
+        },
+        tx,
+      );
     },
     { isolationLevel: "Serializable" },
   );
-  await logActivity({
-    userId: actorId,
-    entityType: "team",
-    entityId: userId,
-    action: "updated",
-    meta: { userId, ...data },
-  });
   revalidatePath("/teams");
 }
 
