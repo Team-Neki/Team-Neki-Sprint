@@ -19,7 +19,7 @@ model User {
   emailVerified DateTime?
   image         String?
   role          Role      @default(MEMBER)
-  // 가입 승인 상태. 신규 가입은 PENDING — 관리자가 수동으로 APPROVED 전환 전까지
+  // 가입 승인 상태. 신규 가입은 PENDING — 관리자가 /teams 멤버 배정에서 APPROVED 로 바꾸기 전까지
   // 앱/API 접근이 차단된다(session.ts requireUser, api-token.ts authenticateBearer).
   status        UserStatus @default(PENDING)
   createdAt     DateTime  @default(now())
@@ -115,7 +115,7 @@ enum Role {
   MEMBER
 }
 
-// 가입 승인 상태(오픈 가입 가드). 상태 전환은 당분간 DB 에서 수동으로 관리한다.
+// 가입 승인 상태(오픈 가입 가드). 상태 전환은 /teams 멤버 배정(관리자 전용, setUserStatus)에서 한다.
 enum UserStatus {
   PENDING
   APPROVED

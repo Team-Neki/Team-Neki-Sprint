@@ -10,6 +10,7 @@ export const priorityEnum = priority;
 export const sprintStatusEnum = sprintStatus;
 export const assigneeIdSchema = z.string().min(1).nullable();
 export const roleSchema = z.enum(["ADMIN", "MEMBER"]);
+export const userStatusSchema = z.enum(["PENDING", "APPROVED"]);
 
 // 본인 프로필 편집(내 정보). 이름은 필수, 나머지(연락처·github·figma)는 옵션(빈 값은 null).
 export const profileSchema = z.object({
