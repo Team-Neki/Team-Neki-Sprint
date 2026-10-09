@@ -191,6 +191,7 @@ export function getMembers() {
       email: true,
       image: true,
       role: true,
+      status: true,
       teamId: true,
       team: { select: { id: true, key: true, name: true, color: true } },
     },
