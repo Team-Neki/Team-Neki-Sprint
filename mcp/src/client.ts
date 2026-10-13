@@ -18,13 +18,15 @@ export class SprintClient {
   ) {}
 
   async request<T>(method: string, path: string, body?: unknown): Promise<T> {
+    // FormData 는 그대로 보내 fetch 가 multipart boundary 헤더를 붙이게 한다.
+    const isForm = body instanceof FormData;
     const res = await this.fetchImpl(`${this.cfg.apiUrl}${path}`, {
       method,
       headers: {
         authorization: `Bearer ${this.cfg.token}`,
-        ...(body ? { "content-type": "application/json" } : {}),
+        ...(body && !isForm ? { "content-type": "application/json" } : {}),
       },
-      body: body ? JSON.stringify(body) : undefined,
+      body: isForm ? body : body ? JSON.stringify(body) : undefined,
     });
     const json = (await res.json().catch(() => ({}))) as
       | { ok: true; data: T }

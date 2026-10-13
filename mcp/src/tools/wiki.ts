@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+import { basename } from "node:path";
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { SprintClient } from "../client.js";
@@ -117,4 +119,53 @@ export function registerWikiTools(
       return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
     },
   );
+
+  server.registerTool(
+    "upload_wiki_file",
+    {
+      description:
+        "Upload local files as wiki attachments (max 25MB each; SVG/HTML rejected). " +
+        "Returns each file's metadata and a ready 'fileAttachment' Tiptap node. " +
+        "With pageId, the attachments are appended to the end of that page in one edit. " +
+        "To place attachments inside specific sections, upload without pageId, then insert the returned nodes into the page's contentJson with update_wiki_page.",
+      inputSchema: {
+        paths: z.array(z.string()).min(1).describe("Absolute local file paths"),
+        pageId: z.string().nullish().describe("Wiki page id to append the attachments to"),
+      },
+    },
+    async ({ paths, pageId }) => {
+      const uploaded: UploadedFile[] = [];
+      for (const path of paths) {
+        const bytes = await readFile(path);
+        const form = new FormData();
+        form.set("file", new Blob([bytes]), basename(path));
+        uploaded.push(await client.post<UploadedFile>("/api/mcp/v1/wiki/files", form));
+      }
+      const nodes = uploaded.map(fileAttachmentNode);
+
+      let link = "";
+      if (pageId) {
+        const page = await client.get<{ content: { type: string; content?: unknown[] } | null }>(
+          `/api/mcp/v1/wiki/${encodeURIComponent(pageId)}`,
+        );
+        const content = page.content?.type === "doc" ? page.content : { type: "doc", content: [] };
+        await client.patch(`/api/mcp/v1/wiki/${encodeURIComponent(pageId)}`, {
+          contentJson: { ...content, content: [...(content.content ?? []), ...nodes] },
+        });
+        link = `\nAppended ${nodes.length} attachment(s) to ${deepLink(cfg.apiUrl, "wiki", pageId)}`;
+      }
+      return {
+        content: [
+          { type: "text", text: JSON.stringify({ files: uploaded, nodes }, null, 2) + link },
+        ],
+      };
+    },
+  );
+}
+
+type UploadedFile = { id: string; url: string; name: string; size: number; mimeType: string };
+
+/** 위키 에디터의 fileAttachment 노드(src/components/wiki/file-attachment.tsx)와 같은 속성. */
+function fileAttachmentNode(f: UploadedFile) {
+  return { type: "fileAttachment", attrs: { id: f.id, name: f.name, size: f.size, mime: f.mimeType } };
 }
