@@ -25,6 +25,7 @@ Claude Code / Claude Desktop / Cursor 등 MCP 클라이언트에서 Sprint 트�
 | `update_wiki_page` | 위키 제목/본문 수정(본문은 교체). `contentJson`이 `body`보다 우선 |
 | `get_wiki_page` | 위키 조회(순수 텍스트 + Tiptap JSON + folderId/parentId) |
 | `search_wiki_pages` | 제목으로 위키 검색 |
+| `upload_wiki_file` | 로컬 파일을 위키 첨부파일로 업로드(25MB, SVG·HTML 거부). `pageId` 를 주면 페이지 끝에 첨부 칩으로 붙임 |
 | `list_teams` / `list_members` / `list_epics` | id 해석용 조회 보조 |
 
 삭제 도구(`delete_ticket`/`delete_epic`)는 서버가 UI 와 동일한 권한 게이트(작성자·담당자·소유자
