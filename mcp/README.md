@@ -91,10 +91,18 @@ npm run build   # dist/ 로 컴파일
 
 - `mcp/**` 변경이 main 에 반영되면 test+build 검증 후, `package.json` 버전이 npm 에
   **아직 없을 때만** `npm publish` 한다. 즉 **버전 bump 커밋을 머지하는 것이 곧 게시**이고,
-  버전이 그대로면 검증만 하고 끝난다(no-op, 재실행 안전).
+  버전이 그대로면 재게시하지 않는다(no-op, 재실행 안전).
+- 게시 후 레지스트리의 **정확한 버전**을 임시 설치해 MCP stdio `initialize`와 `listTools`를 확인한다.
+  이미 게시된 버전으로 재실행해도 같은 연결 검사를 수행한다.
 - 최초 게시·실패 재시도는 Actions 탭에서 "Publish MCP to npm" 수동 실행(workflow_dispatch).
 - 사전 준비: 레포 시크릿 `NPM_TOKEN` — npm **automation token**(또는 이 패키지 publish
   권한의 granular token). 대화형 2FA 는 CI 에서 불가하므로 automation 타입이어야 한다.
+
+로컬에서 패키징한 빌드 결과를 확인하려면 `mcp/`에서 실행한다.
+
+```bash
+npm run build && node scripts/smoke-package.mjs
+```
 
 ## 보안
 
