@@ -5,8 +5,8 @@
 ## A. 게시 패키지 연결
 
 - [x] A1. `mcp` 빌드 산출물을 패키징한 뒤 실제 패키지 진입점으로 MCP `initialize`와 도구 목록 조회가 성공한다. **결과/근거:** `cd mcp && node scripts/smoke-package.mjs` → `@neki-team/sprint-mcp@0.4.1: initialize and 23 tools OK`
-- [ ] A2. 게시 워크플로에서 새 버전을 게시한 뒤 레지스트리의 정확한 버전으로 같은 MCP 연결 검사를 수행한다. **결과/근거:** 첫 게시 실행 [39137599355](https://github.com/Team-Neki/Team-Neki-Sprint/actions/runs/39137599355)에서 `npm publish`는 성공했으나 npm이 패키지 처리 중이라고 알린 직후 설치가 `ETARGET`으로 실패. 전파 지연 대응 및 재실행 대기
-- [x] A3. 게시 전 npm 버전과 레포 버전을 확인하고, 새 게시가 필요하지 않은 실행은 불필요하게 게시하지 않는다. **결과/근거:** 게시 전 npm 최신 `0.4.0` 확인; 워크플로의 `Decide whether to publish` 단계는 같은 버전이면 게시를 건너뛰고 스모크 검사만 실행함
+- [x] A2. 게시 워크플로에서 새 버전을 게시한 뒤 레지스트리의 정확한 버전으로 같은 MCP 연결 검사를 수행한다. **결과/근거:** 첫 실행 [39137599355](https://github.com/Team-Neki/Team-Neki-Sprint/actions/runs/39137599355)에서 `npm publish` 성공 후 전파 지연으로 즉시 설치가 `ETARGET` 실패. 수정 후 [재실행 39138104518](https://github.com/Team-Neki/Team-Neki-Sprint/actions/runs/39138104518)에서 레지스트리 `0.4.1` 설치·`initialize`·도구 23개 조회 통과
+- [x] A3. 게시 전 npm 버전과 레포 버전을 확인하고, 새 게시가 필요하지 않은 실행은 불필요하게 게시하지 않는다. **결과/근거:** 게시 전 npm 최신 `0.4.0` 확인; 재실행 39138104518에서 `0.4.1 is already on npm - skipping publish` 출력, 연결 검사 통과
 - [x] A4. 새 코드의 패키지 버전은 게시 전 npm 버전보다 높고, `package.json`·`package-lock.json`의 버전이 일치한다. **결과/근거:** 두 파일 모두 `0.4.1`; 게시 전 npm 최신 버전은 `0.4.0`
 - [x] A5. 게시 버전이 아직 보이지 않는 일시적 `ETARGET`만 제한적으로 재시도하고, 다른 오류는 즉시 실패한다. **결과/근거:** 실제 `0.4.1` 조회가 첫 4회 `ETARGET` 후 성공; 로컬 패키지와 게시 버전 모두 `initialize` 및 도구 23개 확인
 
