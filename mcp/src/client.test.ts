@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { SprintClient, ApiError } from "./client";
+import { SprintClient } from "./client";
 
 const cfg = { apiUrl: "https://sprint.test", token: "sprint_pat_x" };
 
@@ -17,13 +17,44 @@ describe("SprintClient", () => {
     expect(await c.get("/x")).toEqual({ id: "1" });
   });
 
+  it.each([
+    ["malformed JSON", "{"],
+    ["empty body", ""],
+    ["missing ok", '{"data":{"id":"1"}}'],
+    ["missing data", '{"ok":true}'],
+  ])("rejects a 2xx response with %s", async (_case, body) => {
+    const c = new SprintClient(
+      cfg,
+      (async () => new Response(body, { status: 200 })) as typeof fetch,
+    );
+    await expect(c.get("/x")).rejects.toMatchObject({
+      name: "ApiError",
+      status: 200,
+      message: expect.stringContaining("Invalid API response"),
+    });
+  });
+
   it("throws ApiError with a described message on failure", async () => {
     const c = new SprintClient(
       cfg,
       fakeFetch(422, { ok: false, error: "unknown team: ZZZ" }),
     );
-    await expect(c.post("/x", {})).rejects.toBeInstanceOf(ApiError);
-    await expect(c.post("/x", {})).rejects.toThrow(/unknown team/);
+    await expect(c.post("/x", {})).rejects.toMatchObject({
+      name: "ApiError",
+      status: 422,
+      message: "unknown team: ZZZ",
+    });
+  });
+
+  it("keeps a 5xx API message and status", async () => {
+    const c = new SprintClient(
+      cfg,
+      fakeFetch(500, { ok: false, error: "internal_error" }),
+    );
+    await expect(c.get("/x")).rejects.toMatchObject({
+      status: 500,
+      message: "internal_error",
+    });
   });
 
   it("supports DELETE via del()", async () => {

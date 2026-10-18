@@ -28,17 +28,25 @@ export class SprintClient {
       },
       body: isForm ? body : body ? JSON.stringify(body) : undefined,
     });
-    const json = (await res.json().catch(() => ({}))) as
-      | { ok: true; data: T }
-      | { ok: false; error: string; issues?: unknown };
-    if (!res.ok || json.ok === false) {
+    const json: unknown = await res.json().catch(() => null);
+    const payload =
+      json !== null && typeof json === "object" && !Array.isArray(json)
+        ? (json as Record<string, unknown>)
+        : null;
+    if (!res.ok || payload?.ok === false) {
       const message =
-        json && "ok" in json && json.ok === false
-          ? describeApiError(json as never)
+        payload?.ok === false
+          ? describeApiError(payload as never)
           : `HTTP ${res.status}`;
       throw new ApiError(res.status, message);
     }
-    return json.data;
+    if (payload?.ok !== true || !("data" in payload)) {
+      throw new ApiError(
+        res.status,
+        `Invalid API response (HTTP ${res.status}): expected { ok: true, data }`,
+      );
+    }
+    return payload.data as T;
   }
 
   get<T>(path: string) {
