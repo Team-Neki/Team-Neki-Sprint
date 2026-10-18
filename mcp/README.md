@@ -42,21 +42,19 @@ Claude Code / Claude Desktop / Cursor 등 MCP 클라이언트에서 Sprint 트�
 
 | 변수 | 값 |
 |---|---|
-| `SPRINT_API_URL` | 배포된 앱의 베이스 URL (예: `https://sprint.example.com`) |
+| `SPRINT_API_URL` | 배포된 앱의 베이스 URL. 프로젝트 `.mcp.json`은 `https://sprint.suitestudy.com:4641`을 기본값으로 사용하며, 다른 서버에 연결할 때만 설정 |
 | `SPRINT_API_TOKEN` | 위에서 발급한 `sprint_pat_...` 토큰 |
 
 ## 3-A. Claude Code (레포 클론 팀원)
 
-레포 루트에 `.mcp.json`이 커밋돼 있어 프로젝트 MCP로 자동 인식된다.
+레포 루트의 `.mcp.json`이 npm에 게시된 `@neki-team/sprint-mcp`를 `npx`로 실행한다. Node.js 18 이상이 필요하며, 레포의 `mcp/`를 따로 설치하거나 빌드할 필요는 없다.
 
 ```bash
-cd mcp && npm install && npm run build && cd ..
-export SPRINT_API_URL="https://<배포_도메인>"
 export SPRINT_API_TOKEN="sprint_pat_..."
 # Claude Code 재시작 → 프로젝트 MCP 서버 'sprint' 승인
 ```
 
-`.mcp.json`은 `${SPRINT_API_URL}` / `${SPRINT_API_TOKEN}`을 셸 환경에서 확장한다. 토큰은 커밋하지 않는다.
+다른 서버에 연결할 때는 Claude Code 실행 전에 `SPRINT_API_URL`도 설정한다. `.mcp.json`은 `${SPRINT_API_URL:-https://sprint.suitestudy.com:4641}` / `${SPRINT_API_TOKEN}`을 환경에서 확장한다. 토큰은 커밋하지 않는다.
 
 ## 3-B. Claude Desktop / Cursor (레포 없이)
 
@@ -71,15 +69,13 @@ npm에 게시된 패키지를 `npx`로 실행한다.
       "command": "npx",
       "args": ["-y", "@neki-team/sprint-mcp"],
       "env": {
-        "SPRINT_API_URL": "https://<배포_도메인>",
+        "SPRINT_API_URL": "https://sprint.suitestudy.com:4641",
         "SPRINT_API_TOKEN": "sprint_pat_..."
       }
     }
   }
 }
 ```
-
-> 게시 전에는 로컬 빌드 경로(`"command": "node", "args": ["<repo>/mcp/dist/index.js"]`)로도 등록할 수 있다.
 
 ## 개발
 

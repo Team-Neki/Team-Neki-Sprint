@@ -1,10 +1,10 @@
 {
   "mcpServers": {
     "sprint": {
-      "command": "node",
-      "args": ["mcp/dist/index.js"],
+      "command": "npx",
+      "args": ["-y", "@neki-team/sprint-mcp"],
       "env": {
-        "SPRINT_API_URL": "${SPRINT_API_URL:-https://SET-YOUR-SPRINT-DOMAIN}",
+        "SPRINT_API_URL": "${SPRINT_API_URL:-https://sprint.suitestudy.com:4641}",
         "SPRINT_API_TOKEN": "${SPRINT_API_TOKEN}"
       }
     }
