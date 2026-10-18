@@ -25,9 +25,26 @@ try {
   }
 
   const installDir = join(tempDir, "install");
-  execFileSync("npm", ["install", "--prefix", installDir, "--omit=dev", "--no-audit", "--no-fund", packageSpec], {
-    stdio: "inherit",
-  });
+  const maxAttempts = requestedVersion ? 13 : 1;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const output = execFileSync("npm", ["install", "--prefix", installDir, "--omit=dev", "--no-audit", "--no-fund", ...(requestedVersion ? ["--prefer-online"] : []), packageSpec], {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      process.stdout.write(output);
+      break;
+    } catch (error) {
+      const stderr = error.stderr?.toString() ?? "";
+      const pending = requestedVersion && stderr.includes("ETARGET") && stderr.includes(`No matching version found for ${packageSpec}`);
+      if (!pending || attempt === maxAttempts) {
+        process.stderr.write(stderr);
+        throw new Error(`Failed to install ${packageSpec} after ${attempt} attempt(s)`, { cause: error });
+      }
+      console.warn(`${packageSpec} is not available yet (attempt ${attempt}/${maxAttempts}); retrying in 15 seconds`);
+      await new Promise((resolve) => setTimeout(resolve, 15_000));
+    }
+  }
 
   const installedDir = join(installDir, "node_modules", ...manifest.name.split("/"));
   const installed = JSON.parse(await readFile(join(installedDir, "package.json"), "utf8"));
