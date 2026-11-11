@@ -1406,6 +1406,7 @@ export function getAnnouncement(id: string) {
 }
 
 export async function getDashboardData(userId: string) {
+  const activityLimit = 3;
   // "최근 활동" 개인화(나와 관련된 것만): 내가 담당/보고자인 태스크, 내가 오너인 에픽,
   // 내가 작성한 위키에 일어난 활동 + 나를 멘션한 알림. 먼저 내 엔티티 id 를 모은다.
   const [myTaskRows, myEpicRows, myWikiRows] = await Promise.all([
@@ -1425,24 +1426,10 @@ export async function getDashboardData(userId: string) {
 
   const [
     statusCounts,
-    totalTasks,
-    myTasks,
     myActivityRaw,
     mentionRaw,
-    projects,
   ] = await Promise.all([
     prisma.task.groupBy({ by: ["status"], _count: true }),
-    prisma.task.count(),
-    prisma.task.findMany({
-      where: { status: { not: "DONE" }, dueDate: { not: null } },
-      orderBy: { dueDate: "asc" },
-      take: 6,
-      include: {
-        assignee: miniUser,
-        assigneeTeam: miniTeam,
-        team: { select: { key: true } },
-      },
-    }),
     // 나와 관련된 엔티티에 일어난 활동(행위자 무관 — 남이 내 티켓을 수정해도 뜬다).
     prisma.activity.findMany({
       where: {
@@ -1453,26 +1440,20 @@ export async function getDashboardData(userId: string) {
         ],
       },
       orderBy: { createdAt: "desc" },
-      take: 12,
+      take: activityLimit,
       include: { user: miniUser },
     }),
     // 나를 멘션한 알림(활동 피드에 함께 노출).
     prisma.notification.findMany({
       where: { userId, type: "mention" },
       orderBy: { createdAt: "desc" },
-      take: 12,
+      take: activityLimit,
       include: { actor: miniUser },
-    }),
-    prisma.project.findMany({
-      where: { status: { not: "DONE" } },
-      orderBy: { createdAt: "desc" },
-      take: 5,
-      include: { _count: { select: { epics: true } } },
     }),
   ]);
 
   // 멘션 알림을 활동 항목과 같은 모양으로 정규화(actor=행위자, action="mentioned",
-  // 제목=notification.context=페이지/티켓 제목). 그 뒤 활동과 병합해 최신순 12개.
+  // 제목=notification.context=페이지/티켓 제목). 그 뒤 활동과 병합해 최신순으로 제한.
   const mentionItems = mentionRaw.map((n) => ({
     id: `mention:${n.id}`,
     user: n.actor,
@@ -1491,7 +1472,7 @@ export async function getDashboardData(userId: string) {
     ...mentionItems,
   ]
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-    .slice(0, 12);
+    .slice(0, activityLimit);
 
   // 최근 활동 enrich: 티켓 key(TEAM-n) + 엔티티 제목 + 값 해석용 lookup.
   // entityId 는 폴리모픽이라 task/epic 은 모아서 조회, 나머지 이름은 lookup 으로 해석.
@@ -1572,10 +1553,7 @@ export async function getDashboardData(userId: string) {
 
   return {
     statusCounts,
-    totalTasks,
-    myTasks,
     recentActivity,
-    projects,
     activityLookups: {
       members: lookupMembers,
       epics: lookupEpics,

@@ -1,11 +1,14 @@
 import Link from "next/link";
-import { formatDistanceToNow, format } from "date-fns";
+import { formatDistanceToNow } from "date-fns";
 import { ko } from "date-fns/locale";
 import { Megaphone } from "lucide-react";
 import type { Status } from "@prisma/client";
-import { getDashboardData, getAnnouncements } from "@/server/queries";
+import { getDashboardData, getAnnouncements, getProjects, getSprints } from "@/server/queries";
+import { getDashboardSchedule } from "@/server/dashboard-schedule";
 import { requireUser } from "@/lib/session";
 import { PageHeader } from "@/components/page-header";
+import { DashboardSchedule } from "@/components/dashboard/schedule";
+import { TaskProgressCell } from "@/components/detail/task-progress";
 import {
   Card,
   CardAction,
@@ -18,8 +21,10 @@ import { UserBadge } from "@/components/user-badge";
 import { NewAnnouncementButton } from "@/components/announcements/new-announcement-button";
 import { STATUS_ORDER, STATUS_META } from "@/lib/constants";
 import { buildLookups, activityDescription } from "@/lib/activity-format";
+import { getScheduleWindow, scheduleDate, scheduleToday, type ScheduleItem } from "@/lib/dashboard-schedule";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "대시보드" };
 
 const ENTITY_LABEL: Record<string, string> = {
   sprint: "스프린트",
@@ -45,18 +50,59 @@ function ellipsize(s: string, n: number) {
   return s.length > n ? `${s.slice(0, n)}…` : s;
 }
 
-export default async function DashboardPage() {
+function displayPeriod(start: Date | null, end: Date | null) {
+  const text = (date: Date) => scheduleDate(date).replaceAll("-", ".");
+  if (start && end) return `${text(start)} – ${text(end)}`;
+  if (start) return `시작 ${text(start)}`;
+  if (end) return `마감 ${text(end)}`;
+  return "일정 미설정";
+}
+
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ view?: string | string[]; date?: string | string[]; ganttPage?: string | string[] }>;
+}) {
   const user = await requireUser();
+  const today = scheduleToday(new Date());
+  const query = await searchParams;
+  const schedule = getScheduleWindow(query, today);
   // 공지 스위치(announcements/layout.tsx 와 같은 조건). 꺼져 있으면 카드·조회 모두 생략.
   const showAnnouncements = process.env.ANNOUNCEMENTS_ENABLED === "true";
   const [
-    { statusCounts, myTasks, recentActivity, projects, activityLookups },
+    { statusCounts, recentActivity, activityLookups },
     announcements,
+    sprints,
+    projects,
+    scheduleItems,
   ] = await Promise.all([
     getDashboardData(user.id),
     showAnnouncements ? getAnnouncements(5) : [],
+    getSprints({ status: ["ACTIVE", "PLANNED"] }),
+    getProjects({ status: ["IN_PROGRESS"] }),
+    getDashboardSchedule(schedule.days[0], schedule.days.at(-1)!),
   ]);
   const lookups = buildLookups(activityLookups);
+  const activeSprints = sprints.filter((s) => s.status === "ACTIVE");
+  const plannedSprints = sprints.filter(
+    (s) => s.status === "PLANNED" &&
+      (!s.endDate ? !s.startDate || scheduleDate(s.startDate) >= today : scheduleDate(s.endDate) >= today),
+  );
+  const nextSprint = plannedSprints
+    .sort((a, b) =>
+      ((a.startDate ?? a.endDate)?.getTime() ?? Number.MAX_SAFE_INTEGER) -
+      ((b.startDate ?? b.endDate)?.getTime() ?? Number.MAX_SAFE_INTEGER),
+    )[0];
+  const unscheduledSprints = [...activeSprints, ...(nextSprint ? [nextSprint] : [])]
+    .filter((s) => !s.startDate && !s.endDate);
+  const undated: ScheduleItem[] = [
+    ...unscheduledSprints.map((s) => ({
+      id: s.id, title: s.name, kind: "sprint" as const, status: s.status, start: null, end: null,
+    })),
+    ...projects.filter((p) => !p.startDate && !p.dueDate).map((p) => ({
+      id: p.id, title: p.title, kind: "project" as const, status: p.status, start: null, end: null,
+    })),
+  ];
 
   const countByStatus = Object.fromEntries(
     statusCounts.map((s) => [s.status, s._count]),
@@ -64,10 +110,7 @@ export default async function DashboardPage() {
 
   return (
     <div>
-      <PageHeader
-        title="대시보드"
-        description="팀의 진행 상황을 한눈에 확인하세요."
-      />
+      <PageHeader title="대시보드" />
 
       {/* 공지: 전원이 봐야 하는 정보라 대시보드 최상단에 두고, 인셋 헤더 밴드 +
           잉크 아이콘으로 다른 카드보다 한 단계 강조한다(새 액센트 색은 도입하지
@@ -117,88 +160,79 @@ export default async function DashboardPage() {
         </Card>
       )}
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        {STATUS_ORDER.map((s) => (
-          <Link key={s} href={`/tasks?status=${s}`}>
-            <Card className="hover:ring-primary/30 transition-shadow">
-              <CardContent className="py-0">
-                <div className="flex items-center gap-2">
-                  <span className={`size-2 rounded-full ${STATUS_META[s].dot}`} />
-                  <span className="text-muted-foreground text-xs">
-                    {STATUS_META[s].label}
-                  </span>
-                </div>
-                <p className="mt-2 text-2xl font-semibold">
-                  {countByStatus[s] ?? 0}
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
-      </div>
+      <DashboardSchedule schedule={schedule} items={scheduleItems} undated={undated} today={today} ganttPage={query.ganttPage}>
+        <nav aria-label="태스크 상태 요약" className="mt-3 flex flex-wrap items-center gap-y-1">
+          {STATUS_ORDER.map((s) => (
+            <Link key={s} href={`/tasks?status=${s}`} className="hover:bg-accent/60 inline-flex min-h-8 items-center gap-2 border-r px-3 text-sm last:border-r-0">
+              <span className="text-muted-foreground">{STATUS_META[s].label}</span>
+              <span className="font-semibold tabular-nums">{countByStatus[s] ?? 0}</span>
+            </Link>
+          ))}
+        </nav>
+      </DashboardSchedule>
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <Card className="min-w-0 gap-2">
           <CardHeader>
-            <CardTitle className="text-base">다가오는 마감</CardTitle>
+            <CardTitle><h2>진행 중 스프린트</h2></CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-1">
-            {myTasks.length === 0 && (
-              <p className="text-muted-foreground py-6 text-center text-sm">
-                예정된 마감이 없습니다.
-              </p>
+            {!activeSprints.length && (
+              <p className="text-muted-foreground">진행 중인 스프린트 없음</p>
             )}
-            {myTasks.map((t) => (
+            {activeSprints.map((s) => (
               <Link
-                key={t.id}
-                href={`/tasks/${t.id}`}
-                className="hover:bg-accent/60 flex items-center gap-3 rounded-md px-2 py-2"
+                key={s.id}
+                href={`/sprints/${s.id}`}
+                className="hover:bg-accent/60 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-md px-2 py-2"
               >
-                <StatusBadge status={t.status} />
-                <span className="min-w-0 flex-1 truncate text-sm">{t.title}</span>
-                {t.dueDate && (
-                  <span className="text-muted-foreground shrink-0 text-xs">
-                    {format(t.dueDate, "M월 d일", { locale: ko })}
-                  </span>
-                )}
-                <UserBadge user={t.assignee} hideName size="xs" />
+                <span className="min-w-0 font-medium">{s.name}</span>
+                <span className="text-muted-foreground text-xs">{displayPeriod(s.startDate, s.endDate)}</span>
+                <TaskProgressCell progress={s.progress} />
               </Link>
             ))}
+            {nextSprint && (
+              <Link href={`/sprints/${nextSprint.id}`} className="hover:bg-accent/60 mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 border-t pt-2">
+                <span className="size-1.5 shrink-0 rounded-full bg-blue-500" aria-hidden />
+                <span className="min-w-0 flex-1 font-medium">{nextSprint.name}</span>
+                <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-xs">예정</span>
+                <span className="text-muted-foreground text-xs">{displayPeriod(nextSprint.startDate, nextSprint.endDate)}</span>
+              </Link>
+            )}
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="min-w-0 gap-2">
           <CardHeader>
-            <CardTitle className="text-base">진행 중 프로젝트</CardTitle>
+            <CardTitle><h2>진행 중 프로젝트</h2></CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-1">
             {projects.length === 0 && (
-              <p className="text-muted-foreground py-6 text-center text-sm">
-                프로젝트가 없습니다.
+              <p className="text-muted-foreground">
+                진행 중인 프로젝트 없음
               </p>
             )}
             {projects.map((p) => (
               <Link
                 key={p.id}
                 href={`/projects/${p.id}`}
-                className="hover:bg-accent/60 flex items-center gap-2 rounded-md px-2 py-2"
+                className="hover:bg-accent/60 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md px-2 py-2"
               >
                 <StatusBadge status={p.status} />
-                <span className="min-w-0 flex-1 truncate text-sm">{p.title}</span>
-                <span className="text-muted-foreground shrink-0 text-xs">
-                  에픽 {p._count.epics}
-                </span>
+                <span className="min-w-0 flex-1 font-medium">{p.title}</span>
+                <span className="text-muted-foreground text-xs">{displayPeriod(p.startDate, p.dueDate)}</span>
+                <TaskProgressCell progress={p.progress} />
               </Link>
             ))}
           </CardContent>
         </Card>
       </div>
 
-      <Card className="mt-4">
+      <Card className="mt-4 gap-2">
         <CardHeader>
-          <CardTitle className="text-base">최근 활동</CardTitle>
+          <CardTitle><h2>최근 활동</h2></CardTitle>
         </CardHeader>
-        <CardContent className="flex flex-col gap-2">
+        <CardContent className="flex flex-col divide-y">
           {recentActivity.length === 0 && (
             <p className="text-muted-foreground py-6 text-center text-sm">
               아직 활동 기록이 없습니다.
